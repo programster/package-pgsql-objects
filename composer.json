@@ -1,0 +1,31 @@
+{
+    "name": "programster/pgsql-objects",
+    "type": "library",
+    "description": "A library for interfacing with a PostgreSQL database in PHP. Facilitates the creation of objects that represents tables tables. Objects must have id of type UUID.",
+    "keywords": ["orm", "pgsql", "postgresql", "models"],
+    "homepage": "https://github.com/programster/package-mysql-objects",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Stuart Page",
+            "email": "sdpagent@gmail.com",
+            "homepage": "https://blog.programster.org",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=8.0.0",
+        "programster/core-libs": "^2.1",
+        "ramsey/uuid": "^4.1"
+    },
+    "require-dev" : {
+        "irap/autoloader" : "1.0.*",
+        "programster/pgsql-migrations": "0.3.*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Programster\\PgsqlObjects\\": "src/",
+            "Programster\\PgsqlObjects\\Exceptions\\": "src/exceptions"
+        }
+    }
+}
