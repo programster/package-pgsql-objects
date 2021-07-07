@@ -9,7 +9,7 @@ declare(strict_types = 1);
 namespace Programster\PgsqlObjects;
 
 
-abstract class AbstractTable implements \Programster\PgsqlObjects\TableInterface
+abstract class AbstractTable implements TableInterface
 {
     # Array of all the child instances that get created.
     protected static array $s_instances;
