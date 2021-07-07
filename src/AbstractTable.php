@@ -149,7 +149,7 @@ abstract class AbstractTable implements TableInterface
      * so that we can update the cache accordingly.
      * @throws \Exception
      */
-    protected static function deleteWhereAnd(array $wherePairs, $updateCache=true) : void
+    protected function deleteWhereAnd(array $wherePairs, $updateCache=true) : void
     {
         $objects = $this->loadWhereAnd($wherePairs);
         $objectIds = array();
@@ -219,7 +219,7 @@ abstract class AbstractTable implements TableInterface
      * @return array<AbstractTableRowObject>
      * @throws \Exception
      */
-    public static function loadWhereOr(array $wherePairs)
+    public function loadWhereOr(array $wherePairs)
     {
         $query = Utils::generateSelectWhereQuery(
             $this->getDb(),
@@ -246,7 +246,7 @@ abstract class AbstractTable implements TableInterface
      * @param array $uuids - the list of IDs of the objects we wish to delete.
      * @return int - the number of objects deleted.
      */
-    public static function deleteIds(array $uuids) : void
+    public function deleteIds(array $uuids) : void
     {
         $uuidsToDelete = self::escapeValues($uuids);
         $wherePairs = array("uuid" => $uuidsToDelete);
@@ -290,7 +290,7 @@ abstract class AbstractTable implements TableInterface
      * @return array<AbstractTableRowObject>
      * @throws \Exception
      */
-    protected static function deleteWhereOr(array $wherePairs, $clearCache=true)
+    protected function deleteWhereOr(array $wherePairs, $clearCache=true)
     {
         $query = Utils::generateDeleteWhereQuery(
             $this->getDb(),
@@ -350,7 +350,7 @@ abstract class AbstractTable implements TableInterface
      * @param string $id - the ID (uuid) of the object
      * @return type
      */
-    public static function deleteById(string $id)
+    public function deleteById(string $id)
     {
         $query = "DELETE FROM " . self::getEscapedTableName() . " WHERE uuid=" . pg_escape_literal($id);
         $result = $this->getDb()->query($query);
