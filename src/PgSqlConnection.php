@@ -131,7 +131,7 @@ class PgSqlConnection
     }
 
 
-    public static function escapeValue($input)
+    public function escapeValue($input)
     {
         return Utils::escapeValue($this, $input);
     }
