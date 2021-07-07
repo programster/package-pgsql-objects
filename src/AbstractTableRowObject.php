@@ -42,6 +42,7 @@ abstract class AbstractTableRowObject
     public function delete() : void
     {
         $this->getTableHandler()->delete($this->m_id);
+        $this->m_isSavedInDatabase = false;
     }
 
 
@@ -99,6 +100,8 @@ abstract class AbstractTableRowObject
         {
             $this->getTableHandler()->create($properties);
         }
+
+        $this->m_isSavedInDatabase = true;
     }
 
 
