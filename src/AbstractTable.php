@@ -106,10 +106,27 @@ abstract class AbstractTable implements TableInterface
         $escapedColumnNames = $this->getDb()->escapeIdentifiers($columnNames);
         $escapedValues = $this->getDb()->escapeValues($values);
 
+        $valuesString = "";
+
+        foreach($escapedValues as $escapedValue)
+        {
+            if ($escapedValue === null)
+            {
+                $valuesString .= "NULL, ";
+            }
+            else
+            {
+                $valuesString .= $escapedValue . ", ";
+            }
+        }
+
+        $valuesString = \Safe\substr($valuesString, 0, strlen($valuesString) - 2);
+
+
         $query =
             "INSERT INTO {$this->getEscapedTableName()}" .
             " (" . implode(",", $escapedColumnNames) . ")" .
-            " VALUES (" . implode(", ", $escapedValues) . ")";
+            " VALUES ($valuesString)";
 
         $result = $this->getDb()->query($query);
 
