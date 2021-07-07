@@ -205,15 +205,12 @@ abstract class AbstractTableRowObject
             "money"
         );
 
-        if (isset($row['id']))
+        if (!isset($row['id']))
         {
-            $this->m_id = $row['id'];
-        }
-        else
-        {
-            $this->m_id = Utils::generateUuid();
+            $row['id'] = Utils::generateUuid();
         }
 
+        $this->m_id = $row['id'];
         $setMethods = $this->getSetFunctions();
 
         foreach ($setMethods as $columnName => $callback)
