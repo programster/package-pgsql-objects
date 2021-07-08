@@ -65,7 +65,7 @@ class Utils
 
             if ($value === null)
             {
-                $query .= "{$escapedIdentifier} = NULL, '";
+                $query .= "{$escapedIdentifier} = NULL, ";
             }
             else
             {
