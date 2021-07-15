@@ -139,6 +139,10 @@ class Utils
         {
             $escapedValue = $value;
         }
+        elseif (is_bool($value))
+        {
+            $escapedValue = ($value) ? "TRUE" : "FALSE";
+        }
         elseif ($value === null)
         {
             // dont need to do anything for a null value
