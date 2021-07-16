@@ -208,6 +208,10 @@ abstract class AbstractTableRowObject
             "money"
         );
 
+        $boolFieldTypes = array(
+            "bool"
+        );
+
         if (!isset($row['id']))
         {
             $row['id'] = Utils::generateUuid();
@@ -259,6 +263,15 @@ abstract class AbstractTableRowObject
                         if ($value !== null)
                         {
                             $value = intval($value);
+                        }
+
+                        $callback($value);
+                    }
+                    else if (in_array($fieldType, $boolFieldTypes))
+                    {
+                        if ($value !== null)
+                        {
+                            $value = ($value === "t"); // value is string "t" or "f" for true or false.
                         }
 
                         $callback($value);
