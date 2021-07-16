@@ -247,7 +247,7 @@ abstract class AbstractTableRowObject
                     && isset($fieldInfoMap[$columnName])
                 )
                 {
-                    $fieldType = $fieldInfoMap[$columnName];
+                    $fieldType = $fieldInfoMap[$columnName]['type'];
 
                     if (in_array($fieldType, $floatFieldTypes))
                     {
