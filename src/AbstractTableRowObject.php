@@ -223,7 +223,7 @@ abstract class AbstractTableRowObject
         foreach ($setMethods as $columnName => $callback)
         {
             /* @var $callback Callback */
-            if ( !isset($row[$columnName]) )
+            if (array_key_exists($columnName, $row) === false)
             {
                 if
                 (
@@ -293,4 +293,3 @@ abstract class AbstractTableRowObject
     # Accessors
     public function getId() : string { return $this->m_id; }
 }
-
