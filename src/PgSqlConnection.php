@@ -137,6 +137,19 @@ class PgSqlConnection
     }
 
 
+    /**
+     * Creates a batch insert query for inserting lots of data in one go.
+     * @param string $tableName - the name of the table to insert into.
+     * @param array $rows - the rows of data to insert in name/value pairs. Every row must contain the same set of keys,
+     * but those keys don't need to be in the same order.
+     * @return string - the query to execute to batch insert the data.
+     */
+    public function generateBatchInsertQuery(string $tableName, array $rows) : string
+    {
+        return Utils::generateBatchInsertQuery($this, $tableName, $rows);
+    }
+
+
     # Accessors
     public function getResource() { return $this->m_resource; }
 }

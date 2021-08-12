@@ -252,8 +252,68 @@ class Utils
     ) : string
     {
         $query =
-            "DELETE FROM {$this->getEscapedTableName()} " .
+            "DELETE FROM {$tableName} " .
             Utils::generateWhereClause($connection, $tableName, $wherePairs, $conjunction);
+
+        return $query;
+    }
+
+
+    /**
+     * Creates a batch insert query for inserting lots of data in one go.
+     * @param PgSqlConnection $db
+     * @param string $tableName - the name of the table to insert into.
+     * @param array $rows - the rows of data to insert in name/value pairs. Every row must contain the same set of keys,
+     * but those keys don't need to be in the same order.
+     * @return string - the query to execute to batch insert the data.
+     * @throws \Exception
+     */
+    public static function generateBatchInsertQuery(PgSqlConnection $db, string $tableName, array $rows) : string
+    {
+        $valueSets = array();
+        $firstRow = true;
+        $escapedColumnNames = array();
+
+        if (count($rows) === 0)
+        {
+            throw new \Exception("No data to insert.");
+        }
+
+        foreach ($rows as $row)
+        {
+            ksort($row); // always sort by key so all rows are consisten on insert.
+
+            if ($firstRow)
+            {
+                $columnNames = array_keys($row);
+                $escapedColumnNames = Utils::escapeidentifiers($db, $columnNames);
+                $firstRow = false;
+            }
+
+            $rowValues = array_values($row);
+            $escapedRowValues = Utils::escapeValues($db, $rowValues);
+            $rowValuesString = "";
+
+            foreach ($escapedRowValues as $escapedValue)
+            {
+                if ($escapedValue === null)
+                {
+                    $rowValuesString .= "NULL, ";
+                }
+                else
+                {
+                    $rowValuesString .= $escapedValue . ", ";
+                }
+            }
+
+            $valueSets[] = "(" . \Safe\substr($rowValuesString, 0, strlen($rowValuesString) - 2) . ")";
+        }
+
+        $query =
+            "INSERT INTO {$tableName}"
+            . " (" . implode(",", $escapedColumnNames) . ")"
+            . " VALUES " . implode(",", $valueSets)
+            . ";";
 
         return $query;
     }
