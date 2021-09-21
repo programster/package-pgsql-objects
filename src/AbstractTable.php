@@ -338,7 +338,7 @@ abstract class AbstractTable implements TableInterface
         {
             print $query . PHP_EOL;
             $msg = "Failed to delete from {$this->getTableName()} with uuid: {$uuid}" . PHP_EOL . pg_result_error($result);
-            throw new ExceptionQueryFailed($msg);
+            throw new Exceptions\ExceptionQueryFailed($msg);
         }
 
         $this->unsetCache($uuid);
@@ -359,7 +359,7 @@ abstract class AbstractTable implements TableInterface
         {
             print $query . PHP_EOL;
             $msg = "Failed to delete row from {$this->getTableName()} with id: {$id}" . pg_result_error($result);
-            throw new ExceptionQueryFailed($query, $msg);
+            throw new Exceptions\ExceptionQueryFailed($query, $msg);
         }
 
         $this->unsetCache($id);
@@ -385,7 +385,7 @@ abstract class AbstractTable implements TableInterface
             $msg = "Failed to delete from {$this->getTableName()} with ids: [" .
                     implode(", ", $uuids) . "]" . PHP_EOL . pg_result_error($result);
 
-            throw new ExceptionQueryFailed($query, $msg);
+            throw new Exceptions\ExceptionQueryFailed($query, $msg);
         }
 
         if ($updateCache)

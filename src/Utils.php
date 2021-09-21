@@ -155,7 +155,7 @@ class Utils
                 "issue if appropriate. In the meantime, try escaping values manually and set " .
                 "escapeValues to false.";
 
-            throw new ExceptionUnexpectedValueType($value, $msg);
+            throw new Exceptions\ExceptionUnexpectedValueType($value, $msg);
         }
 
         return $escapedValue;

@@ -21,7 +21,7 @@ class PgSqlConnection
 
         if ($status !== PGSQL_CONNECTION_OK)
         {
-            throw new ExceptionConnectionError("Resource provided is not connected to the PostgreSql database.");
+            throw new Exceptions\ExceptionConnectionError("Resource provided is not connected to the PostgreSql database.");
         }
 
         $this->m_resource = $pgsqlResource;
@@ -82,7 +82,7 @@ class PgSqlConnection
 
         if ($connection == false)
         {
-            throw new ExceptionConnectionError("Failed to initialize database connection.");
+            throw new Exceptions\ExceptionConnectionError("Failed to initialize database connection.");
         }
 
         return new PgSqlConnection($connection);
