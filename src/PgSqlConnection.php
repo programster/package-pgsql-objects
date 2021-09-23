@@ -70,12 +70,12 @@ class PgSqlConnection
 
         if ($forceNew)
         {
-            $connectionOptions = $options | PGSQL_CONNECT_FORCE_NEW;
+            $connectionOptions = $connectionOptions | PGSQL_CONNECT_FORCE_NEW;
         }
 
         if ($useAsync)
         {
-            $connectionOptions = $options | PGSQL_CONNECT_ASYNC;
+            $connectionOptions = $connectionOptions | PGSQL_CONNECT_ASYNC;
         }
 
         $connection = pg_connect($connString, $connectionOptions);
