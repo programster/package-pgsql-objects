@@ -133,7 +133,7 @@ class Utils
     {
         if (is_string($value))
         {
-            $escapedValue = pg_escape_literal($value);
+            $escapedValue = pg_escape_literal($conn->getResource(), $value);
         }
         elseif (is_numeric($value))
         {
