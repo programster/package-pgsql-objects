@@ -228,14 +228,14 @@ abstract class AbstractTable implements TableInterface
             'OR'
         );
 
-        $result = self::query($query);
+        $result = $this->getDb()->query($query);
 
         if ($result === FALSE)
         {
             throw new \Exception("Failed to load objects, check your where parameters.");
         }
 
-        return self::convertPgResultToObjects($result);
+        return $this->convertPgResultToObjects($result);
     }
 
 
@@ -248,7 +248,7 @@ abstract class AbstractTable implements TableInterface
      */
     public function deleteIds(array $uuids) : void
     {
-        $uuidsToDelete = self::escapeValues($uuids);
+        $uuidsToDelete = $this->getDb()->escapeValues($uuids);
         $wherePairs = array("uuid" => $uuidsToDelete);
 
         $query = Utils::generateDeleteWhereQuery(
@@ -352,7 +352,7 @@ abstract class AbstractTable implements TableInterface
      */
     public function deleteById(string $id)
     {
-        $query = "DELETE FROM " . self::getEscapedTableName() . " WHERE uuid=" . pg_escape_literal($id);
+        $query = "DELETE FROM {$this->getEscapedTableName()} WHERE uuid=" . pg_escape_literal($id);
         $result = $this->getDb()->query($query);
 
         if ($result === FALSE)
@@ -582,7 +582,7 @@ abstract class AbstractTable implements TableInterface
     public function loadAll() : array
     {
         $this->emptyCache();
-        $query = "SELECT * FROM " . self::getEscapedTableName();
+        $query = "SELECT * FROM {$this->getEscapedTableName()}";
         $result = $this->getDb()->query($query);
 
         if ($result === FALSE)
@@ -590,7 +590,7 @@ abstract class AbstractTable implements TableInterface
             throw new \Exception('Error selecting all objects for loading.');
         }
 
-        return self::convertPgResultToObjects($result);
+        return $this->convertPgResultToObjects($result);
     }
 
 
@@ -603,17 +603,15 @@ abstract class AbstractTable implements TableInterface
      */
     public function loadRange(int $offset, int $numElements) : array
     {
-        $tableName = self::getEscapedTableName();
-        $query = "SELECT * FROM {$tableName} LIMIT {$offset},{$numElements}";
-
-        $result  = self::query($query);
+        $query = "SELECT * FROM {$this->getEscapedTableName()} OFFSET {$offset} LIMIT {$numElements}";
+        $result  = $this->getDb()->query($query);
 
         if ($result === FALSE)
         {
            throw new \Exception('Error selecting all objects for loading. ' . pg_result_error($result));
         }
 
-        return self::convertPgResultToObjects($result);
+        return $this->convertPgResultToObjects($result);
     }
 
 
