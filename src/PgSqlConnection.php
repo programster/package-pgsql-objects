@@ -1,8 +1,13 @@
 <?php
 
 /*
- * A class to wrap around a postgresql connection, primarily because we can't type-hint the postgresql resource like
- * we can do with a \mysqli connection
+ * A class to wrap around a postgresql connection, primarily because we
+ * can't type-hint the postgresql resource like we can do with a \mysqli connection
+ *
+ * This should become rudundant as we move onto PHP 8.1 which will make the
+ * PgSql\Connection object a return type of pg_connect:
+ * https://www.php.net/manual/en/class.pgsql-connection.php
+ * https://www.php.net/manual/en/function.pg-connect.php
  */
 
 declare(strict_types = 1);
@@ -90,15 +95,14 @@ class PgSqlConnection
 
 
     /**
-     * An alias for Utils::generateQueryPairs
-     * @param array $pairs
-     * @param PgSqlConnection $conn
+     * An alias for PgsqlLib::generateQueryPairs
+     * @param array $pairs - the name/value pairs to escape.
      * @param bool $escapeValues
      * @return string
      */
     public function generateQueryPairs(array $pairs, bool $escapeValues = true) : string
     {
-        return Utils::generateQueryPairs($pairs, $this, $escapeValues);
+        return PgsqlLib::generateQueryPairs($this->getResource(), $pairs, $escapeValues);
     }
 
 
@@ -115,25 +119,25 @@ class PgSqlConnection
 
     public function escapeIdentifier(string $nameOfTableOrColumn)
     {
-        return Utils::escapeidentifier($this, $nameOfTableOrColumn);
+        return PgsqlLib::escapeidentifier($this->getResource(), $nameOfTableOrColumn);
     }
 
 
     public function escapeIdentifiers(array $identifiers)
     {
-        return Utils::escapeidentifiers($this, $identifiers);
+        return PgsqlLib::escapeidentifiers($this->getResource(), $identifiers);
     }
 
 
     public function escapeValues(array $inputs) : array
     {
-        return Utils::escapeValues($this, $inputs);
+        return PgsqlLib::escapeValues($this->getResource(), $inputs);
     }
 
 
     public function escapeValue($input)
     {
-        return Utils::escapeValue($this, $input);
+        return PgsqlLib::escapeValue($this->getResource(), $input);
     }
 
 
@@ -146,7 +150,25 @@ class PgSqlConnection
      */
     public function generateBatchInsertQuery(string $tableName, array $rows) : string
     {
-        return Utils::generateBatchInsertQuery($this, $tableName, $rows);
+        return PgsqlLib::generateBatchInsertQuery($this->getResource(), $tableName, $rows);
+    }
+
+
+    /**
+     * Helper function that generates the raw SQL string to send to the database in order to
+     * load objects that have any/all (depending on $conjunction) of the specified attributes.
+     *
+     * @param string $tableName - the name of the table to select from.
+     * @param array $wherePairs - column-name/value pairs of attributes the objects must have to
+     *                           be loaded.
+     * @param Conjunction $conjunction - 'AND' or 'OR' which changes whether the object needs all or
+     *                                   any of the specified attributes in order to be loaded.
+     * @return string - the raw sql string to send to the database.
+     * @throws \Exception - invalid $conjunction specified that was not 'OR' or 'AND'
+     */
+    public function generateSelectWhereQuery(string $tableName, array $wherePairs, Conjunction $conjunction)
+    {
+        return PgsqlLib::generateSelectWhereQuery($this->getResource(), $tableName, $wherePairs, $conjunction);
     }
 
 

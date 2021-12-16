@@ -190,8 +190,8 @@ abstract class AbstractTable implements TableInterface
      */
     public function loadWhereAnd(array $wherePairs)
     {
-        $query = Utils::generateSelectWhereQuery(
-            $this->getDb(),
+        $query = PgsqlLib::generateSelectWhereQuery(
+            $this->getDb()->getResource(),
             $this->getTableName(),
             $wherePairs,
             Conjunction::createAnd()
@@ -221,8 +221,7 @@ abstract class AbstractTable implements TableInterface
      */
     public function loadWhereOr(array $wherePairs)
     {
-        $query = Utils::generateSelectWhereQuery(
-            $this->getDb(),
+        $query = $this->getDb()->generateSelectWhereQuery(
             $this->getTableName(),
             $wherePairs,
             'OR'
@@ -251,7 +250,7 @@ abstract class AbstractTable implements TableInterface
         $uuidsToDelete = $this->getDb()->escapeValues($uuids);
         $wherePairs = array("uuid" => $uuidsToDelete);
 
-        $query = Utils::generateDeleteWhereQuery(
+        $query = PgsqlLib::generateDeleteWhereQuery(
             $this->getDb(),
             $this->getTableName(),
             $wherePairs,
@@ -292,7 +291,7 @@ abstract class AbstractTable implements TableInterface
      */
     protected function deleteWhereOr(array $wherePairs, $clearCache=true)
     {
-        $query = Utils::generateDeleteWhereQuery(
+        $query = PgsqlLib::generateDeleteWhereQuery(
             $this->getDb(),
             $this->getTableName(),
             $wherePairs,
@@ -646,7 +645,7 @@ abstract class AbstractTable implements TableInterface
 
         $query =
             "UPDATE {$this->getEscapedTableName()} SET " .
-            \Programster\PgsqlObjects\Utils::generateQueryPairs($row, $this->getDb()) .
+            \Programster\PgsqlObjects\PgsqlLib::generateQueryPairs($this->getDb()->getResource(), $row) .
             " WHERE {$this->getDb()->generateQueryPairs(['id' => $id])}";
 
         $result = $this->getDb()->query($query);
