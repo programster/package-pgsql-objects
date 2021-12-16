@@ -4,6 +4,8 @@
  *
  */
 
+use Programster\PgsqlLib\PgSqlConnection;
+
 class ConnectionHandler
 {
     /**
@@ -11,13 +13,13 @@ class ConnectionHandler
      * @staticvar type $db
      * @return \mysqli
      */
-    public static function getDb() : Programster\PgsqlObjects\PgSqlConnection
+    public static function getDb() : PgSqlConnection
     {
         static $db = null;
 
         if ($db == null)
         {
-            $db = Programster\PgsqlObjects\PgSqlConnection::create(DB_HOST, DB_NAME, DB_USER, DB_PASSWORD);
+            $db = PgSqlConnection::create(DB_HOST, DB_NAME, DB_USER, DB_PASSWORD);
         }
 
         return $db;

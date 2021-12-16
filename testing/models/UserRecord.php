@@ -6,7 +6,10 @@
  * and open the template in the editor.
  */
 
-class UserRecord extends \Programster\PgsqlObjects\AbstractTableRowObject
+use Programster\PgsqlObjects\AbstractTableRowObject;
+use \Programster\PgsqlObjects\TableInterface;
+
+class UserRecord extends AbstractTableRowObject
 {
     protected $m_email;
     protected $m_name;
@@ -30,7 +33,7 @@ class UserRecord extends \Programster\PgsqlObjects\AbstractTableRowObject
     }
 
 
-    public function getTableHandler(): Programster\PgsqlObjects\TableInterface
+    public function getTableHandler(): TableInterface
     {
         return UserTable::getInstance();
     }

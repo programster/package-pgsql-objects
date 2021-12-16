@@ -12,6 +12,8 @@ declare(strict_types = 1);
 
 namespace Programster\PgsqlObjects;
 
+use Programster\PgsqlLib\PgSqlConnection;
+
 
 interface TableInterface
 {

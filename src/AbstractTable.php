@@ -8,6 +8,10 @@ declare(strict_types = 1);
 
 namespace Programster\PgsqlObjects;
 
+use Programster\PgsqlLib\Conjunction;
+use Programster\PgsqlLib\PgsqlLib;
+use Programster\PgsqlLib\PgSqlConnection;
+
 
 abstract class AbstractTable implements TableInterface
 {
@@ -645,7 +649,7 @@ abstract class AbstractTable implements TableInterface
 
         $query =
             "UPDATE {$this->getEscapedTableName()} SET " .
-            \Programster\PgsqlObjects\PgsqlLib::generateQueryPairs($this->getDb()->getResource(), $row) .
+            PgsqlLib::generateQueryPairs($this->getDb()->getResource(), $row) .
             " WHERE {$this->getDb()->generateQueryPairs(['id' => $id])}";
 
         $result = $this->getDb()->query($query);
