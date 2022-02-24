@@ -50,10 +50,10 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Helper function that converts a query result into a collection of the row objects.
-     * @param \mysqli_result $result
+     * @param \Pgsql\Result $result
      * @return array<AbstractTableRowObject>
      */
-    protected function convertPgResultToObjects($result) : array
+    protected function convertPgResultToObjects(\Pgsql\Result $result) : array
     {
         $objects = array();
 
@@ -380,7 +380,7 @@ abstract class AbstractTable implements TableInterface
     {
         $escapedUuids = $this->getDb()->escapeValues($uuids);
         $query = "DELETE FROM {$this->getEscapedTableName()} WHERE id IN(" . implode(", ", $escapedUuids) . ")";
-        $result = $db->query($query);
+        $result = $this->getDb()->query($query);
 
         if ($result === FALSE)
         {
@@ -419,7 +419,7 @@ abstract class AbstractTable implements TableInterface
         {
             # This is much slower but can be run without inside a transaction
             $query = "DELETE FROM {$this->getEscapedTableName()}";
-            $this->getDb()->query($query);
+            $result = $this->getDb()->query($query);
 
             if ($result === FALSE)
             {
@@ -552,7 +552,7 @@ abstract class AbstractTable implements TableInterface
             $query = "SELECT * FROM {$this->getEscapedTableName()}" .
                      " WHERE {$this->getDb()->escapeIdentifier("id")} IN(" . implode(", ", $this->getDb()->escapeValues($uuidsToFetch)) . ")";
 
-            /* @var $result \mysqli_result */
+            /* @var $result \Pgsql\Result */
             $result = $this->getDb()->query($query);
 
             if ($result === FALSE)

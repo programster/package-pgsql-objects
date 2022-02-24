@@ -49,9 +49,9 @@ abstract class AbstractTableRowObject
     /**
      * Update part of the object. This is the same as replace, except that it
      * can take a subset of the objects parameters, rather than requiring all of them.
-     * @param type $data - array of name value pairs.
+     * @param array $data - array of name value pairs.
      */
-    public function update(array $data)
+    public function update(array $data) : void
     {
         $setters = $this->getSetFunctions();
 
@@ -76,9 +76,9 @@ abstract class AbstractTableRowObject
     /**
      * Saves this object to the mysql database.
      * @param void
-     * @return
+     * @return void
      */
-    public function save()
+    public function save() : void
     {
         $properties = array();
         $getFuncs = $this->getAccessorFunctions();
@@ -158,7 +158,7 @@ abstract class AbstractTableRowObject
      * Create this object from a row in the database.
      * WARNING - do not use this method to create new objects that don't exist in the database.
      * @param array $row
-     * @param type $fieldInfoMap
+     * @param $fieldInfoMap
      * @return static
      */
     public static function createFromDatabaseRow(array $row, $fieldInfoMap) : static
