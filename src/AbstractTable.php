@@ -11,6 +11,7 @@ namespace Programster\PgsqlObjects;
 use Programster\PgsqlLib\Conjunction;
 use Programster\PgsqlLib\PgsqlLib;
 use Programster\PgsqlLib\PgSqlConnection;
+use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 
 
 abstract class AbstractTable implements TableInterface
@@ -76,7 +77,7 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Fetch an object from our cache.
-     * @param int $uuid - the id of the row the object represents.
+     * @param string $uuid - the id of the row the object represents.
      * @return AbstractTableRowObject
      */
     protected function getCachedObject(string $uuid)
@@ -97,13 +98,38 @@ abstract class AbstractTable implements TableInterface
      */
     public function create(array $row) : AbstractTableRowObject
     {
-        $db = $this->getDb();
+        if (array_key_exists($this->getIdColumnName(), $row))
+        {
+            // id column is set, but may be null
+            if ($row[$this->getIdColumnName()] === null)
+            {
+                if ($this->isIdGeneratedInDatabase())
+                {
+                    unset($row[$this->getIdColumnName()]); // have the database create the ID.
+                }
+                else
+                {
+                    $row[$this->getIdColumnName()] = $this->generateId();
+                }
+            }
+        }
+        else
+        {
+            if ($this->isIdGeneratedInDatabase() === false)
+            {
+                $row[$this->getIdColumnName()] = $this->generateId();
+            }
+        }
 
         // user may decide not to set the uuid themselves, in which case we create it for them.
-        if (!isset($row['id']))
+        if (!isset($row[$this->getIdColumnName()]))
         {
-            $row['id'] = Utils::generateUuid();
+            if ($this->isIdGeneratedInDatabase() === false)
+            {
+                $row[$this->getIdColumnName()] = $this->generateId();
+            }
         }
+
 
         $columnNames = array_keys($row);
         $values = array_values($row);
@@ -112,7 +138,7 @@ abstract class AbstractTable implements TableInterface
 
         $valuesString = "";
 
-        foreach($escapedValues as $escapedValue)
+        foreach ($escapedValues as $escapedValue)
         {
             if ($escapedValue === null)
             {
@@ -126,25 +152,17 @@ abstract class AbstractTable implements TableInterface
 
         $valuesString = \Safe\substr($valuesString, 0, strlen($valuesString) - 2);
 
-
         $query =
             "INSERT INTO {$this->getEscapedTableName()}" .
             " (" . implode(",", $escapedColumnNames) . ")" .
             " VALUES ($valuesString)";
 
-        $result = $this->getDb()->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Insert query failed: " . pg_result_error($result));
-        }
-
+        $this->getDb()->query($query);
         $constructor = $this->getRowObjectConstructorWrapper();
         $object = $constructor($row);
         $this->updateCache($object);
         return $object;
     }
-
 
     /**
      * Delete rows from the table that meet have all the attributes specified
@@ -172,7 +190,7 @@ abstract class AbstractTable implements TableInterface
      * Update our cache with the provided object.
      * Note that if you simply changed the object's ID, you will need to call unsetCache() on
      * the original ID.
-     * @param AbstractUuidTableRowObject $object
+     * @param AbstractTableRowObject $object
      * @return void
      */
     protected function updateCache(AbstractTableRowObject $object) : void
@@ -192,22 +210,16 @@ abstract class AbstractTable implements TableInterface
      * @return array<AbstractTableRowObject>
      * @throws \Exception
      */
-    public function loadWhereAnd(array $wherePairs)
+    public function loadWhereAnd(array $wherePairs) : array
     {
         $query = PgsqlLib::generateSelectWhereQuery(
             $this->getDb()->getResource(),
             $this->getTableName(),
             $wherePairs,
-            Conjunction::createAnd()
+            Conjunction::AND
         );
 
         $result = $this->getDb()->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Failed to load objects, check your where parameters.");
-        }
-
         return $this->convertPgResultToObjects($result);
     }
 
@@ -223,12 +235,12 @@ abstract class AbstractTable implements TableInterface
      * @return array<AbstractTableRowObject>
      * @throws \Exception
      */
-    public function loadWhereOr(array $wherePairs)
+    public function loadWhereOr(array $wherePairs) : array
     {
         $query = $this->getDb()->generateSelectWhereQuery(
             $this->getTableName(),
             $wherePairs,
-            'OR'
+        Conjunction::OR
         );
 
         $result = $this->getDb()->query($query);
@@ -246,30 +258,30 @@ abstract class AbstractTable implements TableInterface
      * Deletes objects that have the any of the specified IDs. This will not throw an error or
      * exception if an object with one of the IDs specified does not exist.
      * This is a fast and cache-friendly operation.
-     * @param array $uuids - the list of IDs of the objects we wish to delete.
+     * @param array $ids - the list of IDs of the objects we wish to delete.
      * @return int - the number of objects deleted.
      */
-    public function deleteIds(array $uuids) : void
+    public function deleteIds(array $ids) : void
     {
-        $uuidsToDelete = $this->getDb()->escapeValues($uuids);
-        $wherePairs = array("uuid" => $uuidsToDelete);
+        $idsToDelete = $this->getDb()->escapeValues($ids);
+        $wherePairs = array($this->getIdColumnName() => $idsToDelete);
 
         $query = PgsqlLib::generateDeleteWhereQuery(
             $this->getDb(),
             $this->getTableName(),
             $wherePairs,
-            Conjunction::createAnd()
+            Conjunction::AND
         );
 
         $result = $this->getDb()->query($query);
 
         if ($result == FALSE)
         {
-            throw new \Exception("Failed to delete objects by ID.");
+            throw new \Exception("Failed to delete objects by their identifiers.");
         }
 
         # Remove these objects from our cache.
-        foreach ($uuids as $objectId)
+        foreach ($ids as $objectId)
         {
             $this->unsetCache($objectId);
         }
@@ -293,21 +305,16 @@ abstract class AbstractTable implements TableInterface
      * @return array<AbstractTableRowObject>
      * @throws \Exception
      */
-    protected function deleteWhereOr(array $wherePairs, $clearCache=true)
+    protected function deleteWhereOr(array $wherePairs, $clearCache=true) : void
     {
         $query = PgsqlLib::generateDeleteWhereQuery(
             $this->getDb(),
             $this->getTableName(),
             $wherePairs,
-            Conjunction::createOr()
+            Conjunction::OR
         );
 
-        $result = $this->getDb()->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Failed to delete objects, check your where parameters.");
-        }
+        $this->getDb()->query($query);
 
         if ($clearCache)
         {
@@ -328,72 +335,57 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Delete an object in the database by UUID.
-     * @param string $uuid
+     * @param int|string $id
      * @return void
-     * @throws Exception
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function delete(string $uuid): void
+    public function delete($id): void
     {
-        $query = "DELETE FROM {$this->getEscapedTableName()} WHERE " . $this->getDb()->generateQueryPairs(['id' => $uuid]);
-        $result = $this->getDb()->query($query);
+        $query = 
+            "DELETE FROM {$this->getEscapedTableName()}" . 
+            " WHERE " . $this->getDb()->generateQueryPairs([$this->getIdColumnName() => $id]);
 
-        if ($result === FALSE)
-        {
-            print $query . PHP_EOL;
-            $msg = "Failed to delete from {$this->getTableName()} with uuid: {$uuid}" . PHP_EOL . pg_result_error($result);
-            throw new Exceptions\ExceptionQueryFailed($msg);
-        }
-
-        $this->unsetCache($uuid);
-    }
-
-
-    /**
-     * Delete a row in the table by the objects identifier.
-     * @param string $id - the ID (uuid) of the object
-     * @return type
-     */
-    public function deleteById(string $id)
-    {
-        $query = "DELETE FROM {$this->getEscapedTableName()} WHERE uuid=" . pg_escape_literal($id);
-        $result = $this->getDb()->query($query);
-
-        if ($result === FALSE)
-        {
-            print $query . PHP_EOL;
-            $msg = "Failed to delete row from {$this->getTableName()} with id: {$id}" . pg_result_error($result);
-            throw new Exceptions\ExceptionQueryFailed($query, $msg);
-        }
-
+        $this->getDb()->query($query);
         $this->unsetCache($id);
-        return $result;
     }
 
 
     /**
-     * Delete objects by UUID.
-     * @param string $uuids - the UUIDs of the objects we wish to delete.
-     * @param bool $updateCache - whether to remove the objects from the cache. Default: true
+     * Delete a row in the table by the object's identifier.
+     * @param $id - the identifier of the row you wish to delete.
      * @return void
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function deleteByIds(array $uuids, bool $updateCache=true) : void
+    public function deleteById($id) : void
     {
-        $escapedUuids = $this->getDb()->escapeValues($uuids);
-        $query = "DELETE FROM {$this->getEscapedTableName()} WHERE id IN(" . implode(", ", $escapedUuids) . ")";
-        $result = $this->getDb()->query($query);
+        $escapedValue = $this->getDb()->escapeValue($id);
+        $query = "DELETE FROM {$this->getEscapedTableName()} WHERE {$this->getEscapedIdColumnName()} = {$escapedValue}";
+        $this->getDb()->query($query);
+        $this->unsetCache($id);
+    }
 
-        if ($result === FALSE)
-        {
-            print $query . PHP_EOL;
-            $msg = "Failed to delete from {$this->getTableName()} with ids: [" .
-                    implode(", ", $uuids) . "]" . PHP_EOL . pg_result_error($result);
 
-            throw new Exceptions\ExceptionQueryFailed($query, $msg);
-        }
+    /**
+     * Delete objects by their IDs.
+     *
+     * @param array $ids - the identifiers of the objects we wish to delete.
+     * WARNING: This does not check to make sure they existed in the database in the first place.
+     *
+     * @param bool $updateCache - whether to remove the objects from the cache. Default: true
+     *
+     * @return void
+     *
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     */
+    public function deleteByIds(array $ids, bool $updateCache=true) : void
+    {
+        $escapedIds = $this->getDb()->escapeValues($ids);
+        $query = "DELETE FROM {$this->getEscapedTableName()} WHERE {$this->getEscapedIdColumnName()} IN(" . implode(", ", $escapedIds) . ")";
+        $this->getDb()->query($query);
 
         if ($updateCache)
         {
-            foreach ($uuids as $uuid)
+            foreach ($ids as $uuid)
             {
                 unset($this->m_objectCache[$uuid]);
             }
@@ -410,8 +402,8 @@ abstract class AbstractTable implements TableInterface
     /**
      * Deletes all rows from the table by running TRUNCATE.
      * @param bool $inTransaction - set to true to run a slower query that won't implicitly commit
-     * @return type
-     * @throws Exception
+     * @return void
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
     public function deleteAll($inTransaction=false) : void
     {
@@ -419,23 +411,13 @@ abstract class AbstractTable implements TableInterface
         {
             # This is much slower but can be run without inside a transaction
             $query = "DELETE FROM {$this->getEscapedTableName()}";
-            $result = $this->getDb()->query($query);
-
-            if ($result === FALSE)
-            {
-                throw new \Exception('Failed to drop table: ' . $this->getTableName());
-            }
+            $this->getDb()->query($query);
         }
         else
         {
             # This is much faster, but will cause an implicit commit.
             $query = "TRUNCATE {$this->getEscapedTableName()}";
-            $result = $this->getDb()->query($query);
-
-            if ($result === FALSE)
-            {
-                throw new \Exception('Failed to drop table: ' . $this->getTableName());
-            }
+            $this->getDb()->query($query);
         }
 
         $this->emptyCache();
@@ -509,7 +491,7 @@ abstract class AbstractTable implements TableInterface
 
         if (count($objects) == 0)
         {
-            $msg = "There is no {$this->getObjectClassName()} with object with id: {$uuid}";
+            $msg = "There is no {$this->getObjectClassName()} with object with {$this->getIdColumnName()}: {$uuid}";
             throw new \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException($msg);
         }
 
@@ -526,6 +508,7 @@ abstract class AbstractTable implements TableInterface
      *                        cached value from a previous lookup.
      * @return array<AbstractTableRowObject> - list of the objects with the specified IDs indexed
      *                                         by the objects ID.
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
     public function loadIds(array $uuids, $useCache=true)
     {
@@ -550,16 +533,10 @@ abstract class AbstractTable implements TableInterface
             $db = $this->getDb();
 
             $query = "SELECT * FROM {$this->getEscapedTableName()}" .
-                     " WHERE {$this->getDb()->escapeIdentifier("id")} IN(" . implode(", ", $this->getDb()->escapeValues($uuidsToFetch)) . ")";
+                     " WHERE {$this->getDb()->escapeIdentifier($this->getIdColumnName())} IN(" . implode(", ", $this->getDb()->escapeValues($uuidsToFetch)) . ")";
 
             /* @var $result \Pgsql\Result */
             $result = $this->getDb()->query($query);
-
-            if ($result === FALSE)
-            {
-                throw new \Exception("Failed to select from table. " . pg_result_error($result));
-            }
-
             $fieldInfoMap = pg_meta_data($this->getDb()->getResource(), $this->getTableName());
 
             while (($row = pg_fetch_assoc($result)) != null)
@@ -587,12 +564,6 @@ abstract class AbstractTable implements TableInterface
         $this->emptyCache();
         $query = "SELECT * FROM {$this->getEscapedTableName()}";
         $result = $this->getDb()->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception('Error selecting all objects for loading.');
-        }
-
         return $this->convertPgResultToObjects($result);
     }
 
@@ -622,9 +593,9 @@ abstract class AbstractTable implements TableInterface
      * Remove the cache entry for an object.
      * This should only happen when objects are destroyed.
      * This will not throw exception/error if id doesn't exist.
-     * @param int $objectId - the ID of the object we wish to clear the cache of.
+     * @param int|string $objectId - the ID of the object we wish to clear the cache of.
      */
-    public function unsetCache($objectId) : void
+    public function unsetCache(int|string $objectId) : void
     {
         unset($this->m_objectCache[$objectId]);
     }
@@ -638,19 +609,14 @@ abstract class AbstractTable implements TableInterface
      * @return AbstractTableRowObject
      * @throws \Exception if query failed.
      */
-    public function update(string $id, array $row) : AbstractTableRowObject
+    public function update(int|string $id, array $row) : AbstractTableRowObject
     {
         # This logic must not ever be changed to load the row object and then call update on that
         # because it's update method will call this method and you will end up with a loop.
-        $columnNames = array_keys($row);
-        $values = array_values($row);
-        $escapedColumnNames = $this->getDb()->escapeIdentifiers($columnNames);
-        $escapedValues = $this->getDb()->escapeValues($values);
-
         $query =
             "UPDATE {$this->getEscapedTableName()} SET " .
             PgsqlLib::generateQueryPairs($this->getDb()->getResource(), $row) .
-            " WHERE {$this->getDb()->generateQueryPairs(['id' => $id])}";
+            " WHERE {$this->getDb()->generateQueryPairs([$this->getIdColumnName() => $id])}";
 
         $result = $this->getDb()->query($query);
 
@@ -679,9 +645,9 @@ abstract class AbstractTable implements TableInterface
             # We don't have the object loaded into cache so we need to fetch it from the
             # database in order to be able to return an object. This updates cache as well.
             # We also need to handle the event of the update being to change the ID.
-            if (isset($row['id']))
+            if (isset($row[$this->getIdColumnName()]))
             {
-                $updatedObject = $this->load($row['id']);
+                $updatedObject = $this->load($row[$this->getIdColumnName()]);
             }
             else
             {
@@ -696,5 +662,107 @@ abstract class AbstractTable implements TableInterface
         }
 
         return $updatedObject;
+    }
+
+
+    /**
+     * Delete rows from this table that
+     * @param array $ids - a list of the only IDs we wish to keep.
+     * @return void
+     */
+    public function deleteIdsNotIn(array $ids)
+    {
+        if (count($ids) > 0)
+        {
+            $escapedIdsString = $this->getDb()->escapeValues($ids);
+            $query = "DELETE FROM {$this->getEscapedTableName()} WHERE {$this->getEscapedIdColumnName()} NOT IN (" . implode(", ", $escapedIdsString) . ")";
+        }
+        else
+        {
+            $query = "DELETE FROM {$this->getEscapedTableName()}";
+        }
+
+        $this->getDb()->query($query); // throws exception on error
+    }
+
+
+    /**
+     * Batch update/insert a bunch of objects.
+     * @param array $objects
+     * @return void
+     */
+    public function batchSave(array $objects)
+    {
+        if (count($objects) > 0)
+        {
+            /* @var $object AbstractStringIdTableRowObject */
+            $queries = [
+                // dont check for uniqueness until the end of the transaction to resolve issues with reorgnizing sort
+                // indexes https://www.postgresql.org/docs/9.1/sql-set-constraints.html
+                "SET CONSTRAINTS ALL DEFERRED"
+            ];
+
+            foreach ($objects as $object)
+            {
+                $queries[] = $object->getSaveQuery();
+            }
+
+            $multiQuery = implode(";", $queries) . ";";
+
+            // php 8.1 throws exception, not return false, if something goes wrong.
+            $this->getDb()->query($multiQuery);
+
+            // if we get here, there was no exception from query failing
+            foreach ($objects as $object)
+            {
+                $object->markSaved(); // just in case it was an insert instead of update call.
+                $this->updateCache($object);
+            }
+        }
+    }
+
+
+    /**
+     * Load objects whose IDs were not provided.
+     * @param array $ids
+     * @return AbstractTableRowObject[]
+     */
+    public function loadIdsNotIn(array $ids) : array
+    {
+        if (count($ids) > 0)
+        {
+            $escapedIds = $this->getDb()->escapeValues($ids);
+            $idsString = implode(", ", $escapedIds);
+            $result = $this->getDb()->query("SELECT * FROM {$this->getEscapedTableName()} WHERE {$this->getEscapedIdColumnName()} NOT IN ({$idsString})");
+        }
+        else
+        {
+            $result = $this->getDb()->query("SELECT * FROM {$this->getEscapedTableName()}");
+        }
+
+        return $this->convertPgResultToObjects($result);
+    }
+
+
+    /**
+     * Specifies the name of the identifier column. This will commonly be "id" or "uuid".
+     * @return string
+     */
+    public function getIdColumnName() : string
+    {
+        return "id";
+    }
+
+
+    public function getEscapedIdColumnName() : string
+    {
+        static $escapedName = null;
+
+        if ($escapedName === null)
+        {
+            $escapedName = (string)$this->getDb()->escapeIdentifier($this->getIdColumnName());
+        }
+
+        return $escapedName;
     }
 }

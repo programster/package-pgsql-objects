@@ -17,6 +17,7 @@ use Programster\PgsqlLib\PgSqlConnection;
 
 interface TableInterface
 {
+
     /**
      * Return the singleton instance of this object.
      */
@@ -30,6 +31,20 @@ interface TableInterface
 
 
     /**
+     * Specifies the name of the identifier column. This will commonly be "id" or "uuid".
+     * @return string
+     */
+    public function getIdColumnName() : string;
+
+
+    /**
+     * Get the escaped form of the name of the column that acts as the identifier.
+     * @return string
+     */
+    public function getEscapedIdColumnName() : string;
+
+
+    /**
      * Get a connection to the database.
      * @return \mysqli
      */
@@ -40,7 +55,7 @@ interface TableInterface
      * Removes the obeject from the mysql database.
      * @return void
      */
-    public function delete(string $uuid);
+    public function delete($id);
 
 
     /**
@@ -81,7 +96,7 @@ interface TableInterface
      * Create a new row with unfiltered data.
      * @return AbstractTableRowObject
      */
-    public function create(array $inputs) : AbstractTableRowObject;
+    public function create(array $row) : AbstractTableRowObject;
 
 
     /**
@@ -104,4 +119,18 @@ interface TableInterface
      * @return array<string> - array of column names.
      */
     public function getFieldsThatHaveDefaults() : array;
+
+
+    /**
+     * Generates an identifier when a new one is required.
+     * @return mixed - null if one could not be generated.
+     */
+    public function generateId() : mixed;
+
+
+    /**
+     * Specify whether the ID is generated in the database. This would be the case if using SERIAL etc.
+     * @return bool
+     */
+    public function isIdGeneratedInDatabase() : bool;
 }
