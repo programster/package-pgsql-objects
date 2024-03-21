@@ -16,4 +16,10 @@ abstract class AbstractUuidTable extends AbstractTable
     {
         return Utils::generateUuid();
     }
+
+
+    public function isIdGeneratedInDatabase() : bool
+    {
+        return false;
+    }
 }
