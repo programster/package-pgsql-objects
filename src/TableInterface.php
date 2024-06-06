@@ -74,12 +74,12 @@ interface TableInterface
 
     /**
      * Loads a single object of this class's type from the database using the unique ID of the row.
-     * @param string $uuid - the id of the row in the datatabase table.
+     * @param string $id - the id of the row in the datatabase table.
      * @param bool useCache - optionally set to false to force a database lookup even if we have a
      *                    cached value from a previous lookup.
      * @return AbstractTableRowObject - the loaded object.
      */
-    public function load(string $uuid, $useCache=true) : AbstractTableRowObject;
+    public function load(string|int $id, $useCache=true) : AbstractTableRowObject;
 
 
     /**

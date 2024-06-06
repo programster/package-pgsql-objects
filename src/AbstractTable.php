@@ -485,13 +485,13 @@ abstract class AbstractTable implements TableInterface
      *                    cached value from a previous lookup.
      * @return AbstractTableRowObject - the loaded object.
      */
-    public function load(string $uuid, $useCache=true) : AbstractTableRowObject
+    public function load(string|int $id, $useCache=true) : AbstractTableRowObject
     {
-        $objects = $this->loadIds(array($uuid), $useCache);
+        $objects = $this->loadIds(array($id), $useCache);
 
         if (count($objects) == 0)
         {
-            $msg = "There is no {$this->getObjectClassName()} with object with {$this->getIdColumnName()}: {$uuid}";
+            $msg = "There is no {$this->getObjectClassName()} with object with {$this->getIdColumnName()}: {$id}";
             throw new \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException($msg);
         }
 
@@ -510,30 +510,30 @@ abstract class AbstractTable implements TableInterface
      *                                         by the objects ID.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function loadIds(array $uuids, $useCache=true)
+    public function loadIds(array $ids, $useCache=true)
     {
         $loadedObjects = array();
         $constructor = $this->getRowObjectConstructorWrapper();
-        $uuidsToFetch = array();
+        $idsToFetch = array();
 
-        foreach ($uuids as $uuid)
+        foreach ($ids as $id)
         {
-            if (!isset($this->m_objectCache[$uuid]) || !$useCache)
+            if (!isset($this->m_objectCache[$id]) || !$useCache)
             {
-                $uuidsToFetch[] = $uuid;
+                $idsToFetch[] = $id;
             }
             else
             {
-                $loadedObjects[$uuid] = $this->m_objectCache[$uuid];
+                $loadedObjects[$id] = $this->m_objectCache[$id];
             }
         }
 
-        if (count($uuidsToFetch) > 0)
+        if (count($idsToFetch) > 0)
         {
             $db = $this->getDb();
 
             $query = "SELECT * FROM {$this->getEscapedTableName()}" .
-                     " WHERE {$this->getDb()->escapeIdentifier($this->getIdColumnName())} IN(" . implode(", ", $this->getDb()->escapeValues($uuidsToFetch)) . ")";
+                     " WHERE {$this->getDb()->escapeIdentifier($this->getIdColumnName())} IN(" . implode(", ", $this->getDb()->escapeValues($idsToFetch)) . ")";
 
             /* @var $result \Pgsql\Result */
             $result = $this->getDb()->query($query);
@@ -543,9 +543,9 @@ abstract class AbstractTable implements TableInterface
             {
                 /* @var $object AbstractUuidTableRowObject */
                 $object = $constructor($row, $fieldInfoMap);
-                $objectUUID = $object->getId();
-                $this->m_objectCache[$objectUUID] = $object;
-                $loadedObjects[$objectUUID] = $this->m_objectCache[$objectUUID];
+                $objectId = $object->getId();
+                $this->m_objectCache[$objectId] = $object;
+                $loadedObjects[$objectId] = $this->m_objectCache[$objectId];
             }
         }
 
