@@ -164,6 +164,7 @@ abstract class AbstractTable implements TableInterface
         return $object;
     }
 
+
     /**
      * Delete rows from the table that meet have all the attributes specified
      * in the provided wherePairs parameter.
@@ -174,15 +175,19 @@ abstract class AbstractTable implements TableInterface
     protected function deleteWhereAnd(array $wherePairs, $updateCache=true) : void
     {
         $objects = $this->loadWhereAnd($wherePairs);
-        $objectIds = array();
 
-        foreach ($objects as $object)
+        if (count($objects) > 0)
         {
-            /* @var $object AbstractTableRowObject */
-            $objectIds[] = $object->getId();
-        }
+            $objectIds = array();
 
-        $this->deleteByIds(...$objectIds);
+            foreach ($objects as $object)
+            {
+                /* @var $object AbstractTableRowObject */
+                $objectIds[] = $object->getId();
+            }
+
+            $this->deleteByIds(...$objectIds);
+        }
     }
 
 
