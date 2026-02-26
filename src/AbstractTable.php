@@ -186,7 +186,7 @@ abstract class AbstractTable implements TableInterface
                 $objectIds[] = $object->getId();
             }
 
-            $this->deleteByIds(...$objectIds);
+            $this->deleteByIds($objectIds, $updateCache);
         }
     }
 
