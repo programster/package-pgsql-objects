@@ -320,7 +320,7 @@ abstract class AbstractTableRowObject
                             $value = floatval($value);
                         }
 
-                        $callback(floatval($value));
+                        $callback($value);
                     }
                     else if (in_array($fieldType, $intFieldTypes))
                     {
