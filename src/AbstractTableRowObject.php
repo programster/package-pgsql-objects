@@ -56,6 +56,7 @@ abstract class AbstractTableRowObject
      */
     public function update(array $data) : void
     {
+        $originalId = $this->getId();
         $setters = $this->getSetFunctions();
 
         foreach ($data as $name => $value)
@@ -72,7 +73,8 @@ abstract class AbstractTableRowObject
             }
         }
 
-        $this->save();
+        $rowForm = $this->getArrayForm();
+        $this->getTableHandler()->update($originalId, $rowForm);
     }
 
 
@@ -289,7 +291,7 @@ abstract class AbstractTableRowObject
             {
                 if
                 (
-                       !in_array($columnName, $this->getTableHandler()->getFieldsThatAllowNull())
+                    !in_array($columnName, $this->getTableHandler()->getFieldsThatAllowNull())
                     && !in_array($columnName, $this->getTableHandler()->getFieldsThatHaveDefaults())
                 )
                 {
@@ -307,7 +309,7 @@ abstract class AbstractTableRowObject
 
                 if
                 (
-                       $fieldInfoMap !== null
+                    $fieldInfoMap !== null
                     && isset($fieldInfoMap[$columnName])
                 )
                 {
