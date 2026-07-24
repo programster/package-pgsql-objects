@@ -51,8 +51,10 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Helper function that converts a query result into a collection of the row objects.
+     *
+     * @template T of AbstractTableRowObject
      * @param \Pgsql\Result $result
-     * @return array<AbstractTableRowObject>
+     * @return T[]
      */
     protected function convertPgResultToObjects(\Pgsql\Result $result) : array
     {
