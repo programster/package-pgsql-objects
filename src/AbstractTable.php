@@ -1,7 +1,9 @@
 <?php
 
-/*
+
+/**
  * A class to represent a table in the database. Use this for the loading/deleting of objects/rows.
+ * @template T of AbstractTableRowObject
  */
 
 declare(strict_types = 1);
