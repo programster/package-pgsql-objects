@@ -486,11 +486,14 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Loads a single object of this class's type from the database using the unique row_id
-     * @param string uuid - the uuid of the row in the database table.
+     * Loads a single object of this table's row type from the database using the unique identifier.
+     * @param string|int $id - the ID of the row in the database table.
      * @param bool useCache - optionally set to false to force a database lookup even if we have a
      *                    cached value from a previous lookup.
      * @return AbstractTableRowObject - the loaded object.
+     * @phpstan-return T
+     * @psalm-return T
+     * @template T of AbstractTableRowObject
      */
     public function load(string|int $id, $useCache=true) : AbstractTableRowObject
     {
@@ -507,14 +510,19 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Loads a number of objects of this class's type from the database using the provided array
-     * list of IDs. If any of the objects are already in the cache, they are fetched from there.
+     * Loads a number of objects of this table's row type from the database using the provided array
+     * list of IDs. If any of the objects are already in the cache, they are fetched from there unless
+     * useCache is overridden to false.
+     *
      * NOTE: The returned array of objects is indexed by the IDs of the objects.
-     * @param array uuids - the list of IDs of the objects we wish to load.
+     *
+     * @param array<string|int> $ids - the list of IDs of the objects we wish to load.
      * @param bool useCache - optionally set to false to force a database lookup even if we have a
      *                        cached value from a previous lookup.
-     * @return array<AbstractTableRowObject> - list of the objects with the specified IDs indexed
+     * @return array<string|int, AbstractTableRowObject> - list of the objects with the specified IDs indexed
      *                                         by the objects ID.
+     * @psalm-return array<string|int, T>
+     * @template T of AbstractTableRowObject
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
     public function loadIds(array $ids, $useCache=true)
