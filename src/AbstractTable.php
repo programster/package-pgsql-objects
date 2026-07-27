@@ -1,10 +1,9 @@
 <?php
 
-
-/**
+/*
  * A class to represent a table in the database. Use this for the loading/deleting of objects/rows.
- * @template T of AbstractTableRowObject
  */
+
 
 declare(strict_types = 1);
 
@@ -16,6 +15,9 @@ use Programster\PgsqlLib\PgSqlConnection;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 
 
+/**
+ * @template T of \Programster\PgsqlObjects\AbstractTableRowObject
+ */
 abstract class AbstractTable implements TableInterface
 {
     # Array of all the child instances that get created.
@@ -36,7 +38,7 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Fetch the single instance of this object.
-     * @return AbstractTable
+     * @return static
      */
     public static function getInstance() : static
     {
@@ -44,7 +46,7 @@ abstract class AbstractTable implements TableInterface
 
         if (!isset(self::$s_instances[$className]))
         {
-            self::$s_instances[$className] = new $className();
+            self::$s_instances[$className] = new static();
         }
 
         return self::$s_instances[$className];
@@ -54,7 +56,6 @@ abstract class AbstractTable implements TableInterface
     /**
      * Helper function that converts a query result into a collection of the row objects.
      *
-     * @template T of AbstractTableRowObject
      * @param \Pgsql\Result $result
      * @return T[]
      */
@@ -249,7 +250,7 @@ abstract class AbstractTable implements TableInterface
         $query = $this->getDb()->generateSelectWhereQuery(
             $this->getTableName(),
             $wherePairs,
-        Conjunction::OR
+            Conjunction::OR
         );
 
         $result = $this->getDb()->query($query);
@@ -350,8 +351,8 @@ abstract class AbstractTable implements TableInterface
      */
     public function delete($id): void
     {
-        $query = 
-            "DELETE FROM {$this->getEscapedTableName()}" . 
+        $query =
+            "DELETE FROM {$this->getEscapedTableName()}" .
             " WHERE " . $this->getDb()->generateQueryPairs([$this->getIdColumnName() => $id]);
 
         $this->getDb()->query($query);
@@ -435,6 +436,7 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Get the class name of the object we are going to construct.
+     * @return class-string<T>
      */
     public abstract function getObjectClassName() : string;
 
@@ -492,10 +494,9 @@ abstract class AbstractTable implements TableInterface
      * @param string|int $id - the ID of the row in the database table.
      * @param bool useCache - optionally set to false to force a database lookup even if we have a
      *                    cached value from a previous lookup.
-     * @return AbstractTableRowObject - the loaded object.
-     * @phpstan-return T
-     * @psalm-return T
-     * @template T of AbstractTableRowObject
+     * @return T - the loaded object
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException
      */
     public function load(string|int $id, $useCache=true) : AbstractTableRowObject
     {
@@ -521,10 +522,9 @@ abstract class AbstractTable implements TableInterface
      * @param array<string|int> $ids - the list of IDs of the objects we wish to load.
      * @param bool useCache - optionally set to false to force a database lookup even if we have a
      *                        cached value from a previous lookup.
-     * @return array<string|int, AbstractTableRowObject> - list of the objects with the specified IDs indexed
+     * @return array<string|int, T> - list of the objects with the specified IDs indexed
      *                                         by the objects ID.
      * @psalm-return array<string|int, T>
-     * @template T of AbstractTableRowObject
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
     public function loadIds(array $ids, $useCache=true)
@@ -599,7 +599,7 @@ abstract class AbstractTable implements TableInterface
 
         if ($result === FALSE)
         {
-           throw new \Exception('Error selecting all objects for loading. ' . pg_result_error($result));
+            throw new \Exception('Error selecting all objects for loading. ' . pg_result_error($result));
         }
 
         return $this->convertPgResultToObjects($result);

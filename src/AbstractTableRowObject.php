@@ -13,6 +13,9 @@ namespace Programster\PgsqlObjects;
 use Programster\PgsqlLib\PgsqlLib;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 
+/**
+ * @template T of \Programster\PgsqlObjects\AbstractTableRowObject
+ */
 abstract class AbstractTableRowObject
 {
     protected mixed $m_id; // the identifier, of type uuid
