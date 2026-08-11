@@ -8,7 +8,7 @@ declare(strict_types = 1);
 
 namespace Programster\PgsqlObjects;
 
-
+use Programster\PgsqlLib\Exceptions\ExceptionUnexpectedValueType;
 
 abstract class AbstractUuidTable extends AbstractTable
 {
@@ -21,5 +21,16 @@ abstract class AbstractUuidTable extends AbstractTable
     public function isIdGeneratedInDatabase() : bool
     {
         return false;
+    }
+
+
+    protected function getCachedObject(string|int $id)
+    {
+        if (is_int($id))
+        {
+            throw new ExceptionUnexpectedValueType($id, 'Expecting identifier to be a string.');
+        }
+
+        parent::getCachedObject($id);
     }
 }

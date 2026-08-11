@@ -82,17 +82,18 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Fetch an object from our cache.
-     * @param string $uuid - the id of the row the object represents.
+     * @param string|int $id - the id of the row the object represents.
      * @return AbstractTableRowObject
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException
      */
-    protected function getCachedObject(string $uuid)
+    protected function getCachedObject(string|int $id)
     {
-        if (!isset($this->m_objectCache[$uuid]))
+        if (!isset($this->m_objectCache[$id]))
         {
             throw new Exceptions\ExceptionNoSuchIdException("There is no cached object");
         }
 
-        return $this->m_objectCache[$uuid];
+        return $this->m_objectCache[$id];
     }
 
 
