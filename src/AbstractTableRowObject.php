@@ -258,16 +258,17 @@ abstract class AbstractTableRowObject
     protected function initializeFromArray(array $row, ?array $fieldInfoMap=null) : void
     {
         $intFieldTypes = array(
-            "int2", // smallInt
-            "int4", // integer or "serial"
-            "int8", // bigint,
-            "serial"
+            "int2", // smallint
+            "int4", // integer or serial
+            "int8", // bigint or bigserial
         );
 
+        // money is deliberately not converted, as the database returns it formatted for its locale
+        // (e.g. "$12.34"), which floatval() would turn into 0.
         $floatFieldTypes = array(
             "numeric",
-            "float4",
-            "money"
+            "float4", // real
+            "float8", // double precision
         );
 
         $boolFieldTypes = array(
