@@ -3,7 +3,7 @@
 
 use Programster\PgsqlLib\PgSqlConnection;
 
-class UserTable extends Programster\PgsqlObjects\AbstractTable
+class UserTable extends Programster\PgsqlObjects\AbstractUuidTable
 {
     public function getDb() : PgSqlConnection
     {

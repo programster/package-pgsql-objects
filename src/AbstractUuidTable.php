@@ -24,13 +24,13 @@ abstract class AbstractUuidTable extends AbstractTable
     }
 
 
-    protected function getCachedObject(string|int $id)
+    protected function getCachedObject(string|int $id) : AbstractTableRowObject
     {
         if (is_int($id))
         {
             throw new ExceptionUnexpectedValueType($id, 'Expecting identifier to be a string.');
         }
 
-        parent::getCachedObject($id);
+        return parent::getCachedObject($id);
     }
 }

@@ -19,7 +19,8 @@ class ConnectionHandler
 
         if ($db == null)
         {
-            $db = PgSqlConnection::create(DB_HOST, DB_NAME, DB_USER, DB_PASSWORD);
+            $port = defined('DB_PORT') ? DB_PORT : 5432;
+            $db = PgSqlConnection::create(DB_HOST, DB_NAME, DB_USER, DB_PASSWORD, $port);
         }
 
         return $db;

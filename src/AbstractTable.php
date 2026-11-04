@@ -86,7 +86,7 @@ abstract class AbstractTable implements TableInterface
      * @return AbstractTableRowObject
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException
      */
-    protected function getCachedObject(string|int $id)
+    protected function getCachedObject(string|int $id) : AbstractTableRowObject
     {
         if (!isset($this->m_objectCache[$id]))
         {
