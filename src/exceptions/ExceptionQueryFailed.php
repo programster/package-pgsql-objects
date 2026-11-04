@@ -2,32 +2,32 @@
 
 /*
  * Exception to throw if a query fails
- * 
  */
 
+declare(strict_types = 1);
 
 namespace Programster\PgsqlObjects\Exceptions;
 
 
 class ExceptionQueryFailed extends \Exception
 {
-    private $m_query;
+    private readonly string $m_query;
 
 
     /**
-     * Create a new unexpected value type exception.
-     * @param type $unexpectedValue - the value of a type that was unexpected
+     * Create a new query failed exception.
+     * @param string $query - the query that failed.
      * @param string $message
      * @param int $code
-     * @param \Throwable $previous
+     * @param \Throwable|null $previous
      */
-    public function __construct(string $query, string $message = "", int $code = 0, \Throwable $previous = null)
+    public function __construct(string $query, string $message = "", int $code = 0, ?\Throwable $previous = null)
     {
-        $this->m_query;
+        parent::__construct($message, $code, $previous);
+        $this->m_query = $query;
     }
 
 
-    # Get the unexpected value which caused the exception.
-    public function getQuery() { return $this->m_query; }
+    # Accessors
+    public function getQuery() : string { return $this->m_query; }
 }
-
