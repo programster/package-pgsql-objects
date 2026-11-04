@@ -30,8 +30,6 @@ class ProductRecord extends AbstractTableRowObject
     }
 
 
-    public function getName() : ?string
-    {
-        return $this->m_name;
-    }
+    # Accessors
+    public function getName() : ?string { return $this->m_name; }
 }

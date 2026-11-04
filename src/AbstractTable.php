@@ -603,8 +603,8 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Update a row specified by the ID with the provided data.
-     * @param int $id - the UUID of the object being updated (may not necessarily be the same as $row['id'] if
-     * changing the objects ID.
+     * @param int|string $id - the current ID of the object being updated (may not necessarily be the same as the
+     * ID column in $row if changing the object's ID).
      * @param array $row - the data to update the object with
      * @return AbstractTableRowObject
      * @throws \Exception if query failed.
@@ -656,7 +656,7 @@ abstract class AbstractTable implements TableInterface
         }
 
         # If we changed the object's ID, then we need to remove the old cached object.
-        if (isset($row['id']) && $row['id'] != $id)
+        if (isset($row[$this->getIdColumnName()]) && $row[$this->getIdColumnName()] != $id)
         {
             $this->unsetCache($id);
         }

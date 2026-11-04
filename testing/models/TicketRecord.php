@@ -40,14 +40,7 @@ class TicketRecord extends AbstractTableRowObject
     }
 
 
-    public function getTitle() : ?string
-    {
-        return $this->m_title;
-    }
-
-
-    public function getStatus() : ?string
-    {
-        return $this->m_status;
-    }
+    # Accessors
+    public function getTitle() : ?string { return $this->m_title; }
+    public function getStatus() : ?string { return $this->m_status; }
 }
