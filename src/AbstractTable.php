@@ -372,15 +372,19 @@ abstract class AbstractTable implements TableInterface
      */
     public function deleteByIds(array $ids, bool $updateCache=true) : void
     {
-        $escapedIds = $this->getDb()->escapeValues($ids);
-        $query = "DELETE FROM {$this->getEscapedTableName()} WHERE {$this->getEscapedIdColumnName()} IN(" . implode(", ", $escapedIds) . ")";
-        $this->getDb()->query($query);
-
-        if ($updateCache)
+        // an empty IN() is invalid SQL, and there is nothing to delete anyway.
+        if (count($ids) > 0)
         {
-            foreach ($ids as $uuid)
+            $escapedIds = $this->getDb()->escapeValues($ids);
+            $query = "DELETE FROM {$this->getEscapedTableName()} WHERE {$this->getEscapedIdColumnName()} IN(" . implode(", ", $escapedIds) . ")";
+            $this->getDb()->query($query);
+
+            if ($updateCache)
             {
-                unset($this->m_objectCache[$uuid]);
+                foreach ($ids as $id)
+                {
+                    $this->unsetCache($id);
+                }
             }
         }
     }
