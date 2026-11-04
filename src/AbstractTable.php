@@ -230,7 +230,7 @@ abstract class AbstractTable implements TableInterface
      *                            For example:
      *                              id => array(1,2,3) would load objects that have ID 1,2, or 3.
      * @return array<AbstractTableRowObject>
-     * @throws \Exception
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
     public function loadWhereOr(array $wherePairs) : array
     {
@@ -240,13 +240,7 @@ abstract class AbstractTable implements TableInterface
             Conjunction::OR
         );
 
-        $result = $this->getDb()->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Failed to load objects, check your where parameters.");
-        }
-
+        $result = $this->getDb()->query($query); // throws on failure
         return $this->convertPgResultToObjects($result);
     }
 
@@ -575,20 +569,15 @@ abstract class AbstractTable implements TableInterface
     /**
      * Loads a range of data from the table.
      * It is important to note that offset is not tied to ID in any way.
-     * @param type $offset
-     * @param type $numElements
+     * @param int $offset
+     * @param int $numElements
      * @return array<AbstractTableRowObject>
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
     public function loadRange(int $offset, int $numElements) : array
     {
         $query = "SELECT * FROM {$this->getEscapedTableName()} OFFSET {$offset} LIMIT {$numElements}";
-        $result  = $this->getDb()->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception('Error selecting all objects for loading. ' . pg_result_error($result));
-        }
-
+        $result = $this->getDb()->query($query); // throws on failure
         return $this->convertPgResultToObjects($result);
     }
 
@@ -611,7 +600,7 @@ abstract class AbstractTable implements TableInterface
      * ID column in $row if changing the object's ID).
      * @param array $row - the data to update the object with
      * @return AbstractTableRowObject
-     * @throws \Exception if query failed.
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError if the query failed.
      */
     public function update(int|string $id, array $row) : AbstractTableRowObject
     {
@@ -622,12 +611,7 @@ abstract class AbstractTable implements TableInterface
             PgsqlLib::generateQueryPairs($this->getDb()->getResource(), $row) .
             " WHERE {$this->getDb()->generateQueryPairs([$this->getIdColumnName() => $id])}";
 
-        $result = $this->getDb()->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Failed to update row in " . $this->getTableName());
-        }
+        $this->getDb()->query($query); // throws on failure
 
         if (isset($this->m_objectCache[$id]))
         {
