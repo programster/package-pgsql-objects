@@ -46,16 +46,17 @@ interface TableInterface
 
     /**
      * Get a connection to the database.
-     * @return \mysqli
+     * @return PgSqlConnection
      */
     public function getDb() : PgSqlConnection;
 
 
     /**
-     * Removes the obeject from the mysql database.
+     * Removes the row with the given ID from the database.
+     * @param int|string $id - the ID of the row to delete.
      * @return void
      */
-    public function delete($id);
+    public function delete(int|string $id) : void;
 
 
     /**
@@ -66,15 +67,14 @@ interface TableInterface
 
     /**
      * Loads all of these objects from the database.
-     * @param void
-     * @return
+     * @return array<AbstractTableRowObject>
      */
     public function loadAll() : array;
 
 
     /**
      * Loads a single object of this class's type from the database using the unique ID of the row.
-     * @param string $id - the id of the row in the datatabase table.
+     * @param string|int $id - the id of the row in the database table.
      * @param bool useCache - optionally set to false to force a database lookup even if we have a
      *                    cached value from a previous lookup.
      * @return AbstractTableRowObject - the loaded object.
@@ -85,8 +85,8 @@ interface TableInterface
     /**
      * Loads a range of data from the table.
      * It is important to note that offset is not tied to ID in any way.
-     * @param type $offset
-     * @param type $numElements
+     * @param int $offset
+     * @param int $numElements
      * @return array<AbstractTableRowObject>
      */
     public function loadRange(int $offset, int $numElements) : array;
@@ -101,9 +101,11 @@ interface TableInterface
 
     /**
      * Update a specified row with inputs
+     * @param int|string $id - the current ID of the row being updated.
+     * @param array $row - the column/value pairs to update the row with.
      * @return AbstractTableRowObject - the updated model object.
      */
-    public function update(string $id, array $row) : AbstractTableRowObject;
+    public function update(int|string $id, array $row) : AbstractTableRowObject;
 
 
 

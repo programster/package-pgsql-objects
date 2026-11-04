@@ -326,7 +326,7 @@ abstract class AbstractTable implements TableInterface
      * @return void
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function delete($id): void
+    public function delete(int|string $id) : void
     {
         $query =
             "DELETE FROM {$this->getEscapedTableName()}" .
