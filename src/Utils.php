@@ -9,33 +9,16 @@ declare(strict_types = 1);
 namespace Programster\PgsqlObjects;
 
 
+use Ramsey\Uuid\Uuid;
+
 class Utils
 {
     /**
-     * Generates a v4 UUID that is in sequential form for database performance.
+     * Generates a v7 UUID, which is time-ordered (sequential) for database index performance.
      * @return string - the generated UUID string.
      */
     public static function generateUuid() : string
     {
-        static $factory = null;
-
-        if ($factory == null)
-        {
-            $factory = new \Ramsey\Uuid\UuidFactory();
-
-            $generator = new \Ramsey\Uuid\Generator\CombGenerator(
-                $factory->getRandomGenerator(),
-                $factory->getNumberConverter()
-            );
-
-            $codec = new \Ramsey\Uuid\Codec\TimestampFirstCombCodec($factory->getUuidBuilder());
-
-            $factory->setRandomGenerator($generator);
-            $factory->setCodec($codec);
-        }
-
-        \Ramsey\Uuid\Uuid::setFactory($factory);
-        $uuidString = \Ramsey\Uuid\Uuid::uuid4()->toString();
-        return $uuidString;
+        return Uuid::uuid7()->toString();
     }
 }
