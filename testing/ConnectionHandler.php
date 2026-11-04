@@ -9,9 +9,8 @@ use Programster\PgsqlLib\PgSqlConnection;
 class ConnectionHandler
 {
     /**
-     * Get the connection to the mysql database and create it if it doesn't already exit.
-     * @staticvar type $db
-     * @return \mysqli
+     * Get the connection to the database and create it if it doesn't already exist.
+     * @return PgSqlConnection
      */
     public static function getDb() : PgSqlConnection
     {

@@ -66,11 +66,11 @@ abstract class AbstractTable implements TableInterface
         if (pg_num_rows($result) > 0)
         {
             $fieldInfoMap = pg_meta_data($this->getDb()->getResource(), $this->getTableName());
-            $constructor = $this->getRowObjectConstructorWrapper();
+            $rowHydrator = $this->getRowHydrator();
 
             while (($row = pg_fetch_assoc($result)) != null)
             {
-                $loadedObject = $constructor($row, $fieldInfoMap);
+                $loadedObject = $rowHydrator($row, $fieldInfoMap);
                 $this->updateCache($loadedObject);
                 $objects[] = $loadedObject;
             }
@@ -109,16 +109,24 @@ abstract class AbstractTable implements TableInterface
     {
         $idColumnName = $this->getIdColumnName();
 
-        // user may decide not to set the ID themselves, in which case it gets created for them.
+        // user may decide not to set the ID themselves, in which case it gets created for them, preferring to
+        // generate it in code whenever possible.
         if (!isset($row[$idColumnName]))
         {
-            if ($this->isIdGeneratedInDatabase())
+            if ($this->canCodeGenerateId())
+            {
+                $row[$idColumnName] = $this->generateId();
+            }
+            else if ($this->canDatabaseGenerateId())
             {
                 unset($row[$idColumnName]); // have the database create the ID.
             }
             else
             {
-                $row[$idColumnName] = $this->generateId();
+                throw new ExceptionMissingRequiredData(
+                    "No {$idColumnName} was provided for the new {$this->getTableName()} row, and this table can't" .
+                    " generate one in code, nor does the database generate one."
+                );
             }
         }
 
@@ -145,8 +153,8 @@ abstract class AbstractTable implements TableInterface
         $result = $this->getDb()->query($query . " RETURNING *");
         $createdRow = pg_fetch_assoc($result);
         $fieldInfoMap = pg_meta_data($this->getDb()->getResource(), $this->getTableName());
-        $constructor = $this->getRowObjectConstructorWrapper();
-        $object = $constructor($createdRow, $fieldInfoMap);
+        $rowHydrator = $this->getRowHydrator();
+        $object = $rowHydrator($createdRow, $fieldInfoMap);
         $this->updateCache($object);
         return $object;
     }
@@ -384,7 +392,7 @@ abstract class AbstractTable implements TableInterface
     }
 
 
-    public function getEscapedTableName()
+    public function getEscapedTableName() : string
     {
         return pg_escape_identifier($this->getDb()->getResource(), $this->getTableName());
     }
@@ -423,21 +431,20 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Return an inline function that takes the $row array and will call the relevant row object's
-     * constructor with it.
-     * @return Callable - the callable must take the data row as its only parameter and return
-     *                     the created object
-     *                     e.g. $returnObj = function($row){ return new rowObject($row); }
+     * Return a closure that hydrates a row of data into this table's row object, by calling the row object's
+     * createFromDatabaseRow() method.
+     * @return \Closure - the closure takes the data row (and optional field info map from pg_meta_data()) and
+     *                    returns the created object, e.g. $object = $rowHydrator($row, $fieldInfoMap);
      */
-    protected function getRowObjectConstructorWrapper()
+    protected function getRowHydrator() : \Closure
     {
         $objectClassName = $this->getObjectClassName();
 
-        $constructor = function($row, $rowFieldTypes=null) use($objectClassName) {
+        $rowHydrator = function($row, $rowFieldTypes=null) use($objectClassName) {
             return $objectClassName::createFromDatabaseRow($row, $rowFieldTypes);
         };
 
-        return $constructor;
+        return $rowHydrator;
     }
 
 
@@ -465,6 +472,19 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
+     * Get the user to specify fields that should be kept as the string the database returns, rather than being
+     * converted to a PHP int/float/bool. Use this for numeric columns where converting to a float would lose
+     * precision, e.g. currency amounts or high-precision values that you'll handle with bcmath or a decimal library.
+     * Override this if needed. By default, no fields are kept as strings, so every column gets converted.
+     * @return array<string> - array of column names.
+     */
+    public function getFieldsToKeepAsString() : array
+    {
+        return array();
+    }
+
+
+    /**
      * Return the name of this table as it appears in the database.
      */
     public abstract function getTableName() : string;
@@ -479,7 +499,7 @@ abstract class AbstractTable implements TableInterface
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException
      */
-    public function load(string|int $id, $useCache=true) : AbstractTableRowObject
+    public function load(string|int $id, bool $useCache=true) : AbstractTableRowObject
     {
         $objects = $this->loadIds(array($id), $useCache);
 
@@ -508,10 +528,10 @@ abstract class AbstractTable implements TableInterface
      * @psalm-return array<string|int, T>
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function loadIds(array $ids, $useCache=true)
+    public function loadIds(array $ids, bool $useCache=true) : array
     {
         $loadedObjects = array();
-        $constructor = $this->getRowObjectConstructorWrapper();
+        $rowHydrator = $this->getRowHydrator();
         $idsToFetch = array();
 
         foreach ($ids as $id)
@@ -540,7 +560,7 @@ abstract class AbstractTable implements TableInterface
             while (($row = pg_fetch_assoc($result)) != null)
             {
                 /* @var $object AbstractUuidTableRowObject */
-                $object = $constructor($row, $fieldInfoMap);
+                $object = $rowHydrator($row, $fieldInfoMap);
                 $objectId = $object->getId();
                 $this->m_objectCache[$objectId] = $object;
                 $loadedObjects[$objectId] = $this->m_objectCache[$objectId];
@@ -567,16 +587,61 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Loads a range of data from the table.
-     * It is important to note that offset is not tied to ID in any way.
-     * @param int $offset
-     * @param int $numElements
+     * Loads a range of rows from the table, in a stable order so that successive calls can page through the table.
+     * Rows are ordered by the ID column by default, or by $orderByColumn if provided, with the ID column used as a
+     * tiebreaker so that rows with equal values keep a consistent order.
+     * Note that rows inserted or deleted before the current page will shift later pages. If you need to page reliably
+     * through a table that is being written to, or deep into a large table, use loadAfterId() instead.
+     * @param int $offset - the number of rows to skip.
+     * @param int $numElements - the maximum number of rows to load.
+     * @param string|null $orderByColumn - optionally the name of the column to order by. Defaults to the ID column.
      * @return array<AbstractTableRowObject>
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function loadRange(int $offset, int $numElements) : array
+    public function loadRange(int $offset, int $numElements, ?string $orderByColumn = null) : array
     {
-        $query = "SELECT * FROM {$this->getEscapedTableName()} OFFSET {$offset} LIMIT {$numElements}";
+        $orderByColumns = array($this->getEscapedIdColumnName());
+
+        if ($orderByColumn !== null && $orderByColumn !== $this->getIdColumnName())
+        {
+            array_unshift($orderByColumns, $this->getDb()->escapeIdentifier($orderByColumn));
+        }
+
+        $query =
+            "SELECT * FROM {$this->getEscapedTableName()}" .
+            " ORDER BY " . implode(", ", $orderByColumns) .
+            " OFFSET {$offset} LIMIT {$numElements}";
+
+        $result = $this->getDb()->query($query); // throws on failure
+        return $this->convertPgResultToObjects($result);
+    }
+
+
+    /**
+     * Loads up to $numElements rows whose IDs come after $afterId, in ID order. This is "keyset" pagination: pass null
+     * to load the first page, then the ID of the last object on each page to load the next, until an empty page is
+     * returned. Unlike loadRange(), this never skips or repeats rows when rows are inserted, updated, or deleted
+     * between pages, and stays fast however deep into the table you go.
+     * @param string|int|null $afterId - the ID of the last object on the previous page, or null for the first page.
+     * @param int $numElements - the maximum number of rows to load.
+     * @return array<AbstractTableRowObject>
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     */
+    public function loadAfterId(string|int|null $afterId, int $numElements) : array
+    {
+        $whereClause = "";
+
+        if ($afterId !== null)
+        {
+            $whereClause = " WHERE {$this->getEscapedIdColumnName()} > {$this->getDb()->escapeValue($afterId)}";
+        }
+
+        $query =
+            "SELECT * FROM {$this->getEscapedTableName()}" .
+            $whereClause .
+            " ORDER BY {$this->getEscapedIdColumnName()}" .
+            " LIMIT {$numElements}";
+
         $result = $this->getDb()->query($query); // throws on failure
         return $this->convertPgResultToObjects($result);
     }
@@ -624,8 +689,8 @@ abstract class AbstractTable implements TableInterface
                 $newArrayForm[$columnName] = $value;
             }
 
-            $objectConstructor = $this->getRowObjectConstructorWrapper();
-            $updatedObject = $objectConstructor($newArrayForm);
+            $rowHydrator = $this->getRowHydrator();
+            $updatedObject = $rowHydrator($newArrayForm);
             $this->updateCache($updatedObject);
         }
         else
@@ -658,7 +723,7 @@ abstract class AbstractTable implements TableInterface
      * @param array $ids - a list of the only IDs we wish to keep.
      * @return void
      */
-    public function deleteIdsNotIn(array $ids)
+    public function deleteIdsNotIn(array $ids) : void
     {
         if (count($ids) > 0)
         {
@@ -675,15 +740,37 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Batch update/insert a bunch of objects.
-     * @param array $objects
+     * Batch update/insert a bunch of objects in a single query.
+     * Every object must have an ID, as there is no way to read IDs generated by the database back from a batch.
+     * Objects without one get one generated in code if this table can do so.
+     * @param array<AbstractTableRowObject> $objects
      * @return void
+     * @throws ExceptionMissingRequiredData - if an object has no ID and this table can't generate one in code. This is
+     * checked before anything is saved, so none of the objects will have been saved.
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function batchSave(array $objects)
+    public function batchSave(array $objects) : void
     {
+        foreach ($objects as $object)
+        {
+            if ($object->getId() === null)
+            {
+                if ($this->canCodeGenerateId())
+                {
+                    $object->generateId();
+                }
+                else
+                {
+                    throw new ExceptionMissingRequiredData(
+                        "Can't batch save {$this->getTableName()} objects that don't have IDs, as their IDs can't be" .
+                        " generated in code. Save them individually with save() so the database can generate them."
+                    );
+                }
+            }
+        }
+
         if (count($objects) > 0)
         {
-            /* @var $object AbstractStringIdTableRowObject */
             $queries = [
                 // dont check for uniqueness until the end of the transaction to resolve issues with reorgnizing sort
                 // indexes https://www.postgresql.org/docs/9.1/sql-set-constraints.html

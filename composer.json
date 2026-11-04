@@ -1,9 +1,9 @@
 {
     "name": "programster/pgsql-objects",
     "type": "library",
-    "description": "A library for interfacing with a PostgreSQL database in PHP. Facilitates the creation of objects that represents tables tables. Objects must have id of type UUID.",
+    "description": "A library for interfacing with a PostgreSQL database in PHP. Facilitates the creation of objects that represent tables and their rows.",
     "keywords": ["orm", "pgsql", "postgresql", "models"],
-    "homepage": "https://github.com/programster/package-mysql-objects",
+    "homepage": "https://github.com/programster/package-pgsql-objects",
     "license": "MIT",
     "authors": [
         {

@@ -4,6 +4,8 @@
  * A class to represent a constraint on table. This makes it easier to create/remove them.
  */
 
+declare(strict_types = 1);
+
 namespace Programster\PgsqlObjects;
 
 
@@ -11,18 +13,18 @@ use Programster\PgsqlLib\PgSqlConnection;
 
 readonly class Constraint
 {
+    private string $m_name;
+    private string $m_tableName;
     private string $m_sqlCreate;
     private string $m_sqlDelete;
 
-    private string $m_tableName;
 
-    private string $m_name;
-
-
-    private function __construct(private string $name, private string $tableName)
+    private function __construct(string $name, string $tableName, string $sqlCreate, string $sqlDelete)
     {
         $this->m_name = $name;
         $this->m_tableName = $tableName;
+        $this->m_sqlCreate = $sqlCreate;
+        $this->m_sqlDelete = $sqlDelete;
     }
 
 
@@ -47,18 +49,26 @@ readonly class Constraint
         $escapedName = $conn->escapeIdentifier($constraintName);
         $escapedColumnNames = $conn->escapeIdentifiers($columnNames);
 
-        $constraint = new Constraint($constraintName, $tableName);
-
-        $constraint->m_sqlCreate =
+        $sqlCreate =
             "ALTER TABLE $escapedTableName" .
             " ADD CONSTRAINT $escapedName" .
             " PRIMARY KEY (" . implode(",", $escapedColumnNames) . ")" .
             " {$deferConfig->value}";
 
-        $constraint->m_sqlDelete = "ALTER TABLE $escapedTableName DROP CONSTRAINT $escapedName";
-        return $constraint;
+        $sqlDelete = "ALTER TABLE $escapedTableName DROP CONSTRAINT $escapedName";
+        return new Constraint($constraintName, $tableName, $sqlCreate, $sqlDelete);
     }
 
+
+    /**
+     * Create a unique constraint.
+     * @param string $tableName
+     * @param string $constraintName
+     * @param array $columnNames
+     * @param \Programster\PgsqlObjects\DeferConfig $deferConfig
+     * @param \Programster\PgsqlLib\PgSqlConnection $conn
+     * @return \Programster\PgsqlObjects\Constraint
+     */
     public static function createUnique(
         string $tableName,
         string $constraintName,
@@ -71,16 +81,14 @@ readonly class Constraint
         $escapedName = $conn->escapeIdentifier($constraintName);
         $escapedColumnNames = $conn->escapeIdentifiers($columnNames);
 
-        $constraint = new Constraint($constraintName, $tableName);
-
-        $constraint->m_sqlCreate =
+        $sqlCreate =
             "ALTER TABLE $escapedTableName" .
             " ADD CONSTRAINT $escapedName" .
             " UNIQUE (" . implode(",", $escapedColumnNames) . ")" .
             " {$deferConfig->value}";
 
-        $constraint->m_sqlDelete = "ALTER TABLE $escapedTableName DROP CONSTRAINT $escapedName";
-        return $constraint;
+        $sqlDelete = "ALTER TABLE $escapedTableName DROP CONSTRAINT $escapedName";
+        return new Constraint($constraintName, $tableName, $sqlCreate, $sqlDelete);
     }
 
 
@@ -111,38 +119,21 @@ readonly class Constraint
         $escapedReferencedTableName = $conn->escapeIdentifier($referencedTableName);
         $escapedReferencedColumn = $conn->escapeIdentifier($referencedTableColumn);
 
-        $constraint = new Constraint($constraintName, $tableName);
-
-        $constraint->m_sqlCreate =
+        $sqlCreate =
             "ALTER TABLE $escapedTableName" .
             " ADD CONSTRAINT $escapedConstraintName" .
             " FOREIGN KEY ({$escapedColumnName})" .
             " REFERENCES $escapedReferencedTableName ($escapedReferencedColumn)" .
             " {$deferConfig->value}";
 
-        $constraint->m_sqlDelete = "ALTER TABLE $escapedTableName DROP CONSTRAINT $escapedConstraintName";
-        return $constraint;
+        $sqlDelete = "ALTER TABLE $escapedTableName DROP CONSTRAINT $escapedConstraintName";
+        return new Constraint($constraintName, $tableName, $sqlCreate, $sqlDelete);
     }
 
 
-    public function getSqlCreate() : string
-    {
-        return $this->m_sqlCreate;
-    }
-
-
-    public function getSqlDelete() : string
-    {
-        return $this->m_sqlDelete;
-    }
-
-    public function getTableName() : string
-    {
-        return $this->m_tableName;
-    }
-
-    public function getName() : string
-    {
-        return $this->m_name;
-    }
+    # Accessors
+    public function getName() : string { return $this->m_name; }
+    public function getTableName() : string { return $this->m_tableName; }
+    public function getSqlCreate() : string { return $this->m_sqlCreate; }
+    public function getSqlDelete() : string { return $this->m_sqlDelete; }
 }

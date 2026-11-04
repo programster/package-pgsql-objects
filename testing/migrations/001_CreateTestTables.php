@@ -25,7 +25,7 @@ class CreateTestTables implements \Programster\PgsqlMigrations\MigrationInterfac
     }
 
 
-    public function down($mysqliConn) : void
+    public function down($dbConn) : void
     {
 
     }

@@ -18,7 +18,13 @@ abstract class AbstractUuidTable extends AbstractTable
     }
 
 
-    public function isIdGeneratedInDatabase() : bool
+    public function canCodeGenerateId() : bool
+    {
+        return true;
+    }
+
+
+    public function canDatabaseGenerateId() : bool
     {
         return false;
     }

@@ -19,7 +19,7 @@ $migrationManager->migrate();
 $testFiles = Programster\CoreLibs\Filesystem::getDirContents(__DIR__ . '/tests');
 $testResults = array();
 $testOutput = array();
-$testExceptoins = array();
+$testExceptions = array();
 
 foreach ($testFiles as $testFile)
 {
@@ -40,11 +40,12 @@ foreach ($testFiles as $testFile)
         $testResults[$testFile] = "passed";
         print "{$boldCyan}{$testName}{$reset}: {$coloredPassedMessage}" . PHP_EOL;
     }
-    catch (Exception $ex)
+    catch (\Throwable $ex) // catch errors (e.g. TypeError) as well as exceptions, so one test can't stop the run.
     {
         $testResults[$testFile] = "failed";
-        $testExceptoins[$testFile] = $ex;
-        print "{$boldCyan}{$testName}{$reset}: {$coloredFailedMessage} - {$ex->getMessage()}" . PHP_EOL;
+        $testExceptions[$testFile] = $ex;
+        $failureMessage = get_class($ex) . ": " . $ex->getMessage();
+        print "{$boldCyan}{$testName}{$reset}: {$coloredFailedMessage} - {$failureMessage}" . PHP_EOL;
     }
 
     $testOutput[$testFile] = ob_get_clean();
@@ -60,6 +61,13 @@ foreach ($testResults as $testName => $passedOrFailed)
     }
     else
     {
-        print "{$boldCyan}{$testName}{$reset}: {$coloredFailedMessage} - {$testExceptoins[$testName]->getMessage()}" . PHP_EOL;
+        $failure = $testExceptions[$testName];
+        $failureMessage = get_class($failure) . ": " . $failure->getMessage();
+        print "{$boldCyan}{$testName}{$reset}: {$coloredFailedMessage} - {$failureMessage}" . PHP_EOL;
     }
 }
+
+// exit with a non-zero code if any test failed, so CI/CD pipelines can detect the failure.
+$numFailed = count($testExceptions);
+print PHP_EOL . (count($testResults) - $numFailed) . " passed, {$numFailed} failed." . PHP_EOL;
+exit(($numFailed > 0) ? 1 : 0);
