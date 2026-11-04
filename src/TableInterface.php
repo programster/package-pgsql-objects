@@ -134,6 +134,16 @@ interface TableInterface
 
 
     /**
+     * List the virtual fields. These are columns whose values PostgreSQL always computes itself, i.e. PostgreSQL
+     * generated columns (GENERATED ALWAYS AS (...), both STORED and VIRTUAL), or non-ID GENERATED ALWAYS AS IDENTITY
+     * columns. This is unrelated to generating IDs, as this package never generates these values itself. These are
+     * never sent to the database in inserts or updates, as PostgreSQL rejects any value for them.
+     * @return array<string> - array of column names.
+     */
+    public function getVirtualFields() : array;
+
+
+    /**
      * List the fields that should be kept as the string the database returns, rather than being converted to a
      * PHP int/float/bool.
      * @return array<string> - array of column names.

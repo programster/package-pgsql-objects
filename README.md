@@ -72,11 +72,29 @@ A few things to be aware of:
   table's `getFieldsToKeepAsString()` to keep the exact string from the 
   database instead. `money` columns are always kept as strings, as PostgreSQL 
   formats them for its locale.
+- Supports virtual fields, which are columns whose values PostgreSQL always 
+  computes itself, such as PostgreSQL generated columns (both 
+  `GENERATED ALWAYS AS (...) STORED` and `VIRTUAL`), or non-ID 
+  `GENERATED ALWAYS AS IDENTITY` columns. List them in your table's 
+  `getVirtualFields()`, and they won't be required when creating 
+  objects, will never be sent in inserts or updates, and will be read back from 
+  the database after `save()`, `create()` and `update()`. `batchSave()` can't 
+  read them back, so reload the objects with `useCache` set to false if you 
+  need their new values.
+
+
+### Upgrading to 5.0
+`getVirtualFields()` currently defaults to returning an empty array, 
+so existing tables keep working without implementing it. In the next major 
+release (5.0), this default will be removed and the method will become abstract, 
+like `getFieldsThatHaveDefaults()`, so every table will have to implement it, 
+returning an empty array if it has no generated columns.
 
 
 ## Testing
-The tests need a PostgreSQL database that they are free to empty, as they 
-create tables and truncate them. You can run a throwaway one through docker 
+The tests need a PostgreSQL 18 or newer database (for virtual generated 
+columns) that they are free to empty, as they create tables and truncate them. 
+You can run a throwaway one through docker 
 with:
 
 ```bash

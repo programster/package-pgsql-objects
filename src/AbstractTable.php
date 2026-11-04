@@ -100,13 +100,15 @@ abstract class AbstractTable implements TableInterface
     /**
      * Create a new object that represents a new row in the database.
      * The object is built from the row the database returns, so it includes any values the
-     * database generated, such as a SERIAL ID or column defaults.
-     * @param array $row - name value pairs to create the object from.
+     * database generated, such as a SERIAL ID, column defaults, or generated columns.
+     * @param array $row - name value pairs to create the object from. Any values for the fields listed in
+     * getVirtualFields() are ignored, as the database generates them.
      * @return AbstractTableRowObject
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
     public function create(array $row) : AbstractTableRowObject
     {
+        $row = $this->removeVirtualFields($row);
         $idColumnName = $this->getIdColumnName();
 
         // user may decide not to set the ID themselves, in which case it gets created for them, preferring to
@@ -472,6 +474,36 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
+     * Get the user to specify the virtual fields. These are columns whose values PostgreSQL always computes itself,
+     * i.e. PostgreSQL generated columns (GENERATED ALWAYS AS (...), both STORED and VIRTUAL), or non-ID
+     * GENERATED ALWAYS AS IDENTITY columns. This is unrelated to generating IDs (see generateId()), as this
+     * package never generates these values itself. They don't have to be set when creating this object, and are
+     * never sent to the database in inserts or updates, as PostgreSQL rejects any value for them. Their values are
+     * read back from the database after save(), create() and update().
+     * Override this if needed. By default, there are no virtual fields.
+     * WARNING - this default implementation will be removed in the next major release (5.0), making this method
+     * abstract like getFieldsThatHaveDefaults(), so every table will have to implement it.
+     * @return array<string> - array of column names.
+     */
+    public function getVirtualFields() : array
+    {
+        return array();
+    }
+
+
+    /**
+     * Remove the virtual fields (PostgreSQL generated columns) from a row, so the row can be sent in an insert or
+     * update.
+     * @param array $row - name value pairs of column to values.
+     * @return array - the row without the virtual fields.
+     */
+    protected function removeVirtualFields(array $row) : array
+    {
+        return array_diff_key($row, array_flip($this->getVirtualFields()));
+    }
+
+
+    /**
      * Get the user to specify fields that should be kept as the string the database returns, rather than being
      * converted to a PHP int/float/bool. Use this for numeric columns where converting to a float would lose
      * precision, e.g. currency amounts or high-precision values that you'll handle with bcmath or a decimal library.
@@ -661,51 +693,48 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Update a row specified by the ID with the provided data.
+     * The returned object is built from the row the database returns, so it includes any values the database
+     * changed, such as generated columns.
      * @param int|string $id - the current ID of the object being updated (may not necessarily be the same as the
      * ID column in $row if changing the object's ID).
-     * @param array $row - the data to update the object with
+     * @param array $row - the data to update the object with. Any values for the fields listed in
+     * getVirtualFields() are ignored, as the database generates them.
      * @return AbstractTableRowObject
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError if the query failed.
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException - if there is no row with the ID.
      */
     public function update(int|string $id, array $row) : AbstractTableRowObject
     {
         # This logic must not ever be changed to load the row object and then call update on that
         # because it's update method will call this method and you will end up with a loop.
-        $query =
-            "UPDATE {$this->getEscapedTableName()} SET " .
-            PgsqlLib::generateQueryPairs($this->getDb()->getResource(), $row) .
-            " WHERE {$this->getDb()->generateQueryPairs([$this->getIdColumnName() => $id])}";
+        $row = $this->removeVirtualFields($row);
 
-        $this->getDb()->query($query); // throws on failure
-
-        if (isset($this->m_objectCache[$id]))
+        if (count($row) > 0)
         {
-            $existingObject = $this->getCachedObject($id);
-            $newArrayForm = $existingObject->getArrayForm();
+            $query =
+                "UPDATE {$this->getEscapedTableName()} SET " .
+                PgsqlLib::generateQueryPairs($this->getDb()->getResource(), $row) .
+                " WHERE {$this->getDb()->generateQueryPairs([$this->getIdColumnName() => $id])}" .
+                " RETURNING *";
 
-            # overwrite the existing data with the new.
-            foreach ($row as $columnName => $value)
+            $result = $this->getDb()->query($query); // throws on failure
+            $updatedRow = pg_fetch_assoc($result);
+
+            if ($updatedRow === false)
             {
-                $newArrayForm[$columnName] = $value;
+                $msg = "There is no {$this->getObjectClassName()} with {$this->getIdColumnName()}: {$id} to update.";
+                throw new \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException($msg);
             }
 
+            $fieldInfoMap = pg_meta_data($this->getDb()->getResource(), $this->getTableName());
             $rowHydrator = $this->getRowHydrator();
-            $updatedObject = $rowHydrator($newArrayForm);
+            $updatedObject = $rowHydrator($updatedRow, $fieldInfoMap);
             $this->updateCache($updatedObject);
         }
         else
         {
-            # We don't have the object loaded into cache so we need to fetch it from the
-            # database in order to be able to return an object. This updates cache as well.
-            # We also need to handle the event of the update being to change the ID.
-            if (isset($row[$this->getIdColumnName()]))
-            {
-                $updatedObject = $this->load($row[$this->getIdColumnName()]);
-            }
-            else
-            {
-                $updatedObject = $this->load($id);
-            }
+            # nothing that can be written was provided, so just return the row as it is.
+            $updatedObject = $this->load($id, false);
         }
 
         # If we changed the object's ID, then we need to remove the old cached object.
@@ -743,6 +772,8 @@ abstract class AbstractTable implements TableInterface
      * Batch update/insert a bunch of objects in a single query.
      * Every object must have an ID, as there is no way to read IDs generated by the database back from a batch.
      * Objects without one get one generated in code if this table can do so.
+     * WARNING - the values of the fields listed in getVirtualFields() can't be read back from a batch either,
+     * so they will be out of date on the objects (and in the cache) until they are reloaded with useCache=false.
      * @param array<AbstractTableRowObject> $objects
      * @return void
      * @throws ExceptionMissingRequiredData - if an object has no ID and this table can't generate one in code. This is
