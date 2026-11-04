@@ -99,73 +99,54 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Create a new object that represents a new row in the database.
+     * The object is built from the row the database returns, so it includes any values the
+     * database generated, such as a SERIAL ID or column defaults.
      * @param array $row - name value pairs to create the object from.
      * @return AbstractTableRowObject
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
     public function create(array $row) : AbstractTableRowObject
     {
-        if (array_key_exists($this->getIdColumnName(), $row))
+        $idColumnName = $this->getIdColumnName();
+
+        // user may decide not to set the ID themselves, in which case it gets created for them.
+        if (!isset($row[$idColumnName]))
         {
-            // id column is set, but may be null
-            if ($row[$this->getIdColumnName()] === null)
+            if ($this->isIdGeneratedInDatabase())
             {
-                if ($this->isIdGeneratedInDatabase())
-                {
-                    unset($row[$this->getIdColumnName()]); // have the database create the ID.
-                }
-                else
-                {
-                    $row[$this->getIdColumnName()] = $this->generateId();
-                }
-            }
-        }
-        else
-        {
-            if ($this->isIdGeneratedInDatabase() === false)
-            {
-                $row[$this->getIdColumnName()] = $this->generateId();
-            }
-        }
-
-        // user may decide not to set the uuid themselves, in which case we create it for them.
-        if (!isset($row[$this->getIdColumnName()]))
-        {
-            if ($this->isIdGeneratedInDatabase() === false)
-            {
-                $row[$this->getIdColumnName()] = $this->generateId();
-            }
-        }
-
-
-        $columnNames = array_keys($row);
-        $values = array_values($row);
-        $escapedColumnNames = $this->getDb()->escapeIdentifiers($columnNames);
-        $escapedValues = $this->getDb()->escapeValues($values);
-
-        $valuesString = "";
-
-        foreach ($escapedValues as $escapedValue)
-        {
-            if ($escapedValue === null)
-            {
-                $valuesString .= "NULL, ";
+                unset($row[$idColumnName]); // have the database create the ID.
             }
             else
             {
-                $valuesString .= $escapedValue . ", ";
+                $row[$idColumnName] = $this->generateId();
             }
         }
 
-        $valuesString = \Safe\substr($valuesString, 0, strlen($valuesString) - 2);
+        if (count($row) > 0)
+        {
+            $escapedColumnNames = $this->getDb()->escapeIdentifiers(array_keys($row));
+            $valueStrings = array();
 
-        $query =
-            "INSERT INTO {$this->getEscapedTableName()}" .
-            " (" . implode(",", $escapedColumnNames) . ")" .
-            " VALUES ($valuesString)";
+            foreach ($this->getDb()->escapeValues(array_values($row)) as $escapedValue)
+            {
+                $valueStrings[] = ($escapedValue === null) ? "NULL" : (string)$escapedValue;
+            }
 
-        $this->getDb()->query($query);
+            $query =
+                "INSERT INTO {$this->getEscapedTableName()}" .
+                " (" . implode(",", $escapedColumnNames) . ")" .
+                " VALUES (" . implode(", ", $valueStrings) . ")";
+        }
+        else
+        {
+            $query = "INSERT INTO {$this->getEscapedTableName()} DEFAULT VALUES";
+        }
+
+        $result = $this->getDb()->query($query . " RETURNING *");
+        $createdRow = pg_fetch_assoc($result);
+        $fieldInfoMap = pg_meta_data($this->getDb()->getResource(), $this->getTableName());
         $constructor = $this->getRowObjectConstructorWrapper();
-        $object = $constructor($row);
+        $object = $constructor($createdRow, $fieldInfoMap);
         $this->updateCache($object);
         return $object;
     }
@@ -201,12 +182,17 @@ abstract class AbstractTable implements TableInterface
      * Update our cache with the provided object.
      * Note that if you simply changed the object's ID, you will need to call unsetCache() on
      * the original ID.
+     * Objects without an ID yet (e.g. a database-generated ID that hasn't been read back) are not
+     * cached, as they have nothing to be looked up by.
      * @param AbstractTableRowObject $object
      * @return void
      */
     protected function updateCache(AbstractTableRowObject $object) : void
     {
-        $this->m_objectCache[$object->getId()] = $object;
+        if ($object->getId() !== null)
+        {
+            $this->m_objectCache[$object->getId()] = $object;
+        }
     }
 
 
@@ -270,26 +256,22 @@ abstract class AbstractTable implements TableInterface
      * exception if an object with one of the IDs specified does not exist.
      * This is a fast and cache-friendly operation.
      * @param array $ids - the list of IDs of the objects we wish to delete.
-     * @return int - the number of objects deleted.
+     * @return void
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
     public function deleteIds(array $ids) : void
     {
-        $idsToDelete = $this->getDb()->escapeValues($ids);
-        $wherePairs = array($this->getIdColumnName() => $idsToDelete);
+        // generateDeleteWhereQuery() escapes the values itself, so pass the raw IDs.
+        $wherePairs = array($this->getIdColumnName() => $ids);
 
         $query = PgsqlLib::generateDeleteWhereQuery(
-            $this->getDb(),
+            $this->getDb()->getResource(),
             $this->getTableName(),
             $wherePairs,
             Conjunction::AND
         );
 
-        $result = $this->getDb()->query($query);
-
-        if ($result == FALSE)
-        {
-            throw new \Exception("Failed to delete objects by their identifiers.");
-        }
+        $this->getDb()->query($query); // throws on failure
 
         # Remove these objects from our cache.
         foreach ($ids as $objectId)
@@ -313,13 +295,13 @@ abstract class AbstractTable implements TableInterface
      *                              id => array(1,2,3) would delete objects that have ID 1,2, or 3.
      * @param bool $clearCache - optionally set to false to not have this operation clear the
      *                           cache afterwards.
-     * @return array<AbstractTableRowObject>
-     * @throws \Exception
+     * @return void
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    protected function deleteWhereOr(array $wherePairs, $clearCache=true) : void
+    protected function deleteWhereOr(array $wherePairs, bool $clearCache=true) : void
     {
         $query = PgsqlLib::generateDeleteWhereQuery(
-            $this->getDb(),
+            $this->getDb()->getResource(),
             $this->getTableName(),
             $wherePairs,
             Conjunction::OR
@@ -772,15 +754,15 @@ abstract class AbstractTable implements TableInterface
     }
 
 
+    /**
+     * Get the escaped form of the name of the column that acts as the identifier.
+     * This is deliberately not cached in a static variable, as static variables in methods are
+     * shared between all subclasses that inherit the method, so tables with different ID column
+     * names would end up using whichever table called this first.
+     * @return string
+     */
     public function getEscapedIdColumnName() : string
     {
-        static $escapedName = null;
-
-        if ($escapedName === null)
-        {
-            $escapedName = (string)$this->getDb()->escapeIdentifier($this->getIdColumnName());
-        }
-
-        return $escapedName;
+        return $this->getDb()->escapeIdentifier($this->getIdColumnName());
     }
 }

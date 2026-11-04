@@ -95,7 +95,9 @@ abstract class AbstractTableRowObject
         }
         else
         {
-            $this->getTableHandler()->create($row);
+            // take on the values the database generated, such as a SERIAL ID or column defaults.
+            $createdObject = $this->getTableHandler()->create($row);
+            $this->initializeFromArray($createdObject->getArrayForm());
         }
 
         $this->m_isSavedInDatabase = true;
