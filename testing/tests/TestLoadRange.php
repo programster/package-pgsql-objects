@@ -22,7 +22,7 @@ class TestLoadRange
         // titles deliberately in a different order to the IDs, and with a duplicate to exercise the tiebreaker.
         foreach (['f', 'e', 'd', 'c', 'b', 'b'] as $title)
         {
-            $table->create(['title' => $title]);
+            $table->insert(['title' => $title]);
         }
 
         $this->testDefaultOrderSurvivesUpdates();
@@ -39,7 +39,8 @@ class TestLoadRange
         $firstPage[0]->update(['title' => 'updated']);
 
         $secondPage = $table->loadRange(3, 3);
-        $ids = array_map(fn($ticket) => $ticket->getId(), array_merge($firstPage, $secondPage));
+        $getId = function (TicketRecord $ticket) : int { return $ticket->getId(); };
+        $ids = array_map($getId, array_merge($firstPage, $secondPage));
 
         if ($ids !== [1, 2, 3, 4, 5, 6])
         {
@@ -55,13 +56,16 @@ class TestLoadRange
         $secondPage = $table->loadRange(3, 3, 'title');
         $tickets = array_merge($firstPage, $secondPage);
 
-        $titles = array_map(fn($ticket) => $ticket->getTitle(), $tickets);
-        $ids = array_map(fn($ticket) => $ticket->getId(), $tickets);
+        $getTitle = function (TicketRecord $ticket) : ?string { return $ticket->getTitle(); };
+        $getId = function (TicketRecord $ticket) : int { return $ticket->getId(); };
+        $describe = function (TicketRecord $ticket) : string { return "{$ticket->getId()}:{$ticket->getTitle()}"; };
+        $titles = array_map($getTitle, $tickets);
+        $ids = array_map($getId, $tickets);
 
         // ticket 1 was renamed to "updated", and the two "b" tickets are ordered by their IDs as a tiebreaker.
         if ($titles !== ['b', 'b', 'c', 'd', 'e', 'updated'] || $ids !== [5, 6, 4, 3, 2, 1])
         {
-            $actual = implode(", ", array_map(fn($ticket) => "{$ticket->getId()}:{$ticket->getTitle()}", $tickets));
+            $actual = implode(", ", array_map($describe, $tickets));
             throw new \Exception("loadRange() ordered by title did not return the expected rows, got: {$actual}");
         }
     }

@@ -7,7 +7,7 @@
 
 class CreateInvoiceTable implements \Programster\PgsqlMigrations\MigrationInterface
 {
-    public function up($dbConn) : void
+    public function up(\PgSql\Connection $dbConn) : void
     {
         $query =
             'CREATE TABLE "invoice" (
@@ -28,7 +28,7 @@ class CreateInvoiceTable implements \Programster\PgsqlMigrations\MigrationInterf
     }
 
 
-    public function down($dbConn) : void
+    public function down(\PgSql\Connection $dbConn) : void
     {
         pg_query($dbConn, 'DROP TABLE "invoice"');
     }

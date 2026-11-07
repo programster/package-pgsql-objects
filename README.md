@@ -78,17 +78,15 @@ A few things to be aware of:
   `GENERATED ALWAYS AS IDENTITY` columns. List them in your table's 
   `getVirtualFields()`, and they won't be required when creating 
   objects, will never be sent in inserts or updates, and will be read back from 
-  the database after `save()`, `create()` and `update()`. `batchSave()` can't 
+  the database after `save()`, `update()`, `insert()` and `updateById()`. `batchSave()` can't 
   read them back, so reload the objects with `useCache` set to false if you 
   need their new values.
 
 
 ### Upgrading to 5.0
-`getVirtualFields()` currently defaults to returning an empty array, 
-so existing tables keep working without implementing it. In the next major 
-release (5.0), this default will be removed and the method will become abstract, 
-like `getFieldsThatHaveDefaults()`, so every table will have to implement it, 
-returning an empty array if it has no generated columns.
+`getVirtualFields()` no longer has a default implementation, and is now 
+abstract like `getFieldsThatHaveDefaults()`, so every table has to implement 
+it, returning an empty array if it has no generated columns.
 
 
 ## Testing

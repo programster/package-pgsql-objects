@@ -8,25 +8,25 @@ class EventRecord extends AbstractTableRowObject
     private ?string $m_name = null;
 
 
+    public function getTableHandler() : TableInterface
+    {
+        return EventTable::getInstance();
+    }
+
+
     protected function getAccessorFunctions() : array
     {
-        return array(
-            'name' => function () { return $this->m_name; },
-        );
+        return [
+            'name' => function () : ?string { return $this->m_name; },
+        ];
     }
 
 
     protected function getSetFunctions() : array
     {
-        return array(
-            'name' => function ($x) { $this->m_name = $x; },
-        );
-    }
-
-
-    public function getTableHandler() : TableInterface
-    {
-        return EventTable::getInstance();
+        return [
+            'name' => function (?string $x) : void { $this->m_name = $x; },
+        ];
     }
 
 

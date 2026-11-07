@@ -17,10 +17,9 @@ class TestEmptyIdLists
     public function run() : void
     {
         $table = UserTable::getInstance();
-        $table->create(['name' => 'user1', 'email' => 'user1@gmail.com']);
+        $table->insert(['name' => 'user1', 'email' => 'user1@gmail.com']);
 
         $table->deleteByIds([]);
-        $table->deleteIds([]);
 
         if (count($table->loadAll()) !== 1)
         {

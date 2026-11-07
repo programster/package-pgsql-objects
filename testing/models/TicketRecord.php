@@ -9,16 +9,22 @@ class TicketRecord extends AbstractTableRowObject
     private ?string $m_status = null;
 
 
+    public function getTableHandler() : TableInterface
+    {
+        return TicketTable::getInstance();
+    }
+
+
     protected function getAccessorFunctions() : array
     {
-        $accessors = array(
-            'title' => function () { return $this->m_title; },
-        );
+        $accessors = [
+            'title' => function () : ?string { return $this->m_title; },
+        ];
 
         // only send the status if one was set, so the database default applies otherwise.
         if ($this->m_status !== null)
         {
-            $accessors['status'] = function () { return $this->m_status; };
+            $accessors['status'] = function () : ?string { return $this->m_status; };
         }
 
         return $accessors;
@@ -27,16 +33,10 @@ class TicketRecord extends AbstractTableRowObject
 
     protected function getSetFunctions() : array
     {
-        return array(
-            'title'  => function ($x) { $this->m_title = $x; },
-            'status' => function ($x) { $this->m_status = $x; },
-        );
-    }
-
-
-    public function getTableHandler() : TableInterface
-    {
-        return TicketTable::getInstance();
+        return [
+            'title'  => function (?string $x) : void { $this->m_title = $x; },
+            'status' => function (?string $x) : void { $this->m_status = $x; },
+        ];
     }
 
 

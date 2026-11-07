@@ -12,19 +12,19 @@ class InvoiceTable extends Programster\PgsqlObjects\AbstractUuidTable
 
     public function getFieldsThatAllowNull() : array
     {
-        return array();
+        return [];
     }
 
 
     public function getFieldsThatHaveDefaults() : array
     {
-        return array();
+        return [];
     }
 
 
     public function getVirtualFields() : array
     {
-        return array('total_pence', 'total_with_vat_pence', 'sequence_number');
+        return ['total_pence', 'total_with_vat_pence', 'sequence_number'];
     }
 
 

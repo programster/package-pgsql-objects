@@ -6,7 +6,7 @@
 
 class CreateTestTables implements \Programster\PgsqlMigrations\MigrationInterface
 {
-    public function up($dbConn) : void
+    public function up(\PgSql\Connection $dbConn) : void
     {
         $createUuidTableQuery =
             'CREATE TABLE "user" (
@@ -25,7 +25,7 @@ class CreateTestTables implements \Programster\PgsqlMigrations\MigrationInterfac
     }
 
 
-    public function down($dbConn) : void
+    public function down(\PgSql\Connection $dbConn) : void
     {
 
     }

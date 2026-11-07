@@ -3,11 +3,11 @@
 require_once(__DIR__ . '/settings.php');
 require_once(__DIR__ . '/../vendor/autoload.php');
 
-$autoloader = new \iRAP\Autoloader\Autoloader(array(
+$autoloader = new \iRAP\Autoloader\Autoloader([
     __DIR__,
     __DIR__ . '/tests',
     __DIR__ . '/models',
-));
+]);
 
 $migrationManager = new Programster\PgsqlMigrations\MigrationManager(
     __DIR__ . '/migrations',
@@ -16,10 +16,16 @@ $migrationManager = new Programster\PgsqlMigrations\MigrationManager(
 
 $migrationManager->migrate();
 
-$testFiles = Programster\CoreLibs\Filesystem::getDirContents(__DIR__ . '/tests');
-$testResults = array();
-$testOutput = array();
-$testExceptions = array();
+$testFiles = glob(__DIR__ . '/tests/*.php');
+
+if ($testFiles === false)
+{
+    throw new \RuntimeException("Failed to list the test files in " . __DIR__ . "/tests");
+}
+
+$testResults = [];
+$testOutput = [];
+$testExceptions = [];
 
 foreach ($testFiles as $testFile)
 {

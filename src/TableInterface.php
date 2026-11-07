@@ -13,6 +13,7 @@ declare(strict_types = 1);
 namespace Programster\PgsqlObjects;
 
 use Programster\PgsqlLib\PgSqlConnection;
+use Programster\PgsqlLib\Table;
 
 
 interface TableInterface
@@ -25,9 +26,38 @@ interface TableInterface
 
 
     /**
-     * Return the name of this table.
+     * Get the plain (unescaped) name of this table on its own, without the schema, e.g. user.
+     * Use getEscapedQualifiedTableName() when putting the table into a query.
+     *
+     * @return string
      */
     public function getTableName() : string;
+
+
+    /**
+     * Get the plain (unescaped) name of the schema this table is in, e.g. public.
+     * Use getEscapedQualifiedTableName() when putting the table into a query.
+     *
+     * @return string
+     */
+    public function getSchemaName() : string;
+
+
+    /**
+     * Get the escaped, schema-qualified name of this table, ready for use in a query, e.g. "public"."user". This is
+     * always used rather than the bare table name, so that queries use the table in the correct schema rather than
+     * relying on the connection's search_path.
+     *
+     * @return string
+     */
+    public function getEscapedQualifiedTableName() : string;
+
+
+    /**
+     * Get this table as a pgsql-lib Table, in its schema, for passing to the pgsql-lib query generators.
+     * @return Table
+     */
+    public function getTable() : Table;
 
 
     /**
@@ -56,13 +86,19 @@ interface TableInterface
      * @param int|string $id - the ID of the row to delete.
      * @return void
      */
-    public function delete(int|string $id) : void;
+    public function deleteById(int|string $id) : void;
 
 
     /**
-     * Deletes all rows from the table by running TRUNCATE.
+     * Deletes all rows from the table, using DELETE, or TRUNCATE if $useTruncate is true.
+     *
+     * @param bool $useTruncate - (optional) set to true to run TRUNCATE, which is faster on a large table, but fails
+     * if another table has a foreign key referencing this one, skips ON DELETE triggers, and locks the whole table.
+     * Defaults to false, which runs DELETE.
+     *
+     * @return void
      */
-    public function deleteAll() : void;
+    public function deleteAll(bool $useTruncate = false) : void;
 
 
     /**
@@ -74,9 +110,12 @@ interface TableInterface
 
     /**
      * Loads a single object of this class's type from the database using the unique ID of the row.
+     *
      * @param string|int $id - the id of the row in the database table.
-     * @param bool useCache - optionally set to false to force a database lookup even if we have a
-     *                    cached value from a previous lookup.
+     *
+     * @param bool $useCache - optionally set to false to force a database lookup even if we have a
+     * cached value from a previous lookup.
+     *
      * @return AbstractTableRowObject - the loaded object.
      */
     public function load(string|int $id, bool $useCache=true) : AbstractTableRowObject;
@@ -95,18 +134,33 @@ interface TableInterface
     /**
      * Loads up to $numElements rows whose IDs come after $afterId, in ID order (keyset pagination). Pass null for the
      * first page, then the ID of the last object on each page to load the next.
+     *
      * @param string|int|null $afterId - the ID of the last object on the previous page, or null for the first page.
+     *
      * @param int $numElements - the maximum number of rows to load.
+     *
      * @return array<AbstractTableRowObject>
      */
     public function loadAfterId(string|int|null $afterId, int $numElements) : array;
 
 
     /**
-     * Create a new row with unfiltered data.
-     * @return AbstractTableRowObject
+     * Insert a new row into the table, and return the object for it.
+     * @param array $row - the column/value pairs to insert.
+     * @return AbstractTableRowObject - the object for the inserted row, including any values the database generated.
      */
-    public function create(array $row) : AbstractTableRowObject;
+    public function insert(array $row) : AbstractTableRowObject;
+
+
+    /**
+     * Insert many rows into the table in a single query, and return the objects for them, including any values the
+     * database generated, such as their IDs. The objects are not necessarily in the same order as $rows.
+     *
+     * @param array<array> $rows - the rows to insert, as column/value pairs. Must not be empty.
+     *
+     * @return array<AbstractTableRowObject> - the objects for the inserted rows.
+     */
+    public function batchInsert(array $rows) : array;
 
 
     /**
@@ -115,8 +169,7 @@ interface TableInterface
      * @param array $row - the column/value pairs to update the row with.
      * @return AbstractTableRowObject - the updated model object.
      */
-    public function update(int|string $id, array $row) : AbstractTableRowObject;
-
+    public function updateById(int|string $id, array $row) : AbstractTableRowObject;
 
 
     /**
@@ -138,6 +191,7 @@ interface TableInterface
      * generated columns (GENERATED ALWAYS AS (...), both STORED and VIRTUAL), or non-ID GENERATED ALWAYS AS IDENTITY
      * columns. This is unrelated to generating IDs, as this package never generates these values itself. These are
      * never sent to the database in inserts or updates, as PostgreSQL rejects any value for them.
+     *
      * @return array<string> - array of column names.
      */
     public function getVirtualFields() : array;
@@ -146,6 +200,7 @@ interface TableInterface
     /**
      * List the fields that should be kept as the string the database returns, rather than being converted to a
      * PHP int/float/bool.
+     *
      * @return array<string> - array of column names.
      */
     public function getFieldsToKeepAsString() : array;
@@ -156,12 +211,14 @@ interface TableInterface
      * throw an exception. If you can't generate an ID, and expect that the ID is generated
      * in the database, then please throw a \Programster\PgsqlObjects\Exceptions\ExceptionIdGeneratedInDatabase
      * exception.
-     * @return mixed - the generated identifier. Implementations should narrow this to their ID type
-     *                 (e.g. AbstractUuidTable returns a string).
+     *
+     * @return int|string - the generated identifier. Implementations should narrow this to their ID type (e.g.
+     * AbstractUuidTable returns a string), or declare never if they always throw.
+     *
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionIdGeneratedInDatabase - if the ID is generated in the
      * database, and cannot be generated here.
      */
-    public function generateId() : mixed;
+    public function generateId() : int|string;
 
 
     /**
@@ -169,6 +226,7 @@ interface TableInterface
      * generateId(), even if the database could also generate one.
      * WARNING - this must be false if the ID column is GENERATED ALWAYS AS IDENTITY, as the database rejects inserts
      * that provide a value for such a column (GENERATED BY DEFAULT AS IDENTITY is fine).
+     *
      * @return bool
      */
     public function canCodeGenerateId() : bool;
@@ -179,6 +237,7 @@ interface TableInterface
      * default that produces a new value per row, such as gen_random_uuid().
      * This is only relied upon when canCodeGenerateId() is false, in which case new rows without an ID are left for
      * the database to fill in. If both are false, an ID must be provided when creating a row.
+     *
      * @return bool
      */
     public function canDatabaseGenerateId() : bool;

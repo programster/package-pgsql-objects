@@ -20,12 +20,12 @@ class TestLoadWhereId
     }
 
 
-    public function run()
+    public function run() : void
     {
-        $userDetails = array(
+        $userDetails = [
             'email' => 'user1@gmail.com',
             'name' => 'user1',
-        );
+        ];
 
         $userRecord = UserRecord::createNewFromArray($userDetails);
         $userRecord->save();
@@ -35,7 +35,7 @@ class TestLoadWhereId
 
 
         $loadedUserRecords = UserTable::getInstance()->loadWhereAnd(
-            array('id' => $userID)
+            ['id' => $userID]
         );
 
         /* @var $loadedUserRecord UserRecord */

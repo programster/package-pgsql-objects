@@ -12,19 +12,25 @@ class LedgerTable extends Programster\PgsqlObjects\AbstractUuidTable
 
     public function getFieldsThatAllowNull() : array
     {
-        return array();
+        return [];
     }
 
 
     public function getFieldsThatHaveDefaults() : array
     {
-        return array();
+        return [];
+    }
+
+
+    public function getVirtualFields() : array
+    {
+        return [];
     }
 
 
     public function getFieldsToKeepAsString() : array
     {
-        return array('exact_amount');
+        return ['exact_amount'];
     }
 
 

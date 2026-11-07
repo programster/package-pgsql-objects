@@ -20,20 +20,20 @@ class TestDeleteAll
     }
 
 
-    public function run()
+    public function run() : void
     {
-        $userDetails = array(
+        $userDetails = [
             'email' => 'user1@gmail.com',
             'name' => 'user1',
-        );
+        ];
 
         $userRecord = UserRecord::createNewFromArray($userDetails);
         $userRecord->save();
 
-        $userDetails2 = array(
+        $userDetails2 = [
             'email' => 'user2@gmail.com',
             'name' => 'user2',
-        );
+        ];
 
         $userRecord2 = UserRecord::createNewFromArray($userDetails2);
         $userRecord2->save();

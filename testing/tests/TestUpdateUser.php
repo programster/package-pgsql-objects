@@ -20,12 +20,12 @@ class TestUpdateUser
     }
 
 
-    public function run()
+    public function run() : void
     {
-        $userDetails = array(
+        $userDetails = [
             'email' => 'user1@gmail.com',
             'name' => 'user1',
-        );
+        ];
 
         $userRecord = UserRecord::createNewFromArray($userDetails);
         $userRecord->save();
@@ -46,9 +46,9 @@ class TestUpdateUser
             throw new \Exception("User did not have expected name.");
         }
 
-        $loadedUserRecord->update(array(
+        $loadedUserRecord->update([
             'name' => 'another name'
-        ));
+        ]);
 
         if ($loadedUserRecord->getName() !== 'another name')
         {
@@ -62,8 +62,8 @@ class TestUpdateUser
             throw new \Exception("Did not have the expected number of user records");
         }
 
-        /* @var $loadedUserRecord UserRecord */
-        $loadedUserRecord2 = $loadedUserRecords[0];
+        /* @var $loadedUserRecord2 UserRecord */
+        $loadedUserRecord2 = $loadedUserRecords2[0];
 
         if ($loadedUserRecord2->getName() !== 'another name')
         {

@@ -7,7 +7,7 @@
 
 class CreateTicketTable implements \Programster\PgsqlMigrations\MigrationInterface
 {
-    public function up($dbConn) : void
+    public function up(\PgSql\Connection $dbConn) : void
     {
         $query =
             'CREATE TABLE "ticket" (
@@ -26,7 +26,7 @@ class CreateTicketTable implements \Programster\PgsqlMigrations\MigrationInterfa
     }
 
 
-    public function down($dbConn) : void
+    public function down(\PgSql\Connection $dbConn) : void
     {
         pg_query($dbConn, 'DROP TABLE "ticket"');
     }

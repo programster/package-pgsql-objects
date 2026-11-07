@@ -21,10 +21,10 @@ class TestLoadAfterId
 
         for ($i = 1; $i <= 7; $i++)
         {
-            $table->create(['title' => "ticket {$i}"]);
+            $table->insert(['title' => "ticket {$i}"]);
         }
 
-        $loadedIds = array();
+        $loadedIds = [];
         $afterId = null;
         $pageNumber = 0;
 
@@ -42,15 +42,19 @@ class TestLoadAfterId
             if ($pageNumber === 1)
             {
                 // deleting an already-loaded row would shift every later page with OFFSET, but not with loadAfterId().
-                $table->delete(1);
-                $table->create(['title' => 'added while paging']); // gets ID 8, so should appear on the last page.
+                $table->deleteById(1);
+                $table->insert(['title' => 'added while paging']); // gets ID 8, so should appear on the last page.
             }
         }
         while (count($page) > 0);
 
         if ($loadedIds !== [1, 2, 3, 4, 5, 6, 7, 8])
         {
-            throw new \Exception("loadAfterId() did not load every row exactly once in ID order, got: " . implode(", ", $loadedIds));
+            $loadedIdsList = implode(", ", $loadedIds);
+
+            throw new \Exception(
+                "loadAfterId() did not load every row exactly once in ID order, got: {$loadedIdsList}"
+            );
         }
     }
 }

@@ -20,15 +20,15 @@ class TestLoadByUuid
     }
 
 
-    public function run()
+    public function run() : void
     {
-        $id = Programster\PgsqlObjects\Utils::generateUuid();
+        $id = UserTable::getInstance()->generateId();
 
-        $userDetails = array(
+        $userDetails = [
             'id' => $id,
             'email' => 'user1@gmail.com',
             'name' => 'user1',
-        );
+        ];
 
         $userRecord = UserRecord::createNewFromArray($userDetails);
         $userRecord->save();

@@ -15,13 +15,19 @@ class TagTable extends Programster\PgsqlObjects\AbstractTable
 
     public function getFieldsThatAllowNull() : array
     {
-        return array();
+        return [];
     }
 
 
     public function getFieldsThatHaveDefaults() : array
     {
-        return array();
+        return [];
+    }
+
+
+    public function getVirtualFields() : array
+    {
+        return [];
     }
 
 
@@ -37,7 +43,7 @@ class TagTable extends Programster\PgsqlObjects\AbstractTable
     }
 
 
-    public function generateId() : mixed
+    public function generateId() : never
     {
         throw new \LogicException("Tag IDs must be provided, so cannot be generated.");
     }

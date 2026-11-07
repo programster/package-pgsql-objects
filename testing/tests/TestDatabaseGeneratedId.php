@@ -46,7 +46,7 @@ class TestDatabaseGeneratedId
 
     private function testClone() : void
     {
-        $original = TicketTable::getInstance()->create(['title' => 'original']);
+        $original = TicketTable::getInstance()->insert(['title' => 'original']);
         $clone = clone $original;
 
         if ($clone->getId() !== null)
@@ -56,7 +56,7 @@ class TestDatabaseGeneratedId
 
         $clone->save();
 
-        if ($clone->getId() === null || $clone->getId() == $original->getId())
+        if ($clone->getId() === null || $clone->getId() === $original->getId())
         {
             throw new \Exception("Saving a clone did not give it its own database-generated ID.");
         }
@@ -65,19 +65,21 @@ class TestDatabaseGeneratedId
 
     private function testCreate() : void
     {
-        $ticket1 = TicketTable::getInstance()->create(['title' => 'first']);
-        $ticket2 = TicketTable::getInstance()->create(['title' => 'second']);
+        $ticket1 = TicketTable::getInstance()->insert(['title' => 'first']);
+        $ticket2 = TicketTable::getInstance()->insert(['title' => 'second']);
 
         if ($ticket1->getId() === null || $ticket2->getId() === null)
         {
-            throw new \Exception("create() returned an object without the database-generated ID.");
+            throw new \Exception("insert() returned an object without the database-generated ID.");
         }
 
         // SERIAL is an integer column, so its IDs should come back as PHP ints, however the object was made.
         $loadedFromDatabase = TicketTable::getInstance()->load($ticket1->getId(), false);
         $loadedFromLoadAll = TicketTable::getInstance()->loadAll()[0];
 
-        foreach (['create()' => $ticket1, 'load()' => $loadedFromDatabase, 'loadAll()' => $loadedFromLoadAll] as $source => $ticket)
+        $ticketsBySource = ['insert()' => $ticket1, 'load()' => $loadedFromDatabase, 'loadAll()' => $loadedFromLoadAll];
+
+        foreach ($ticketsBySource as $source => $ticket)
         {
             if (!is_int($ticket->getId()))
             {
@@ -86,14 +88,14 @@ class TestDatabaseGeneratedId
             }
         }
 
-        if ($ticket1->getId() == $ticket2->getId())
+        if ($ticket1->getId() === $ticket2->getId())
         {
-            throw new \Exception("create() returned two objects with the same ID.");
+            throw new \Exception("insert() returned two objects with the same ID.");
         }
 
         if ($ticket1->getStatus() !== 'open')
         {
-            throw new \Exception("create() did not pick up the database default for status.");
+            throw new \Exception("insert() did not pick up the database default for status.");
         }
 
         if (TicketTable::getInstance()->load($ticket1->getId())->getTitle() !== 'first')

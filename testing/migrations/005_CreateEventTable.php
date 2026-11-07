@@ -7,7 +7,7 @@
 
 class CreateEventTable implements \Programster\PgsqlMigrations\MigrationInterface
 {
-    public function up($dbConn) : void
+    public function up(\PgSql\Connection $dbConn) : void
     {
         $query =
             'CREATE TABLE "event" (
@@ -25,7 +25,7 @@ class CreateEventTable implements \Programster\PgsqlMigrations\MigrationInterfac
     }
 
 
-    public function down($dbConn) : void
+    public function down(\PgSql\Connection $dbConn) : void
     {
         pg_query($dbConn, 'DROP TABLE "event"');
     }

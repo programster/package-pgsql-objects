@@ -10,27 +10,27 @@ class LedgerRecord extends AbstractTableRowObject
     private mixed $m_approximateAmount = null;
 
 
+    public function getTableHandler() : TableInterface
+    {
+        return LedgerTable::getInstance();
+    }
+
+
     protected function getAccessorFunctions() : array
     {
-        return array(
-            'exact_amount'       => function () { return $this->m_exactAmount; },
-            'approximate_amount' => function () { return $this->m_approximateAmount; },
-        );
+        return [
+            'exact_amount'       => function () : mixed { return $this->m_exactAmount; },
+            'approximate_amount' => function () : mixed { return $this->m_approximateAmount; },
+        ];
     }
 
 
     protected function getSetFunctions() : array
     {
-        return array(
-            'exact_amount'       => function ($x) { $this->m_exactAmount = $x; },
-            'approximate_amount' => function ($x) { $this->m_approximateAmount = $x; },
-        );
-    }
-
-
-    public function getTableHandler() : TableInterface
-    {
-        return LedgerTable::getInstance();
+        return [
+            'exact_amount'       => function (mixed $x) : void { $this->m_exactAmount = $x; },
+            'approximate_amount' => function (mixed $x) : void { $this->m_approximateAmount = $x; },
+        ];
     }
 
 

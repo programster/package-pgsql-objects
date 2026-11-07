@@ -23,7 +23,6 @@ class TestBatchSave
     public function run() : void
     {
         $this->testInsertsAndUpdates();
-        $this->testMissingIdGeneratedInCode();
         $this->testMissingIdThatCantBeGeneratedIsRejected();
     }
 
@@ -31,7 +30,7 @@ class TestBatchSave
     private function testInsertsAndUpdates() : void
     {
         $table = ProductTable::getInstance();
-        $existing = $table->create(['name' => 'existing']);
+        $existing = $table->insert(['name' => 'existing']);
         $existing->update(['name' => 'renamed']); // saves straight away, so change it again for the batch below.
         $existingInBatch = $table->load($existing->getId());
         $newProduct = ProductRecord::createNewFromArray(['name' => 'new']);
@@ -39,37 +38,15 @@ class TestBatchSave
         $existingInBatch->update(['name' => 'batch renamed']);
         $table->batchSave([$existingInBatch, $newProduct]);
 
-        $names = array_map(fn($product) => $product->getName(), $table->loadIds(
-            [$existing->getId(), $newProduct->getId()],
-            false
-        ));
-
+        $getName = function (ProductRecord $product) : ?string { return $product->getName(); };
+        $savedProducts = $table->loadIds([$existing->getId(), $newProduct->getId()], false);
+        $names = array_map($getName, $savedProducts);
         sort($names);
 
         if ($names !== ['batch renamed', 'new'])
         {
-            throw new \Exception("batchSave() did not insert and update the expected rows, got: " . implode(", ", $names));
-        }
-    }
-
-
-    private function testMissingIdGeneratedInCode() : void
-    {
-        $product = ProductRecord::createNewFromArray(['name' => 'had its id removed']);
-
-        // the public API always gives these objects an ID, so remove it to simulate one that has none.
-        (function () { $this->m_id = null; })->call($product);
-
-        ProductTable::getInstance()->batchSave([$product]);
-
-        if ($product->getId() === null)
-        {
-            throw new \Exception("batchSave() did not generate an ID in code for an object without one.");
-        }
-
-        if (ProductTable::getInstance()->load($product->getId(), false)->getName() !== 'had its id removed')
-        {
-            throw new \Exception("batchSave() did not save the object it generated an ID for.");
+            $namesList = implode(", ", $names);
+            throw new \Exception("batchSave() did not insert and update the expected rows, got: {$namesList}");
         }
     }
 

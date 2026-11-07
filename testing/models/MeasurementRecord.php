@@ -10,27 +10,27 @@ class MeasurementRecord extends AbstractTableRowObject
     private mixed $m_price = null;
 
 
+    public function getTableHandler() : TableInterface
+    {
+        return MeasurementTable::getInstance();
+    }
+
+
     protected function getAccessorFunctions() : array
     {
-        return array(
-            'reading' => function () { return $this->m_reading; },
-            'price'   => function () { return $this->m_price; },
-        );
+        return [
+            'reading' => function () : mixed { return $this->m_reading; },
+            'price'   => function () : mixed { return $this->m_price; },
+        ];
     }
 
 
     protected function getSetFunctions() : array
     {
-        return array(
-            'reading' => function ($x) { $this->m_reading = $x; },
-            'price'   => function ($x) { $this->m_price = $x; },
-        );
-    }
-
-
-    public function getTableHandler() : TableInterface
-    {
-        return MeasurementTable::getInstance();
+        return [
+            'reading' => function (mixed $x) : void { $this->m_reading = $x; },
+            'price'   => function (mixed $x) : void { $this->m_price = $x; },
+        ];
     }
 
 

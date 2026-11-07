@@ -16,13 +16,19 @@ class EventTable extends Programster\PgsqlObjects\AbstractUuidTable
 
     public function getFieldsThatAllowNull() : array
     {
-        return array();
+        return [];
     }
 
 
     public function getFieldsThatHaveDefaults() : array
     {
-        return array();
+        return [];
+    }
+
+
+    public function getVirtualFields() : array
+    {
+        return [];
     }
 
 

@@ -18,7 +18,7 @@ class TestColumnTypeConversion
     public function run() : void
     {
         $table = MeasurementTable::getInstance();
-        $created = $table->create(['reading' => 1.5, 'price' => '12.34']);
+        $created = $table->insert(['reading' => 1.5, 'price' => '12.34']);
 
         // bypass the cache so the values come from the database.
         $loaded = $table->load($created->getId(), false);

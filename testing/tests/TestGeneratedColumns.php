@@ -5,7 +5,7 @@
  * columns:
  * - they aren't required when creating objects, and any values provided for them are ignored.
  * - they are never written to, so inserts and updates (including batches) succeed.
- * - their values are read back from the database after save(), create() and update().
+ * - their values are read back from the database after save(), update(), insert() and updateById().
  */
 
 class TestGeneratedColumns
@@ -32,19 +32,19 @@ class TestGeneratedColumns
 
     private function testCreate() : void
     {
-        $invoice = InvoiceTable::getInstance()->create(['quantity' => 2, 'unit_price_pence' => 150]);
-        $this->assertTotal($invoice, 300, "create()");
+        $invoice = InvoiceTable::getInstance()->insert(['quantity' => 2, 'unit_price_pence' => 150]);
+        $this->assertTotal($invoice, 300, "insert()");
 
         if ($invoice->getSequenceNumber() === null)
         {
-            throw new \Exception("create() did not read back the generated identity column.");
+            throw new \Exception("insert() did not read back the generated identity column.");
         }
     }
 
 
     private function testCreateIgnoresGeneratedValues() : void
     {
-        $invoice = InvoiceTable::getInstance()->create([
+        $invoice = InvoiceTable::getInstance()->insert([
             'quantity' => 3,
             'unit_price_pence' => 100,
             'total_pence' => 999,
@@ -52,11 +52,11 @@ class TestGeneratedColumns
             'sequence_number' => -1,
         ]);
 
-        $this->assertTotal($invoice, 300, "create() with generated values provided");
+        $this->assertTotal($invoice, 300, "insert() with generated values provided");
 
         if ($invoice->getSequenceNumber() === -1)
         {
-            throw new \Exception("create() wrote the provided value to a generated identity column.");
+            throw new \Exception("insert() wrote the provided value to a generated identity column.");
         }
     }
 
@@ -72,7 +72,7 @@ class TestGeneratedColumns
 
     private function testObjectUpdate() : void
     {
-        $invoice = InvoiceTable::getInstance()->create(['quantity' => 1, 'unit_price_pence' => 50]);
+        $invoice = InvoiceTable::getInstance()->insert(['quantity' => 1, 'unit_price_pence' => 50]);
         $invoice->update(['quantity' => 5]);
         $this->assertTotal($invoice, 250, "the object's update()");
         $this->assertTotal(InvoiceTable::getInstance()->load($invoice->getId()), 250, "the cache after update()");
@@ -81,7 +81,7 @@ class TestGeneratedColumns
 
     private function testSaveExistingObject() : void
     {
-        $invoice = InvoiceTable::getInstance()->create(['quantity' => 1, 'unit_price_pence' => 70]);
+        $invoice = InvoiceTable::getInstance()->insert(['quantity' => 1, 'unit_price_pence' => 70]);
         $invoice->setQuantity(3);
         $invoice->save();
         $this->assertTotal($invoice, 210, "save() of an existing object");
@@ -91,17 +91,17 @@ class TestGeneratedColumns
     private function testTableUpdateOfCachedObject() : void
     {
         $table = InvoiceTable::getInstance();
-        $invoice = $table->create(['quantity' => 1, 'unit_price_pence' => 10]); // now in the cache.
-        $updated = $table->update($invoice->getId(), ['quantity' => 6, 'total_pence' => 1]);
-        $this->assertTotal($updated, 60, "the table's update() of a cached object");
-        $this->assertTotal($table->load($invoice->getId()), 60, "the cache after the table's update()");
+        $invoice = $table->insert(['quantity' => 1, 'unit_price_pence' => 10]); // now in the cache.
+        $updated = $table->updateById($invoice->getId(), ['quantity' => 6, 'total_pence' => 1]);
+        $this->assertTotal($updated, 60, "updateById() of a cached object");
+        $this->assertTotal($table->load($invoice->getId()), 60, "the cache after updateById()");
     }
 
 
     private function testBatchSave() : void
     {
         $table = InvoiceTable::getInstance();
-        $existing = $table->create(['quantity' => 1, 'unit_price_pence' => 5]);
+        $existing = $table->insert(['quantity' => 1, 'unit_price_pence' => 5]);
         $existing->setQuantity(2);
         $new = InvoiceRecord::createNewFromArray(['quantity' => 3, 'unit_price_pence' => 5]);
 
@@ -120,7 +120,10 @@ class TestGeneratedColumns
         if ($invoice->getTotalPence() !== $expectedTotal)
         {
             $actual = var_export($invoice->getTotalPence(), true);
-            throw new \Exception("Stored generated column was wrong after {$context}: expected {$expectedTotal}, got {$actual}.");
+
+            throw new \Exception(
+                "Stored generated column was wrong after {$context}: expected {$expectedTotal}, got {$actual}."
+            );
         }
 
         $expectedTotalWithVat = intdiv($expectedTotal * 12, 10);
@@ -128,7 +131,10 @@ class TestGeneratedColumns
         if ($invoice->getTotalWithVatPence() !== $expectedTotalWithVat)
         {
             $actual = var_export($invoice->getTotalWithVatPence(), true);
-            throw new \Exception("Virtual generated column was wrong after {$context}: expected {$expectedTotalWithVat}, got {$actual}.");
+
+            throw new \Exception(
+                "Virtual generated column was wrong after {$context}: expected {$expectedTotalWithVat}, got {$actual}."
+            );
         }
     }
 }

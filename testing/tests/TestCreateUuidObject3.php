@@ -19,14 +19,14 @@ class TestCreateUuidObject3
     }
 
 
-    public function run()
+    public function run() : void
     {
-        $userDetails = array(
+        $userDetails = [
             'email' => 'user1@gmail.com',
             'name' => 'user1',
-        );
+        ];
 
-        $userRecord = UserTable::getInstance()->create($userDetails);
+        $userRecord = UserTable::getInstance()->insert($userDetails);
         $userRecord->save();
 
 

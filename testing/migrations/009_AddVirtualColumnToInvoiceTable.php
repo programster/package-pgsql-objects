@@ -8,7 +8,7 @@
 
 class AddVirtualColumnToInvoiceTable implements \Programster\PgsqlMigrations\MigrationInterface
 {
-    public function up($dbConn) : void
+    public function up(\PgSql\Connection $dbConn) : void
     {
         $query =
             'ALTER TABLE "invoice"
@@ -24,7 +24,7 @@ class AddVirtualColumnToInvoiceTable implements \Programster\PgsqlMigrations\Mig
     }
 
 
-    public function down($dbConn) : void
+    public function down(\PgSql\Connection $dbConn) : void
     {
         pg_query($dbConn, 'ALTER TABLE "invoice" DROP COLUMN "total_with_vat_pence"');
     }

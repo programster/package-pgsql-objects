@@ -2,25 +2,37 @@
 
 /*
  * Test that we can generate a large number of unique UUIDs without clashes.
+ * This is slow, so it only runs when RUN_SLOW_TEST is set to true.
  */
 
 class TestRandomness
 {
+    private const RUN_SLOW_TEST = false;
+
 
     public function __construct()
     {
     }
 
 
-    public function run()
+    public function run() : void
     {
-        return;
-        $uuids = array();
-        $million = 1000000;
-
-        for ($i=0; $i<$million; $i++)
+        if (self::RUN_SLOW_TEST)
         {
-            $uuid = Programster\PgsqlObjects\Utils::generateUuid();
+            $this->checkForClashes();
+        }
+    }
+
+
+    private function checkForClashes() : void
+    {
+        $uuids = [];
+        $million = 1000000;
+        $table = UserTable::getInstance();
+
+        for ($i = 0; $i < $million; $i++)
+        {
+            $uuid = $table->generateId();
 
             if (isset($uuids[$uuid]))
             {
@@ -33,4 +45,3 @@ class TestRandomness
         }
     }
 }
-

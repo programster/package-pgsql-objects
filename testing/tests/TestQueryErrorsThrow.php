@@ -18,29 +18,26 @@ class TestQueryErrorsThrow
     {
         $table = UserTable::getInstance();
 
-        $failingCalls = array(
-            'loadWhereOr' => function () use ($table) { $table->loadWhereOr(['no_such_column' => 1]); },
-            'loadRange'   => function () use ($table) { $table->loadRange(-1, 1); }, // negative OFFSET is an error
-            'update'      => function () use ($table) { $table->update('not-a-uuid', ['name' => 'x']); },
-        );
+        $failingCalls = [
+            'loadWhereOr' => function () use ($table) : void { $table->loadWhereOr(['no_such_column' => 1]); },
+            // a negative OFFSET is an error.
+            'loadRange'   => function () use ($table) : void { $table->loadRange(-1, 1); },
+            'updateById'  => function () use ($table) : void { $table->updateById('not-a-uuid', ['name' => 'x']); },
+        ];
 
+        // No error handler is needed to suppress pg_query()'s warning, as pgsql-lib 3.0 stops it reaching the
+        // application's error handler, so this also checks that the warning doesn't get thrown instead.
         foreach ($failingCalls as $methodName => $failingCall)
         {
             $threw = false;
 
             try
             {
-                // suppress the warning pg_query() emits alongside the exception.
-                set_error_handler(function () { return true; });
                 $failingCall();
             }
             catch (ExceptionQueryError)
             {
                 $threw = true;
-            }
-            finally
-            {
-                restore_error_handler();
             }
 
             if ($threw === false)

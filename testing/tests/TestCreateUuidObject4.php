@@ -19,17 +19,17 @@ class TestCreateUuidObject4
     }
 
 
-    public function run()
+    public function run() : void
     {
-        $uuid = Programster\PgsqlObjects\Utils::generateUuid();
+        $uuid = UserTable::getInstance()->generateId();
 
-        $userDetails = array(
+        $userDetails = [
             'id' => $uuid,
             'email' => 'user1@gmail.com',
             'name' => 'user1',
-        );
+        ];
 
-        $userRecord = UserTable::getInstance()->create($userDetails);
+        $userRecord = UserTable::getInstance()->insert($userDetails);
         $userRecord->save();
 
 

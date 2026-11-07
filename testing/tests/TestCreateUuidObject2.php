@@ -19,16 +19,17 @@ class TestCreateUuidObject2
     }
 
 
-    public function run()
+    public function run() : void
     {
-        $uuid = Programster\PgsqlObjects\Utils::generateUuid();
+        $uuid = UserTable::getInstance()->generateId();
 
         print "creating user with uuid: {$uuid}" . PHP_EOL;
-        $userDetails = array(
+
+        $userDetails = [
             'id' => $uuid,
             'email' => 'user1@gmail.com',
             'name' => 'user1',
-        );
+        ];
 
         $userRecord = UserRecord::createNewFromArray($userDetails);
         $userRecord->save();

@@ -10,7 +10,7 @@ declare(strict_types = 1);
 namespace Programster\PgsqlObjects\Exceptions;
 
 
-class ExceptionIdGeneratedInDatabase extends \Exception
+class ExceptionIdGeneratedInDatabase extends AbstractException
 {
 
 }

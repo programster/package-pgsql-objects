@@ -8,13 +8,18 @@ declare(strict_types = 1);
 
 namespace Programster\PgsqlObjects;
 
-use Programster\PgsqlLib\Exceptions\ExceptionUnexpectedValueType;
+
+use Ramsey\Uuid\Uuid;
 
 abstract class AbstractUuidTable extends AbstractTable
 {
-    public function generateId(): string
+    /**
+     * Generate a new ID for a row: a v7 UUID, which is time-ordered (sequential) for database index performance.
+     * @return string - the generated UUID string.
+     */
+    public function generateId() : string
     {
-        return Utils::generateUuid();
+        return Uuid::uuid7()->toString();
     }
 
 
@@ -27,16 +32,5 @@ abstract class AbstractUuidTable extends AbstractTable
     public function canDatabaseGenerateId() : bool
     {
         return false;
-    }
-
-
-    protected function getCachedObject(string|int $id) : AbstractTableRowObject
-    {
-        if (is_int($id))
-        {
-            throw new ExceptionUnexpectedValueType($id, 'Expecting identifier to be a string.');
-        }
-
-        return parent::getCachedObject($id);
     }
 }

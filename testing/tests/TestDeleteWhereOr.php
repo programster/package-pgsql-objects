@@ -17,12 +17,12 @@ class TestDeleteWhereOr
     public function run() : void
     {
         $table = UserTable::getInstance();
-        $user1 = $table->create(['name' => 'user1', 'email' => 'user1@gmail.com']);
-        $user2 = $table->create(['name' => 'user2', 'email' => 'user2@gmail.com']);
-        $user3 = $table->create(['name' => "o'brien", 'email' => 'user3@gmail.com']);
+        $user1 = $table->insert(['name' => 'user1', 'email' => 'user1@gmail.com']);
+        $user2 = $table->insert(['name' => 'user2', 'email' => 'user2@gmail.com']);
+        $user3 = $table->insert(['name' => "o'brien", 'email' => 'user3@gmail.com']);
 
         // deleteWhereOr() is protected, so call it from within the table's scope.
-        $deleteWhereOr = function (array $wherePairs) {
+        $deleteWhereOr = function (array $wherePairs) : void {
             $this->deleteWhereOr($wherePairs);
         };
 
