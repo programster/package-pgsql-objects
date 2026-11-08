@@ -6,8 +6,8 @@ use Programster\PgsqlObjects\TableInterface;
 class MeasurementRecord extends AbstractRecord
 {
     // deliberately untyped, so the test can see exactly what type each column was converted to.
-    private mixed $m_reading = null;
-    private mixed $m_price = null;
+    private float|int|string|null $m_reading = null;
+    private float|int|string|null $m_price = null;
 
 
     public function getTableHandler() : TableInterface
@@ -19,8 +19,8 @@ class MeasurementRecord extends AbstractRecord
     protected function getAccessorFunctions() : array
     {
         return [
-            'reading' => function () : mixed { return $this->m_reading; },
-            'price'   => function () : mixed { return $this->m_price; },
+            'reading' => function () : float|int|string|null { return $this->m_reading; },
+            'price'   => function () : float|int|string|null { return $this->m_price; },
         ];
     }
 
@@ -28,13 +28,13 @@ class MeasurementRecord extends AbstractRecord
     protected function getSetFunctions() : array
     {
         return [
-            'reading' => function (mixed $x) : void { $this->m_reading = $x; },
-            'price'   => function (mixed $x) : void { $this->m_price = $x; },
+            'reading' => function (float|int|string|null $x) : void { $this->m_reading = $x; },
+            'price'   => function (float|int|string|null $x) : void { $this->m_price = $x; },
         ];
     }
 
 
     # Accessors
-    public function getReading() : mixed { return $this->m_reading; }
-    public function getPrice() : mixed { return $this->m_price; }
+    public function getReading() : float|int|string|null { return $this->m_reading; }
+    public function getPrice() : float|int|string|null { return $this->m_price; }
 }

@@ -41,8 +41,9 @@ class TestColumnDefaults
             $this->testUpdateUnsaved($kind, $table, $recordClass);
             $this->testCloneKeepsNull($kind, $table, $recordClass);
 
-            // inserting many objects whose IDs the database generates at once needs PostgreSQL 17 or newer.
-            if ($kind === 'code IDs' || ConnectionHandler::getServerMajorVersion() >= 17)
+            // inserting many objects whose IDs the database generates at once needs PostgreSQL 17 or newer. $kind is
+            // only a label for the failure messages, so ask the table itself.
+            if ($table->canCodeGenerateId() || ConnectionHandler::getServerMajorVersion() >= 17)
             {
                 $this->testBatchSave($kind, $table, $recordClass);
                 $this->testTransaction($kind, $table, $recordClass);

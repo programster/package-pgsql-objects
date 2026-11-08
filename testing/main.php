@@ -61,6 +61,7 @@ foreach ($testFiles as $testFile)
     $coloredFailedMessage = "{$boldRed}FAILED{$reset}";
 
     ob_start();
+
     try
     {
         $test = new $testName();
