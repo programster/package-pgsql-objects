@@ -8,8 +8,8 @@ New to the package? Start with [Getting started](getting-started.md). The
   classes, and load and save your first rows.
 - [Tables and records](tables.md): the two classes for each table, required 
   columns and defaults, column types, generated columns and schemas.
-- [Identifiers](identifiers.md): why we strongly recommend UUIDs over counting 
-  integers, and where new rows' IDs come from.
+- [Identifiers](identifiers.md): why we strongly recommend using application 
+  generated UUIDs over database generated identifiers (`SERIAL` etc).
 - [Loading](loading.md): by ID, by filter, and a page at a time.
 - [Saving](saving.md): one object, many objects with `batchSave()`, and many 
   rows with `batchInsert()`.

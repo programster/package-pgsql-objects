@@ -17,8 +17,9 @@ PgSQL Objects: the PHP ORM built for PostgreSQL
   its classes, and load and save your first rows.
 - [Tables and records](docs/tables.md): the two classes for each table, required 
   columns and defaults, column types, generated columns and schemas.
-- [Identifiers](docs/identifiers.md): why we strongly recommend UUIDs over 
-  counting integers, and where new rows' IDs come from.
+- [Identifiers](docs/identifiers.md): why we strongly recommend using 
+  application generated UUIDs over database generated identifiers (`SERIAL` 
+  etc).
 - [Loading](docs/loading.md): by ID, by filter, and a page at a time.
 - [Saving](docs/saving.md): one object, many objects with `batchSave()`, and 
   many rows with `batchInsert()`.
