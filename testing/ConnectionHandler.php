@@ -24,17 +24,31 @@ class ConnectionHandler
     {
         if (self::$s_db === null)
         {
-            self::$s_db = PgSqlConnection::create(
-                self::getSetting('DB_HOST'),
-                self::getSetting('DB_NAME'),
-                self::getSetting('DB_USER'),
-                self::getSetting('DB_PASSWORD'),
-                true,
-                (int)self::getSetting('DB_PORT', '5432')
-            );
+            self::$s_db = self::createNewConnection();
         }
 
         return self::$s_db;
+    }
+
+
+    /**
+     * Create a new connection to the test database, separate from the shared one getDb() returns, e.g. to test what
+     * happens with tables that use different connections.
+     *
+     * @return PgSqlConnection
+     */
+    public static function createNewConnection() : PgSqlConnection
+    {
+        $connection = PgSqlConnection::create(
+            self::getSetting('DB_HOST'),
+            self::getSetting('DB_NAME'),
+            self::getSetting('DB_USER'),
+            self::getSetting('DB_PASSWORD'),
+            true,
+            (int)self::getSetting('DB_PORT', '5432')
+        );
+
+        return $connection;
     }
 
 

@@ -374,13 +374,7 @@ abstract class AbstractTable implements TableInterface
         // an empty IN() is invalid SQL, and there is nothing to delete anyway.
         if (count($ids) > 0)
         {
-            $escapedIds = $this->getDb()->escapeValues($ids);
-
-            $query =
-                "DELETE FROM {$this->getEscapedQualifiedTableName()}" .
-                " WHERE {$this->getEscapedIdColumnName()} IN(" . implode(", ", $escapedIds) . ")";
-
-            $this->getDb()->query($query);
+            $this->getDb()->query($this->generateDeleteByIdsQuery($ids));
 
             foreach ($ids as $id)
             {
@@ -915,65 +909,13 @@ abstract class AbstractTable implements TableInterface
      */
     public function batchSave(array $objects) : void
     {
-        $objectsWithIds = [];
-        $objectsWithoutIds = [];
-
-        // check every object before anything is saved, so that if one is rejected, none are saved.
-        foreach ($objects as $object)
-        {
-            if ($object->isDeleted())
-            {
-                $className = get_class($object);
-                throw new ExceptionObjectDeleted("Can't batch save this {$className}, as it has been deleted.");
-            }
-
-            if ($object->getId() === null)
-            {
-                $objectsWithoutIds[] = $object;
-            }
-            else
-            {
-                $objectsWithIds[] = $object;
-            }
-        }
-
-        if (count($objectsWithoutIds) > 0)
-        {
-            $this->assertDatabaseSupportsMergeReturning();
-        }
-
         if (count($objects) > 0)
         {
-            $queries = [
-                // dont check for uniqueness until the end of the transaction to resolve issues with reorgnizing sort
-                // indexes https://www.postgresql.org/docs/9.1/sql-set-constraints.html
-                "SET CONSTRAINTS ALL DEFERRED"
-            ];
-
-            foreach ($objectsWithIds as $object)
-            {
-                $queries[] = $object->getSaveQuery();
-            }
-
-            // the insert of the objects without IDs goes last, as only the last statement's result is returned.
-            if (count($objectsWithoutIds) > 0)
-            {
-                $queries[] = $this->generateBatchInsertObjectsQuery($objectsWithoutIds);
-            }
+            $query = implode(";", $this->generateBatchSaveStatements($objects)) . ";";
 
             // the statements run as a single implicit transaction, so if any fail, query() throws and none are saved.
-            $result = $this->getDb()->query(implode(";", $queries) . ";");
-
-            foreach ($objectsWithIds as $object)
-            {
-                $object->markSaved(); // just in case it was an insert instead of update call.
-                $this->cacheObject($object);
-            }
-
-            if (count($objectsWithoutIds) > 0)
-            {
-                $this->takeOnInsertedRows($objectsWithoutIds, $result);
-            }
+            $result = $this->getDb()->query($query);
+            $this->takeOnBatchSavedObjects($objects, $result);
         }
     }
 
@@ -1347,14 +1289,166 @@ abstract class AbstractTable implements TableInterface
     {
         if (isset($this->m_objectCache[$id]))
         {
-            // the deleted flag is protected, so set it from within the object's scope.
-            $markDeleted = function () : void {
-                $this->m_isDeleted = true;
-                $this->m_isSavedInDatabase = false;
-            };
-
-            $markDeleted->call($this->m_objectCache[$id]);
+            $this->markObjectDeleted($this->m_objectCache[$id]);
             unset($this->m_objectCache[$id]);
+        }
+    }
+
+
+    /**
+     * Mark an object as deleted, so that its save() and update() throw ExceptionObjectDeleted rather than inserting
+     * its row again.
+     *
+     * @param AbstractTableRowObject $object - the object whose row has been deleted.
+     *
+     * @return void
+     */
+    private function markObjectDeleted(AbstractTableRowObject $object) : void
+    {
+        // the deleted flag is protected, so set it from within the object's scope.
+        $markDeleted = function () : void {
+            $this->m_isDeleted = true;
+            $this->m_isSavedInDatabase = false;
+        };
+
+        $markDeleted->call($object);
+    }
+
+
+    /**
+     * Generate the SQL statements that save the objects for batchSave() (and Transaction), without running them or
+     * changing the objects: the update or insert of each object that has an ID, followed by one insert of the objects
+     * without IDs, whose rows its result returns (see generateBatchInsertObjectsQuery()). Every object is checked
+     * first, so if one is rejected, nothing has been sent to the database. Pass the result of the last statement to
+     * takeOnBatchSavedObjects().
+     *
+     * @param array<AbstractTableRowObject> $objects - the objects to save, of this table. Must not be empty.
+     *
+     * @return array<string> - the statements, in order, each a single SQL statement without a trailing semicolon.
+     *
+     * @throws ExceptionObjectDeleted - if an object has been deleted.
+     *
+     * @throws ExceptionUnsupportedDatabaseVersion - if an object has no ID, and the database is older than PostgreSQL
+     * 17.
+     */
+    private function generateBatchSaveStatements(array $objects) : array
+    {
+        $objectsWithIds = [];
+        $objectsWithoutIds = [];
+
+        foreach ($objects as $object)
+        {
+            if ($object->isDeleted())
+            {
+                $className = get_class($object);
+                throw new ExceptionObjectDeleted("Can't batch save this {$className}, as it has been deleted.");
+            }
+
+            if ($object->getId() === null)
+            {
+                $objectsWithoutIds[] = $object;
+            }
+            else
+            {
+                $objectsWithIds[] = $object;
+            }
+        }
+
+        $statements = [
+            // dont check for uniqueness until the end of the transaction to resolve issues with reorgnizing sort
+            // indexes https://www.postgresql.org/docs/9.1/sql-set-constraints.html
+            "SET CONSTRAINTS ALL DEFERRED"
+        ];
+
+        foreach ($objectsWithIds as $object)
+        {
+            $statements[] = $object->getSaveQuery();
+        }
+
+        // the insert of the objects without IDs goes last, as only the last statement's result is returned.
+        if (count($objectsWithoutIds) > 0)
+        {
+            $this->assertDatabaseSupportsMergeReturning();
+            $statements[] = $this->generateBatchInsertObjectsQuery($objectsWithoutIds);
+        }
+
+        return $statements;
+    }
+
+
+    /**
+     * Mark the objects from generateBatchSaveStatements() as saved, once its statements have run (and, in a
+     * Transaction, been committed), giving each object that had no ID its inserted row, and caching them if the cache
+     * is enabled.
+     *
+     * @param array<AbstractTableRowObject> $objects - the objects that were saved, as passed to
+     * generateBatchSaveStatements().
+     *
+     * @param \PgSql\Result $result - the result of the last of those statements.
+     *
+     * @return void
+     */
+    private function takeOnBatchSavedObjects(array $objects, \PgSql\Result $result) : void
+    {
+        $objectsWithoutIds = [];
+
+        foreach ($objects as $object)
+        {
+            if ($object->getId() === null)
+            {
+                $objectsWithoutIds[] = $object;
+            }
+            else
+            {
+                $object->markSaved(); // just in case it was an insert instead of update call.
+                $this->cacheObject($object);
+            }
+        }
+
+        if (count($objectsWithoutIds) > 0)
+        {
+            $this->takeOnInsertedRows($objectsWithoutIds, $result);
+        }
+    }
+
+
+    /**
+     * Generate the query that deletes the rows with the given IDs, without running it. It's a single SQL statement.
+     *
+     * @param array<int|string> $ids - the IDs of the rows to delete. Must not be empty, as an empty IN() is invalid.
+     *
+     * @return string
+     */
+    private function generateDeleteByIdsQuery(array $ids) : string
+    {
+        $escapedIds = $this->getDb()->escapeValues($ids);
+
+        $query =
+            "DELETE FROM {$this->getEscapedQualifiedTableName()}" .
+            " WHERE {$this->getEscapedIdColumnName()} IN(" . implode(", ", $escapedIds) . ")";
+
+        return $query;
+    }
+
+
+    /**
+     * Mark the objects a Transaction deleted as deleted, once it has been committed, and forget their rows' cached
+     * objects, just as their delete() would.
+     *
+     * @param array<AbstractTableRowObject> $objects - the deleted objects, of this table.
+     *
+     * @return void
+     */
+    private function takeOnDeletedObjects(array $objects) : void
+    {
+        foreach ($objects as $object)
+        {
+            if ($object->getId() !== null)
+            {
+                $this->forgetDeletedRow($object->getId());
+            }
+
+            $this->markObjectDeleted($object);
         }
     }
 

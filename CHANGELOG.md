@@ -61,7 +61,10 @@ The row object's own `delete()` and `update($data)` are unchanged.
 - A class that implements `TableInterface` directly, rather than extending `AbstractTable`,
   must also implement the new `getSchemaName()`, `getEscapedQualifiedTableName()`,
   `getTable()`, `batchInsert()`, `enableCache()`, `disableCache()`, `isCacheEnabled()`,
-  `emptyCache()` and `cacheObject()`.
+  `emptyCache()` and `cacheObject()`, as well as `loadIds()`, `loadIdsNotIn()`,
+  `loadWhereAnd()`, `loadWhereOr()`, `deleteByIds()`, `deleteIdsNotIn()`,
+  `deleteWhereAnd()`, `deleteWhereOr()` and `batchSave()`, which `AbstractTable` already
+  had.
 
 **Behaviour**
 - The object cache is now disabled by default, so every load queries the database. Code
@@ -135,6 +138,11 @@ The row object's own `delete()` and `update($data)` are unchanged.
   class sets its schema with `getSchemaName()`.
 - `TableInterface::getSchemaName()`, `getEscapedQualifiedTableName()`, `getTable()` (which
   returns a pgsql-lib `Table`) and `batchInsert()`.
+- `TableInterface` now has `AbstractTable`'s other load and delete methods, and
+  `batchSave()`: `loadIds()`, `loadIdsNotIn()`, `loadWhereAnd()`, `loadWhereOr()`,
+  `deleteByIds()`, `deleteIdsNotIn()`, `deleteWhereAnd()`, `deleteWhereOr()` and
+  `batchSave()`. So code that only has a `TableInterface`, such as a row object's
+  `getTableHandler()`, can call them.
 - `Constraint`'s factory methods accept a pgsql-lib `Table` as well as a table name, so
   constraints can be created on a table in a specific schema, and a foreign key can
   reference a table in another schema. `Constraint::getTable()` returns the table.
@@ -150,6 +158,17 @@ The row object's own `delete()` and `update($data)` are unchanged.
 - The row object's `isSavedInDatabase()` and `isDeleted()`.
 - `ExceptionUnsupportedDatabaseVersion`, for something that needs a newer version of
   PostgreSQL than the server's.
+- `Transaction`, which saves and deletes objects of any of your tables together, in the
+  order they were added, in one database transaction: either every change is made, or
+  none are. Nothing is sent until `commit()`, which sends every change as a single query,
+  so it's one round trip however many objects and tables there are. Objects are only
+  marked as saved or deleted, and the cache only updated, once it has been committed, so
+  a failure leaves every object as it was. It defers every constraint that was created
+  `DEFERRABLE`, so those are only checked once every change has been made. Every
+  object's table must extend
+  `AbstractTable` and use the same connection. Misusing it, e.g. adding an object both
+  to save and delete, or committing it twice, throws the new
+  `ExceptionInvalidTransaction`.
 - `deleteWhereAnd()` and `deleteWhereOr()` can be called from outside the table, like
   `loadWhereAnd()` and `loadWhereOr()`, instead of only by the table class itself. They
   still refuse empty where pairs, rather than deleting every row.

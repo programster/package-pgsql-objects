@@ -127,6 +127,51 @@ Things to be aware of with `batchSave()`:
 - Deleted objects are rejected before anything is saved.
 - If a transaction is already open, it all runs within it.
 
+**Objects of several tables, and deletes, at once:** add them to a 
+`Transaction`, which saves and deletes them all together when you call 
+`commit()`: either every change is made, or none are. Nothing is sent to the 
+database until then, and then everything is sent as a single query, so it's 
+one round trip however many objects and tables there are.
+
+```php
+$author = AuthorRecord::createNewFromArray(['name' => 'Ursula']);
+$book = BookRecord::createNewFromArray(['author_id' => $author->getId(), 'title' => 'Earthsea']);
+
+$transaction = new Transaction();
+$transaction->save($author);       // before the book, which has a foreign key to it.
+$transaction->save($book);
+$transaction->delete($oldEdition); // delete rows before the rows they reference.
+$transaction->commit();
+```
+
+Things to be aware of with a `Transaction`:
+
+- The changes are made in the order you add them, so add a row before any row 
+  with a foreign key to it, and delete those before the row they reference.
+- Constraints created `DEFERRABLE` (e.g. with `Constraint` and 
+  `DeferConfig::INITIALLY_IMMEDIATE`) are deferred, so they're only checked once 
+  every change has been made, and for those, the order doesn't matter. 
+  PostgreSQL's constraints aren't deferrable unless they were created that way, 
+  and `NOT NULL` and `CHECK` constraints never are.
+- Objects are only marked as saved or deleted, and the cache only updated, once 
+  it has been committed. If anything fails, everything is rolled back, every 
+  object is left as it was, and the exception is thrown on.
+- Each object is saved with the values it has when you call `commit()`. Adding 
+  the same object again does nothing, and adding one both to save and to delete 
+  throws an `ExceptionInvalidTransaction`.
+- A foreign key to a row whose ID the database generates (e.g. `SERIAL`) must 
+  already be set when you add the object, as the new ID isn't known until the 
+  transaction runs. IDs generated in code, such as UUIDs, are known straight 
+  away, as in the example above. New objects whose IDs the database generates 
+  need PostgreSQL 17 or newer, as with `batchSave()`.
+- Every object's table must extend `AbstractTable`, and use the same database 
+  connection, as a transaction can only cover one.
+- It only saves and deletes objects, and doesn't run any other queries.
+- If a transaction is already open, the changes are made inside a savepoint 
+  within it, so a failure only undoes them, but nothing is final until the open 
+  transaction is committed.
+- A transaction can only be committed once, whether or not it succeeds.
+
 
 ### Key Features
 - Saves/updates objects to the database for you when you want it to.
@@ -135,6 +180,9 @@ Things to be aware of with `batchSave()`:
   as `SERIAL` IDs, column defaults and generated columns. This works whatever 
   generates the IDs. The objects aren't necessarily in the same order as the 
   rows. To save many objects you already have, use `batchSave()`.
+- Saves and deletes objects of several tables together, in one transaction and 
+  a single round trip, with a `Transaction` (see 
+  [Saving objects](#saving-objects)).
 - Has an optional cache, so you don't re-fetch objects when you don't need to. 
   It's disabled by default, so every load gets fresh data from the database, 
   which is the safe choice for scripts and long-running processes. Enable it 

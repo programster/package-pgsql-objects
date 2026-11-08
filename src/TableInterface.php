@@ -143,6 +143,60 @@ interface TableInterface
 
 
     /**
+     * Delete the rows with the given IDs in a single query. IDs with no row are ignored, and an empty list deletes
+     * nothing. The deleted rows' cached objects are marked as deleted and removed from the cache.
+     *
+     * @param array<int|string> $ids - the IDs of the rows to delete.
+     *
+     * @return void
+     */
+    public function deleteByIds(array $ids) : void;
+
+
+    /**
+     * Delete the rows whose IDs are not in the given list. The deleted rows' cached objects are marked as deleted and
+     * removed from the cache.
+     *
+     * @param array<int|string> $ids - the IDs of the only rows to keep. Must not be empty, as that would delete every
+     * row. Use deleteAll() to delete every row.
+     *
+     * @return void
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if $ids is empty.
+     */
+    public function deleteIdsNotIn(array $ids) : void;
+
+
+    /**
+     * Delete the rows that have ALL of the given column/value pairs. The deleted rows' cached objects are marked as
+     * deleted and removed from the cache.
+     *
+     * @param array $wherePairs - the column/value pairs a row must all have to be deleted. Must not be empty. Use
+     * deleteAll() to delete every row.
+     *
+     * @return void
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if $wherePairs is empty.
+     */
+    public function deleteWhereAnd(array $wherePairs) : void;
+
+
+    /**
+     * Delete the rows that have ANY of the given column/value pairs. The deleted rows' cached objects are marked as
+     * deleted and removed from the cache.
+     *
+     * @param array $wherePairs - the column/value pairs a row must have at least one of to be deleted. A value may be
+     * an array, to match any of those values, e.g. id => [1, 2, 3]. Must not be empty. Use deleteAll() to delete every
+     * row.
+     *
+     * @return void
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if $wherePairs is empty.
+     */
+    public function deleteWhereOr(array $wherePairs) : void;
+
+
+    /**
      * Loads all of these objects from the database.
      *
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default, so
@@ -203,6 +257,65 @@ interface TableInterface
 
 
     /**
+     * Load the objects with the given IDs. With the default USE_CACHE, objects that are already cached are returned
+     * from the cache, and only the rest are fetched, in one query.
+     *
+     * @param array<int|string> $ids - the IDs of the objects to load.
+     *
+     * @param CacheMode $cacheMode - (optional) how to use the cache, when it's enabled (see CacheMode). Defaults to
+     * USE_CACHE.
+     *
+     * @return array<int|string, AbstractTableRowObject> - the loaded objects, indexed by their IDs.
+     */
+    public function loadIds(array $ids, CacheMode $cacheMode = CacheMode::USE_CACHE) : array;
+
+
+    /**
+     * Load the objects whose IDs are not in the given list.
+     *
+     * @param array<int|string> $ids - the IDs of the rows not to load. If empty, every row is loaded.
+     *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
+     *
+     * @return array<AbstractTableRowObject>
+     */
+    public function loadIdsNotIn(array $ids, CacheMode $cacheMode) : array;
+
+
+    /**
+     * Load the objects whose rows have ALL of the given column/value pairs. The query always runs, as the cache is
+     * never searched by anything but ID.
+     *
+     * @param array $wherePairs - the column/value pairs a row must all have to be loaded. A value may be an array, to
+     * match any of those values, e.g. id => [1, 2, 3]. Must not be empty. Use loadAll() to load every row.
+     *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
+     *
+     * @return array<AbstractTableRowObject>
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if $wherePairs is empty.
+     */
+    public function loadWhereAnd(array $wherePairs, CacheMode $cacheMode) : array;
+
+
+    /**
+     * Load the objects whose rows have ANY of the given column/value pairs. The query always runs, as the cache is
+     * never searched by anything but ID.
+     *
+     * @param array $wherePairs - the column/value pairs a row must have at least one of to be loaded. A value may be
+     * an array, to match any of those values, e.g. id => [1, 2, 3]. Must not be empty. Use loadAll() to load every
+     * row.
+     *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
+     *
+     * @return array<AbstractTableRowObject>
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if $wherePairs is empty.
+     */
+    public function loadWhereOr(array $wherePairs, CacheMode $cacheMode) : array;
+
+
+    /**
      * Insert a new row into the table, and return the object for it.
      * @param array $row - the column/value pairs to insert.
      * @return AbstractTableRowObject - the object for the inserted row, including any values the database generated.
@@ -219,6 +332,25 @@ interface TableInterface
      * @return array<AbstractTableRowObject> - the objects for the inserted rows.
      */
     public function batchInsert(array $rows) : array;
+
+
+    /**
+     * Save many objects in one go, as a single query that runs as one transaction, so either every object is saved,
+     * or none are: the rows of objects that have been saved before are updated, and the rest are inserted.
+     *
+     * New objects without IDs, as the database generates them, need PostgreSQL 17 or newer. Objects that already have
+     * an ID don't get their column defaults or generated columns read back.
+     *
+     * @param array<AbstractTableRowObject> $objects - the objects to save.
+     *
+     * @return void
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted - if an object has been deleted.
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionUnsupportedDatabaseVersion - if an object has no ID, and
+     * the database is older than PostgreSQL 17.
+     */
+    public function batchSave(array $objects) : void;
 
 
     /**
