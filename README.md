@@ -41,6 +41,8 @@ PgSQL Objects: the PHP ORM built for PostgreSQL
 - [Changelog](CHANGELOG.md): what has changed in each version, and how to 
   upgrade.
 - [Testing](docs/testing.md): running this package's tests.
+- [Roadmap](docs/roadmap.md): what we'd like to explore next, such as better 
+  native integration with PostGIS.
 
 
 ## About

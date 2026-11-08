@@ -31,3 +31,5 @@ New to the package? Start with [Getting started](getting-started.md). The
 - [Changelog](../CHANGELOG.md): what has changed in each version, and how to 
   upgrade.
 - [Testing](testing.md): running this package's tests.
+- [Roadmap](roadmap.md): what we'd like to explore next, such as better native 
+  integration with PostGIS.

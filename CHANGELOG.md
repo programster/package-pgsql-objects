@@ -205,7 +205,8 @@ The record's own `delete()` and `update($data)` are unchanged.
   UUID IDs over integers that count up, and recommends deferrable foreign keys, so the
   order of a transaction's changes doesn't matter, with how to make new and existing
   constraints deferrable, including with `Constraint`. It also shows how to use a natural
-  key, such as an email address, as a table's ID.
+  key, such as an email address, as a table's ID, and has a roadmap of what we'd like to
+  explore next.
 - A table's column info, used to convert loaded values to PHP types, is fetched from the
   database once per table class and then reused, instead of on every load, insert and
   update. This halves the queries those operations need.
