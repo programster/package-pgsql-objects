@@ -5,6 +5,8 @@
  * between pages.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestLoadAfterId
 {
     public function __construct()
@@ -30,7 +32,7 @@ class TestLoadAfterId
 
         do
         {
-            $page = $table->loadAfterId($afterId, 3);
+            $page = $table->loadAfterId($afterId, 3, CacheMode::USE_CACHE);
             $pageNumber++;
 
             foreach ($page as $ticket)

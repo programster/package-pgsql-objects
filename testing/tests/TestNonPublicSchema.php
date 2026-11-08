@@ -6,6 +6,8 @@
  * to convert the loaded values (from pg_meta_data()) must come from the reporting schema's table.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestNonPublicSchema
 {
     public function __construct()
@@ -24,7 +26,7 @@ class TestNonPublicSchema
         $created = $table->insert(['reading' => 1.5]);
 
         // bypass the cache so the values come from the database.
-        $loaded = $table->load($created->getId(), false);
+        $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
 
         // the decoy's reading column is text, so its column info would have left the value as the string "1.5".
         if ($loaded->getReading() !== 1.5)
@@ -34,14 +36,14 @@ class TestNonPublicSchema
         }
 
         // every row is loaded, which would include the decoy row if the wrong table was used.
-        $matches = $table->loadAll();
+        $matches = $table->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($matches) !== 1 || $matches[0]->getId() !== $created->getId())
         {
             throw new \Exception("loadAll() did not load only the row from the reporting schema's table.");
         }
 
-        $matches = $table->loadWhereAnd(['reading' => 1.5]);
+        $matches = $table->loadWhereAnd(['reading' => 1.5], CacheMode::USE_CACHE);
 
         if (count($matches) !== 1 || $matches[0]->getId() !== $created->getId())
         {

@@ -5,6 +5,7 @@
  * saved, runs no query rather than failing, but still marks the object as deleted.
  */
 
+use Programster\PgsqlObjects\CacheMode;
 use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
 
 class TestDeleteUnsavedObject
@@ -29,7 +30,7 @@ class TestDeleteUnsavedObject
         }
 
         $unsaved->delete();
-        $remaining = $table->loadAll();
+        $remaining = $table->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($remaining) !== 1 || $remaining[0]->getId() !== $existing->getId())
         {
@@ -56,7 +57,7 @@ class TestDeleteUnsavedObject
         $clone = clone $unsaved;
         $clone->save();
 
-        if ($clone->getId() === null || count($table->loadAll()) !== 2)
+        if ($clone->getId() === null || count($table->loadAll(CacheMode::UPDATE_CACHE)) !== 2)
         {
             throw new \Exception("The clone of a deleted unsaved object could not be saved.");
         }

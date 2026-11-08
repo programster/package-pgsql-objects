@@ -14,7 +14,10 @@ use Programster\PgsqlLib\PgSqlConnection;
 use Programster\PgsqlLib\Table;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 use Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException;
+use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
 use Programster\PgsqlObjects\Exceptions\ExceptionTableNotFound;
+use Programster\PgsqlObjects\Exceptions\ExceptionUnknownColumn;
+use Programster\PgsqlObjects\Exceptions\ExceptionUnsupportedDatabaseVersion;
 
 
 /**
@@ -26,9 +29,25 @@ abstract class AbstractTable implements TableInterface
     protected static array $s_instances = [];
 
 
-    # Cache of loaded objects so we don't need to go and re-fetch them.
-    # This object needs to ensure we clear these when we update rows.
+    # The one object for each row that has been loaded, inserted or saved while the cache is enabled, indexed by ID.
     protected array $m_objectCache = [];
+
+
+    # Whether the cache is enabled. It is disabled by default (see enableCache()).
+    protected bool $m_isCacheEnabled = false;
+
+
+    # Cache of this table's column info, fetched the first time it's needed (see getFieldInfoMap()). Null until then.
+    protected ?array $m_fieldInfoMap = null;
+
+
+    # The name batchSave() gives each new object's position in the batch, in the rows its insert returns. It's unlikely
+    # to clash with a real column.
+    private const BATCH_POSITION_COLUMN = '__pgsql_objects_batch_position';
+
+
+    # The name batchSave() gives the number of each new object's group of columns, in the rows it sends to its insert.
+    private const BATCH_GROUP_COLUMN = '__pgsql_objects_batch_group';
 
 
     # protected constructor so that one has to use the getInstance method.
@@ -92,11 +111,7 @@ abstract class AbstractTable implements TableInterface
 
         $result = $this->getDb()->query($query . " RETURNING *");
         $createdRow = pg_fetch_assoc($result);
-        $fieldInfoMap = $this->getFieldInfoMap();
-        $rowHydrator = $this->getRowHydrator();
-        $object = $rowHydrator($createdRow, $fieldInfoMap);
-        $this->updateCache($object);
-        return $object;
+        return $this->hydrateRow($createdRow, CacheMode::UPDATE_CACHE);
     }
 
 
@@ -160,7 +175,7 @@ abstract class AbstractTable implements TableInterface
 
         $query = $this->getDb()->generateBatchInsertQuery($this->getTable(), $preparedRows, $columnsWithDefaults);
         $result = $this->getDb()->query($query . " RETURNING *");
-        return $this->convertPgResultToObjects($result);
+        return $this->convertPgResultToObjects($result, CacheMode::UPDATE_CACHE);
     }
 
 
@@ -171,12 +186,19 @@ abstract class AbstractTable implements TableInterface
      * in a pair may be an array, to load any objects that have any one of those values, e.g. id => [1,2,3] would load
      * objects that have ID 1, 2 or 3. Must not be empty. Use loadAll() to load every row.
      *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled: USE_CACHE returns rows that are already
+     * cached as the cached objects, as they are, and caches the rest. UPDATE_CACHE updates the cached objects with the
+     * rows' current values, in place, and caches the rest. IGNORE_CACHE returns new objects, and leaves the cache
+     * alone. There's no default, so that you choose each time. The query always runs, as the cache is never searched:
+     * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
+     * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
+     *
      * @return array<AbstractTableRowObject>
      *
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function loadWhereAnd(array $wherePairs) : array
+    public function loadWhereAnd(array $wherePairs, CacheMode $cacheMode) : array
     {
         if (count($wherePairs) === 0)
         {
@@ -186,6 +208,8 @@ abstract class AbstractTable implements TableInterface
             );
         }
 
+        $this->assertKnownColumns($wherePairs);
+
         $query = $this->getDb()->generateSelectWhereQuery(
             $this->getTable(),
             $wherePairs,
@@ -193,7 +217,7 @@ abstract class AbstractTable implements TableInterface
         );
 
         $result = $this->getDb()->query($query);
-        return $this->convertPgResultToObjects($result);
+        return $this->convertPgResultToObjects($result, $cacheMode);
     }
 
 
@@ -204,12 +228,19 @@ abstract class AbstractTable implements TableInterface
      * fetched. The value in a pair may be an array, to load any objects that have any one of those values, e.g.
      * id => [1,2,3] would load objects that have ID 1, 2 or 3. Must not be empty. Use loadAll() to load every row.
      *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled: USE_CACHE returns rows that are already
+     * cached as the cached objects, as they are, and caches the rest. UPDATE_CACHE updates the cached objects with the
+     * rows' current values, in place, and caches the rest. IGNORE_CACHE returns new objects, and leaves the cache
+     * alone. There's no default, so that you choose each time. The query always runs, as the cache is never searched:
+     * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
+     * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
+     *
      * @return array<AbstractTableRowObject>
      *
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function loadWhereOr(array $wherePairs) : array
+    public function loadWhereOr(array $wherePairs, CacheMode $cacheMode) : array
     {
         if (count($wherePairs) === 0)
         {
@@ -219,6 +250,8 @@ abstract class AbstractTable implements TableInterface
             );
         }
 
+        $this->assertKnownColumns($wherePairs);
+
         $query = $this->getDb()->generateSelectWhereQuery(
             $this->getTable(),
             $wherePairs,
@@ -226,12 +259,48 @@ abstract class AbstractTable implements TableInterface
         );
 
         $result = $this->getDb()->query($query); // throws on failure
-        return $this->convertPgResultToObjects($result);
+        return $this->convertPgResultToObjects($result, $cacheMode);
     }
 
 
     /**
-     * Completely empty the cache. Do this if a table is emptied etc.
+     * Enable the cache for this table, for the rest of this process or until disableCache() is called. The cache is
+     * disabled by default, so that every load gets fresh data from the database, and long-running processes don't
+     * build up a cache that goes stale or uses ever more memory. Enable it when it helps, e.g. at the start of a web
+     * request, so that a controller can call loadAll() and the views and models it uses can then call load($id)
+     * without each one running a query.
+     *
+     * While it's enabled, there is only ever one object for each row: rows that are inserted or saved are cached, as
+     * are rows that are loaded with CacheMode::USE_CACHE or UPDATE_CACHE, and loading a cached row by ID gives back
+     * the same object, without a query. Each load's CacheMode says whether it uses the cache, updates it, or ignores
+     * it.
+     *
+     * WARNING - in a server that keeps PHP running between web requests (e.g. FrankenPHP's worker mode, RoadRunner
+     * or Swoole), call disableCache() at the end of each request, or the cache carries over into the next one.
+     *
+     * @return void
+     */
+    public function enableCache() : void
+    {
+        $this->m_isCacheEnabled = true;
+    }
+
+
+    /**
+     * Disable the cache for this table, and empty it, so that every load queries the database again.
+     * @return void
+     */
+    public function disableCache() : void
+    {
+        $this->m_isCacheEnabled = false;
+        $this->emptyCache();
+    }
+
+
+    /**
+     * Completely empty the cache, e.g. to free memory, or after a transaction is rolled back. The cache stays enabled
+     * if it was.
+     *
      * @return void
      */
     public function emptyCache() : void
@@ -241,8 +310,37 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Delete the row with the given ID, and remove its object from the cache. This doesn't throw if there is no row
-     * with the ID. To delete a row object you already have, you can call delete() on the object itself instead.
+     * Make this object the one that is cached for its row, if the cache is enabled. A row object calls this after it
+     * has been saved, so that the cache holds the object that was saved, rather than a copy of it.
+     *
+     * @param AbstractTableRowObject $object - the object, which must have been saved to the database.
+     *
+     * @return void
+     *
+     * @throws ExceptionMissingRequiredData - if the object hasn't been saved to the database, as there is then no row
+     * for it to be the cached object of.
+     */
+    public function cacheObject(AbstractTableRowObject $object) : void
+    {
+        if ($this->m_isCacheEnabled)
+        {
+            if ($object->getId() === null || $object->isSavedInDatabase() === false)
+            {
+                throw new ExceptionMissingRequiredData(
+                    "Can't cache this " . get_class($object) . ", as it hasn't been saved to the database."
+                );
+            }
+
+            $this->m_objectCache[$object->getId()] = $object;
+        }
+    }
+
+
+    /**
+     * Delete the row with the given ID. This doesn't throw if there is no row with the ID. To delete a row object you
+     * already have, you can call delete() on the object itself instead. If the row's object is cached, it is marked as
+     * deleted (so its save() and update() throw ExceptionObjectDeleted, rather than inserting the row again) and
+     * removed from the cache.
      *
      * @param int|string $id - the identifier of the row you wish to delete.
      *
@@ -256,13 +354,14 @@ abstract class AbstractTable implements TableInterface
         $tableName = $this->getEscapedQualifiedTableName();
         $query = "DELETE FROM {$tableName} WHERE {$this->getEscapedIdColumnName()} = {$escapedValue}";
         $this->getDb()->query($query);
-        $this->unsetCache($id);
+        $this->forgetDeletedRow($id);
     }
 
 
     /**
-     * Delete the rows with the given IDs in a single query, and remove their objects from the cache. This doesn't
-     * throw if there are no rows with some of the IDs. An empty list deletes nothing, and runs no query.
+     * Delete the rows with the given IDs in a single query. This doesn't throw if there are no rows with some of the
+     * IDs. An empty list deletes nothing, and runs no query. The cached objects of the deleted rows are marked as
+     * deleted (so their save() and update() throw ExceptionObjectDeleted) and removed from the cache.
      *
      * @param array<int|string> $ids - the identifiers of the rows you wish to delete.
      *
@@ -285,7 +384,7 @@ abstract class AbstractTable implements TableInterface
 
             foreach ($ids as $id)
             {
-                $this->unsetCache($id);
+                $this->forgetDeletedRow($id);
             }
         }
     }
@@ -312,8 +411,8 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Deletes all rows from the table, and empties the cache. Either way, it can be rolled back if run inside a
-     * transaction.
+     * Deletes all rows from the table. Every cached object is marked as deleted (so its save() and update() throw
+     * ExceptionObjectDeleted) and the cache is emptied. Either way, it can be rolled back if run inside a transaction.
      *
      * @param bool $useTruncate - (optional) set to true to run TRUNCATE instead of DELETE, which is much faster on a
      * large table, but: fails if any other table has a foreign key referencing this one (even if no rows reference
@@ -336,7 +435,11 @@ abstract class AbstractTable implements TableInterface
         }
 
         $this->getDb()->query($query);
-        $this->emptyCache();
+
+        foreach (array_keys($this->m_objectCache) as $cachedId)
+        {
+            $this->forgetDeletedRow($cachedId);
+        }
     }
 
 
@@ -423,17 +526,19 @@ abstract class AbstractTable implements TableInterface
      *
      * @param string|int $id - the ID of the row in the database table.
      *
-     * @param bool $useCache - optionally set to false to force a database lookup even if we have a
-     * cached value from a previous lookup.
+     * @param CacheMode $cacheMode - (optional) how to use the cache, when it's enabled. Defaults to USE_CACHE, which
+     * returns the cached object without a query if the row is cached, and otherwise fetches the row and caches it.
+     * Use UPDATE_CACHE to fetch the row and update the cached object with its current values, in place, or
+     * IGNORE_CACHE to fetch it as a new object without touching the cache.
      *
      * @return T - the loaded object
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException
      */
-    public function load(string|int $id, bool $useCache=true) : AbstractTableRowObject
+    public function load(string|int $id, CacheMode $cacheMode = CacheMode::USE_CACHE) : AbstractTableRowObject
     {
-        $objects = $this->loadIds([$id], $useCache);
+        $objects = $this->loadIds([$id], $cacheMode);
 
         if (count($objects) === 0)
         {
@@ -447,15 +552,15 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Loads a number of objects of this table's row type from the database using the provided array
-     * list of IDs. If any of the objects are already in the cache, they are fetched from there unless
-     * useCache is overridden to false.
+     * list of IDs. By default, when the cache is enabled, the objects that are already cached are returned from there,
+     * and only the rest are fetched from the database (in one query) and cached.
      *
      * NOTE: The returned array of objects is indexed by the IDs of the objects.
      *
      * @param array<string|int> $ids - the list of IDs of the objects we wish to load.
      *
-     * @param bool $useCache - optionally set to false to force a database lookup even if we have a
-     * cached value from a previous lookup.
+     * @param CacheMode $cacheMode - (optional) how to use the cache, when it's enabled. Defaults to USE_CACHE. See
+     * load().
      *
      * @return array<string|int, T> - list of the objects with the specified IDs indexed by the objects ID.
      *
@@ -463,21 +568,20 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function loadIds(array $ids, bool $useCache=true) : array
+    public function loadIds(array $ids, CacheMode $cacheMode = CacheMode::USE_CACHE) : array
     {
         $loadedObjects = [];
-        $rowHydrator = $this->getRowHydrator();
         $idsToFetch = [];
 
         foreach ($ids as $id)
         {
-            if (!isset($this->m_objectCache[$id]) || !$useCache)
+            if ($cacheMode === CacheMode::USE_CACHE && isset($this->m_objectCache[$id]))
             {
-                $idsToFetch[] = $id;
+                $loadedObjects[$id] = $this->m_objectCache[$id];
             }
             else
             {
-                $loadedObjects[$id] = $this->m_objectCache[$id];
+                $idsToFetch[] = $id;
             }
         }
 
@@ -489,17 +593,11 @@ abstract class AbstractTable implements TableInterface
                 "SELECT * FROM {$this->getEscapedQualifiedTableName()}" .
                 " WHERE {$this->getEscapedIdColumnName()} IN(" . implode(", ", $escapedIds) . ")";
 
-            /* @var $result \Pgsql\Result */
             $result = $this->getDb()->query($query);
-            $fieldInfoMap = $this->getFieldInfoMap();
 
-            while (($row = pg_fetch_assoc($result)) !== false)
+            foreach ($this->convertPgResultToObjects($result, $cacheMode) as $object)
             {
-                /* @var $object AbstractTableRowObject */
-                $object = $rowHydrator($row, $fieldInfoMap);
-                $objectId = $object->getId();
-                $this->m_objectCache[$objectId] = $object;
-                $loadedObjects[$objectId] = $this->m_objectCache[$objectId];
+                $loadedObjects[$object->getId()] = $object;
             }
         }
 
@@ -508,15 +606,25 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Loads all of these objects from the database. This also clears and fully loads the cache.
+     * Loads all of these objects from the database. When the cache is enabled, this also caches every row, so that
+     * load() can then return any of them without a query.
+     *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled: USE_CACHE returns rows that are already
+     * cached as the cached objects, as they are, and caches the rest. UPDATE_CACHE updates the cached objects with the
+     * rows' current values, in place, and caches the rest. IGNORE_CACHE returns new objects, and leaves the cache
+     * alone. There's no default, so that you choose each time. The query always runs, as the cache is never searched:
+     * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
+     * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
+     *
      * @return array<AbstractTableRowObject>
+     *
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function loadAll() : array
+    public function loadAll(CacheMode $cacheMode) : array
     {
-        $this->emptyCache();
         $query = "SELECT * FROM {$this->getEscapedQualifiedTableName()}";
         $result = $this->getDb()->query($query);
-        return $this->convertPgResultToObjects($result);
+        return $this->convertPgResultToObjects($result, $cacheMode);
     }
 
 
@@ -531,18 +639,31 @@ abstract class AbstractTable implements TableInterface
      *
      * @param int $numElements - the maximum number of rows to load.
      *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled: USE_CACHE returns rows that are already
+     * cached as the cached objects, as they are, and caches the rest. UPDATE_CACHE updates the cached objects with the
+     * rows' current values, in place, and caches the rest. IGNORE_CACHE returns new objects, and leaves the cache
+     * alone. There's no default, so that you choose each time. The query always runs, as the cache is never searched:
+     * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
+     * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
+     *
      * @param string|null $orderByColumn - optionally the name of the column to order by. Defaults to the ID column.
      *
      * @return array<AbstractTableRowObject>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function loadRange(int $offset, int $numElements, ?string $orderByColumn = null) : array
+    public function loadRange(
+        int $offset,
+        int $numElements,
+        CacheMode $cacheMode,
+        ?string $orderByColumn = null
+    ) : array
     {
         $orderByColumns = [$this->getEscapedIdColumnName()];
 
         if ($orderByColumn !== null && $orderByColumn !== $this->getIdColumnName())
         {
+            $this->assertKnownColumns([$orderByColumn => null]);
             array_unshift($orderByColumns, $this->getDb()->escapeIdentifier($orderByColumn));
         }
 
@@ -552,7 +673,7 @@ abstract class AbstractTable implements TableInterface
             " OFFSET {$offset} LIMIT {$numElements}";
 
         $result = $this->getDb()->query($query); // throws on failure
-        return $this->convertPgResultToObjects($result);
+        return $this->convertPgResultToObjects($result, $cacheMode);
     }
 
 
@@ -566,11 +687,18 @@ abstract class AbstractTable implements TableInterface
      *
      * @param int $numElements - the maximum number of rows to load.
      *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled: USE_CACHE returns rows that are already
+     * cached as the cached objects, as they are, and caches the rest. UPDATE_CACHE updates the cached objects with the
+     * rows' current values, in place, and caches the rest. IGNORE_CACHE returns new objects, and leaves the cache
+     * alone. There's no default, so that you choose each time. The query always runs, as the cache is never searched:
+     * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
+     * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
+     *
      * @return array<AbstractTableRowObject>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function loadAfterId(string|int|null $afterId, int $numElements) : array
+    public function loadAfterId(string|int|null $afterId, int $numElements, CacheMode $cacheMode) : array
     {
         $whereClause = "";
 
@@ -586,7 +714,7 @@ abstract class AbstractTable implements TableInterface
             " LIMIT {$numElements}";
 
         $result = $this->getDb()->query($query); // throws on failure
-        return $this->convertPgResultToObjects($result);
+        return $this->convertPgResultToObjects($result, $cacheMode);
     }
 
 
@@ -607,8 +735,9 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Update a row specified by the ID with the provided data.
-     * The returned object is built from the row the database returns, so it includes any values the database
-     * changed, such as generated columns.
+     * The returned object has the values from the row the database returns, so it includes any values the database
+     * changed, such as generated columns. When the cache is enabled and the row's object is cached, that object is
+     * refreshed and returned, moving to its new ID in the cache if the ID was changed.
      *
      * @param int|string $id - the current ID of the object being updated (may not necessarily be the same as the
      * ID column in $row if changing the object's ID).
@@ -625,6 +754,7 @@ abstract class AbstractTable implements TableInterface
     {
         # This logic must not ever be changed to load the row object and then call update on that
         # because it's update method will call this method and you will end up with a loop.
+        $this->assertKnownColumns($row);
         $row = $this->removeVirtualFields($row);
         $idColumnName = $this->getIdColumnName();
 
@@ -645,22 +775,22 @@ abstract class AbstractTable implements TableInterface
                 throw new ExceptionNoSuchIdException($msg);
             }
 
-            $fieldInfoMap = $this->getFieldInfoMap();
-            $rowHydrator = $this->getRowHydrator();
-            $updatedObject = $rowHydrator($updatedRow, $fieldInfoMap);
-            $this->updateCache($updatedObject);
+            # If the ID changed, move the cached object to its new ID, so that it's refreshed below rather than
+            # replaced. The IDs are compared as strings, as the database returns integer IDs as strings.
+            $isIdChanging = (isset($row[$idColumnName]) && (string)$row[$idColumnName] !== (string)$id);
+
+            if ($isIdChanging && isset($this->m_objectCache[$id]))
+            {
+                $this->m_objectCache[$row[$idColumnName]] = $this->m_objectCache[$id];
+                unset($this->m_objectCache[$id]);
+            }
+
+            $updatedObject = $this->hydrateRow($updatedRow, CacheMode::UPDATE_CACHE);
         }
         else
         {
             # nothing that can be written was provided, so just return the row as it is.
-            $updatedObject = $this->load($id, false);
-        }
-
-        # If we changed the object's ID, then we need to remove the old cached object. The IDs are compared as
-        # strings, as the database returns integer IDs as strings.
-        if (isset($row[$idColumnName]) && (string)$row[$idColumnName] !== (string)$id)
-        {
-            $this->unsetCache($id);
+            $updatedObject = $this->load($id, CacheMode::UPDATE_CACHE);
         }
 
         return $updatedObject;
@@ -668,7 +798,8 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Delete rows from this table whose IDs are not in the provided list.
+     * Delete rows from this table whose IDs are not in the provided list. The cached objects of the deleted rows are
+     * marked as deleted (so their save() and update() throw ExceptionObjectDeleted) and removed from the cache.
      *
      * @param array $ids - a list of the only IDs we wish to keep. Must not be empty, as that would delete every row.
      * Use deleteAll() to delete every row.
@@ -696,7 +827,7 @@ abstract class AbstractTable implements TableInterface
 
         $this->getDb()->query($query); // throws exception on error
 
-        // Remove the deleted objects from the cache. The IDs are compared as strings, as integer IDs may be cached
+        // Forget the deleted rows' cached objects. The IDs are compared as strings, as integer IDs may be cached
         // under an int key but passed in as strings, or the other way around.
         $idsToKeep = [];
 
@@ -709,40 +840,66 @@ abstract class AbstractTable implements TableInterface
         {
             if (!isset($idsToKeep[(string)$cachedId]))
             {
-                $this->unsetCache($cachedId);
+                $this->forgetDeletedRow($cachedId);
             }
         }
     }
 
 
     /**
-     * Batch update/insert a bunch of objects in a single query.
-     * Every object must have an ID, as there is no way to read IDs generated by the database back from a batch.
-     * New objects get one in code when they are created, if the table can generate one, so the only objects without
-     * one are those whose IDs are generated by the database. To insert many of those at once, use batchInsert().
-     * WARNING - the values of the fields listed in getVirtualFields() can't be read back from a batch either,
-     * so they will be out of date on the objects (and in the cache) until they are reloaded with useCache=false.
+     * Save many objects in one go: updating the rows of objects that have been saved before, and inserting the rest.
+     * Everything is sent to the database as a single query, which runs as one transaction, so either every object is
+     * saved, or none are. If a transaction is already open, it all runs within that.
      *
-     * @param array<AbstractTableRowObject> $objects
+     * New objects whose IDs the database generates (e.g. SERIAL), so that they have no ID yet, are inserted together
+     * by a single MERGE ... RETURNING, which returns each one's row, so that it takes on its generated ID, column
+     * defaults and generated columns. That needs PostgreSQL 17 or newer. On an older server, a batch with any such
+     * objects throws an ExceptionUnsupportedDatabaseVersion, without saving anything, so save them with save(), or
+     * insert their rows with batchInsert(), instead. Batches where every object has an ID work on any version.
+     *
+     * WARNING - the database's values can't be read back for the objects that already have an ID, so their column
+     * defaults and generated columns (see getVirtualFields()) will be out of date on them (and in the cache) until they
+     * are reloaded with CacheMode::UPDATE_CACHE.
+     *
+     * @param array<AbstractTableRowObject> $objects - the objects to save.
      *
      * @return void
      *
-     * @throws ExceptionMissingRequiredData - if an object has no ID. This is checked before anything is saved, so none
-     * of the objects will have been saved.
+     * @throws ExceptionObjectDeleted - if an object has been deleted. This is checked before anything is saved.
      *
-     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionUnsupportedDatabaseVersion - if an object has no ID, and the database is older than PostgreSQL
+     * 17. This is checked before anything is saved.
+     *
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the query failed, in which case none of the
+     * objects are saved.
      */
     public function batchSave(array $objects) : void
     {
+        $objectsWithIds = [];
+        $objectsWithoutIds = [];
+
+        // check every object before anything is saved, so that if one is rejected, none are saved.
         foreach ($objects as $object)
         {
+            if ($object->isDeleted())
+            {
+                $className = get_class($object);
+                throw new ExceptionObjectDeleted("Can't batch save this {$className}, as it has been deleted.");
+            }
+
             if ($object->getId() === null)
             {
-                throw new ExceptionMissingRequiredData(
-                    "Can't batch save {$this->getTableName()} objects that don't have IDs, as the database generates" .
-                    " their IDs. Insert their rows with batchInsert() instead, which returns objects with their IDs."
-                );
+                $objectsWithoutIds[] = $object;
             }
+            else
+            {
+                $objectsWithIds[] = $object;
+            }
+        }
+
+        if (count($objectsWithoutIds) > 0)
+        {
+            $this->assertDatabaseSupportsMergeReturning();
         }
 
         if (count($objects) > 0)
@@ -753,20 +910,29 @@ abstract class AbstractTable implements TableInterface
                 "SET CONSTRAINTS ALL DEFERRED"
             ];
 
-            foreach ($objects as $object)
+            foreach ($objectsWithIds as $object)
             {
                 $queries[] = $object->getSaveQuery();
             }
 
-            $multiQuery = implode(";", $queries) . ";";
+            // the insert of the objects without IDs goes last, as only the last statement's result is returned.
+            if (count($objectsWithoutIds) > 0)
+            {
+                $queries[] = $this->generateBatchInsertObjectsQuery($objectsWithoutIds);
+            }
 
             // the statements run as a single implicit transaction, so if any fail, query() throws and none are saved.
-            $this->getDb()->query($multiQuery);
+            $result = $this->getDb()->query(implode(";", $queries) . ";");
 
-            foreach ($objects as $object)
+            foreach ($objectsWithIds as $object)
             {
                 $object->markSaved(); // just in case it was an insert instead of update call.
-                $this->updateCache($object);
+                $this->cacheObject($object);
+            }
+
+            if (count($objectsWithoutIds) > 0)
+            {
+                $this->takeOnInsertedRows($objectsWithoutIds, $result);
             }
         }
     }
@@ -774,10 +940,21 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Load objects whose IDs were not provided.
-     * @param array $ids
+     *
+     * @param array $ids - the IDs of the rows not to load. If empty, every row is loaded.
+     *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled: USE_CACHE returns rows that are already
+     * cached as the cached objects, as they are, and caches the rest. UPDATE_CACHE updates the cached objects with the
+     * rows' current values, in place, and caches the rest. IGNORE_CACHE returns new objects, and leaves the cache
+     * alone. There's no default, so that you choose each time. The query always runs, as the cache is never searched:
+     * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
+     * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
+     *
      * @return AbstractTableRowObject[]
+     *
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function loadIdsNotIn(array $ids) : array
+    public function loadIdsNotIn(array $ids, CacheMode $cacheMode) : array
     {
         $tableName = $this->getEscapedQualifiedTableName();
 
@@ -792,7 +969,7 @@ abstract class AbstractTable implements TableInterface
         }
 
         $result = $this->getDb()->query($query);
-        return $this->convertPgResultToObjects($result);
+        return $this->convertPgResultToObjects($result, $cacheMode);
     }
 
 
@@ -821,25 +998,22 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Helper function that converts a query result into a collection of the row objects.
-     * @param \Pgsql\Result $result
+     * Helper function that converts a query result into a collection of the row objects, using the cache as
+     * $cacheMode says (see CacheMode).
+     *
+     * @param \Pgsql\Result $result - the result of a query that selected whole rows of this table.
+     *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled.
+     *
      * @return T[]
      */
-    protected function convertPgResultToObjects(\Pgsql\Result $result) : array
+    protected function convertPgResultToObjects(\Pgsql\Result $result, CacheMode $cacheMode) : array
     {
         $objects = [];
 
-        if (pg_num_rows($result) > 0)
+        while (($row = pg_fetch_assoc($result)) !== false)
         {
-            $fieldInfoMap = $this->getFieldInfoMap();
-            $rowHydrator = $this->getRowHydrator();
-
-            while (($row = pg_fetch_assoc($result)) !== false)
-            {
-                $loadedObject = $rowHydrator($row, $fieldInfoMap);
-                $this->updateCache($loadedObject);
-                $objects[] = $loadedObject;
-            }
+            $objects[] = $this->hydrateRow($row, $cacheMode);
         }
 
         return $objects;
@@ -847,9 +1021,9 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Delete rows from the table that have ALL of the attributes specified in the provided wherePairs parameter, and
-     * remove their objects from the cache. This loads the matching rows first, so that it knows which objects to
-     * remove from the cache, then deletes them by ID.
+     * Delete rows from the table that have ALL of the attributes specified in the provided wherePairs parameter, in a
+     * single query. The cached objects of the deleted rows are marked as deleted (so their save() and update() throw
+     * ExceptionObjectDeleted) and removed from the cache. Objects of the rows that remain are left in the cache.
      *
      * @param array $wherePairs - column-name/value pairs that the rows must all have in order to be deleted.
      * Must not be empty. Use deleteAll() to delete every row.
@@ -869,47 +1043,14 @@ abstract class AbstractTable implements TableInterface
             );
         }
 
-        $objects = $this->loadWhereAnd($wherePairs);
-
-        if (count($objects) > 0)
-        {
-            $objectIds = [];
-
-            foreach ($objects as $object)
-            {
-                /* @var $object AbstractTableRowObject */
-                $objectIds[] = $object->getId();
-            }
-
-            $this->deleteByIds($objectIds);
-        }
+        $this->deleteWhere($wherePairs, Conjunction::AND);
     }
 
 
     /**
-     * Update our cache with the provided object.
-     * Note that if you simply changed the object's ID, you will need to call unsetCache() on
-     * the original ID.
-     * Objects without an ID yet (e.g. a database-generated ID that hasn't been read back) are not
-     * cached, as they have nothing to be looked up by.
-     *
-     * @param AbstractTableRowObject $object
-     *
-     * @return void
-     */
-    protected function updateCache(AbstractTableRowObject $object) : void
-    {
-        if ($object->getId() !== null)
-        {
-            $this->m_objectCache[$object->getId()] = $object;
-        }
-    }
-
-
-    /**
-     * Delete rows from the table that meet ANY of the attributes specified in the provided wherePairs parameter.
-     * This empties the whole cache afterwards, as it deletes the rows directly without loading them, so doesn't know
-     * which of the cached objects were deleted. Use deleteByIds() instead to only remove the deleted objects.
+     * Delete rows from the table that meet ANY of the attributes specified in the provided wherePairs parameter, in a
+     * single query. The cached objects of the deleted rows are marked as deleted (so their save() and update() throw
+     * ExceptionObjectDeleted) and removed from the cache. Objects of the rows that remain are left in the cache.
      *
      * @param array $wherePairs - column-name/value pairs that the row must have at least one of in order to be
      * deleted. The value in a pair may be an array, to delete any rows that have any one of those values, e.g.
@@ -930,14 +1071,7 @@ abstract class AbstractTable implements TableInterface
             );
         }
 
-        $query = $this->getDb()->generateDeleteWhereQuery(
-            $this->getTable(),
-            $wherePairs,
-            Conjunction::OR
-        );
-
-        $this->getDb()->query($query);
-        $this->emptyCache();
+        $this->deleteWhere($wherePairs, Conjunction::OR);
     }
 
 
@@ -965,10 +1099,8 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Get the info about this table's columns, for converting the values of loaded rows to the right PHP types.
-     * This is in the same form as pg_meta_data() returns, but it is read from the system catalogs instead, as
-     * pg_meta_data() takes the schema and table as one unescaped "schema.table" string, which it splits on the first
-     * dot, so it can't find a table whose schema name contains a dot. Here the table is looked up by its escaped,
-     * schema-qualified name, so any characters work, and it is always the same table that the queries use.
+     * It is fetched from the database the first time it's needed, then kept for the life of this table object, as
+     * the columns don't change while the application is running (migrations are run before the tables are used).
      *
      * @return array<string, array> - the column info, indexed by column name. Each column has the keys num, type,
      * len, not null, has default, array dims and is enum.
@@ -977,6 +1109,84 @@ abstract class AbstractTable implements TableInterface
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
     protected function getFieldInfoMap() : array
+    {
+        if ($this->m_fieldInfoMap === null)
+        {
+            $this->m_fieldInfoMap = $this->fetchFieldInfoMap();
+        }
+
+        return $this->m_fieldInfoMap;
+    }
+
+
+    /**
+     * Remove the virtual fields (PostgreSQL generated columns) from a row, so the row can be sent in an insert or
+     * update.
+     *
+     * @param array $row - name value pairs of column to values.
+     *
+     * @return array - the row without the virtual fields.
+     */
+    protected function removeVirtualFields(array $row) : array
+    {
+        return array_diff_key($row, array_flip($this->getVirtualFields()));
+    }
+
+
+    /**
+     * Get a row ready to be inserted, for insert() and batchInsert(): remove the virtual fields, and if the row has no
+     * ID, generate one in code if this table can do so, otherwise leave the ID out for the database to generate.
+     *
+     * @param array $row - name value pairs of column to values.
+     *
+     * @return array - the row to insert.
+     *
+     * @throws ExceptionMissingRequiredData - if the row has no ID, and neither the code nor the database can
+     * generate one.
+     */
+    private function prepareRowForInsert(array $row) : array
+    {
+        $this->assertKnownColumns($row);
+        $row = $this->removeVirtualFields($row);
+        $idColumnName = $this->getIdColumnName();
+
+        // prefer generating the ID in code whenever possible.
+        if (!isset($row[$idColumnName]))
+        {
+            if ($this->canCodeGenerateId())
+            {
+                $row[$idColumnName] = $this->generateId();
+            }
+            else if ($this->canDatabaseGenerateId())
+            {
+                unset($row[$idColumnName]); // have the database create the ID.
+            }
+            else
+            {
+                throw new ExceptionMissingRequiredData(
+                    "No {$idColumnName} was provided for the new {$this->getTableName()} row, and this table can't" .
+                    " generate one in code, nor does the database generate one."
+                );
+            }
+        }
+
+        return $row;
+    }
+
+
+    /**
+     * Fetch the info about this table's columns from the database, for getFieldInfoMap() to keep. This is in the same
+     * form as pg_meta_data() returns, but it is read from the system catalogs instead, as pg_meta_data() takes the
+     * schema and table as one unescaped "schema.table" string, which it splits on the first dot, so it can't find a
+     * table whose schema name contains a dot. Here the table is looked up by its escaped, schema-qualified name, so
+     * any characters work, and it is always the same table that the queries use.
+     *
+     * @return array<string, array> - the column info, indexed by column name.
+     *
+     * @throws ExceptionTableNotFound - if the table doesn't exist, or has no columns.
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     */
+    private function fetchFieldInfoMap() : array
     {
         $db = $this->getDb();
         $escapedQualifiedTableName = $this->getEscapedQualifiedTableName();
@@ -1018,55 +1228,342 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Remove the virtual fields (PostgreSQL generated columns) from a row, so the row can be sent in an insert or
-     * update.
+     * Check that every key in the array is one of this table's columns, so that a typo gets a clear exception before
+     * any query is run, rather than a less clear error from PostgreSQL. This uses the kept column info, so it doesn't
+     * need a query after the first time.
      *
-     * @param array $row - name value pairs of column to values.
+     * @param array $columnValues - column name/value pairs, e.g. a row or where pairs.
      *
-     * @return array - the row without the virtual fields.
+     * @return void
+     *
+     * @throws ExceptionUnknownColumn - if any key isn't one of this table's columns, listing every such key.
+     * @throws ExceptionTableNotFound - if the table's columns can't be found.
      */
-    protected function removeVirtualFields(array $row) : array
+    private function assertKnownColumns(array $columnValues) : void
     {
-        return array_diff_key($row, array_flip($this->getVirtualFields()));
+        $knownColumns = array_keys($this->getFieldInfoMap());
+        $unknownColumns = array_diff(array_keys($columnValues), $knownColumns);
+
+        if (count($unknownColumns) > 0)
+        {
+            $unknownColumnsList = implode(", ", $unknownColumns);
+            $tableName = $this->getEscapedQualifiedTableName();
+
+            throw new ExceptionUnknownColumn(
+                "The {$tableName} table has no column(s) called: {$unknownColumnsList}. Its columns are: " .
+                implode(", ", $knownColumns) . "."
+            );
+        }
     }
 
 
     /**
-     * Get a row ready to be inserted, for insert() and batchInsert(): remove the virtual fields, and if the row has no
-     * ID, generate one in code if this table can do so, otherwise leave the ID out for the database to generate.
+     * Get the object for a row of this table, using the cache as $cacheMode says (see CacheMode). While the cache is
+     * disabled, or with IGNORE_CACHE, this is always a new object, and the cache isn't touched. Otherwise, a row that
+     * is cached gives its cached object (updated with the row's values in place for UPDATE_CACHE, or as it is for
+     * USE_CACHE), and a row that isn't is given a new object, which is cached.
      *
-     * @param array $row - name value pairs of column to values.
+     * @param array $row - a whole row of this table, as returned by the database.
      *
-     * @return array - the row to insert.
+     * @param CacheMode $cacheMode - how to use the cache.
      *
-     * @throws ExceptionMissingRequiredData - if the row has no ID, and neither the code nor the database can
-     * generate one.
+     * @return AbstractTableRowObject - the object for the row.
      */
-    private function prepareRowForInsert(array $row) : array
+    private function hydrateRow(array $row, CacheMode $cacheMode) : AbstractTableRowObject
     {
-        $row = $this->removeVirtualFields($row);
+        $rowHydrator = $this->getRowHydrator();
+        $fieldInfoMap = $this->getFieldInfoMap();
+        $newObject = $rowHydrator($row, $fieldInfoMap);
+        $id = $newObject->getId();
+
+        if ($this->m_isCacheEnabled === false || $cacheMode === CacheMode::IGNORE_CACHE)
+        {
+            $object = $newObject;
+        }
+        elseif (isset($this->m_objectCache[$id]))
+        {
+            $object = $this->m_objectCache[$id];
+
+            if ($cacheMode === CacheMode::UPDATE_CACHE)
+            {
+                $this->refreshObject($object, $row, $fieldInfoMap);
+            }
+        }
+        else
+        {
+            $object = $newObject;
+            $this->m_objectCache[$id] = $object;
+        }
+
+        return $object;
+    }
+
+
+    /**
+     * Refresh an existing object with a row's values, so that everything holding the object sees them.
+     *
+     * @param AbstractTableRowObject $object - the object to refresh.
+     *
+     * @param array $row - the row from the database.
+     *
+     * @param array $fieldInfoMap - the column info, from getFieldInfoMap().
+     *
+     * @return void
+     */
+    private function refreshObject(AbstractTableRowObject $object, array $row, array $fieldInfoMap) : void
+    {
+        // initializeFromArray() is protected, so call it from within the object's scope.
+        $refresh = function (array $row, array $fieldInfoMap) : void {
+            $this->initializeFromArray($row, $fieldInfoMap);
+            $this->m_isSavedInDatabase = true;
+        };
+
+        $refresh->call($object, $row, $fieldInfoMap);
+    }
+
+
+    /**
+     * Delete the rows that match the where pairs, in a single query, and forget the deleted rows' cached objects (see
+     * forgetDeletedRow()). The query returns the deleted rows' IDs, so that only those objects are forgotten.
+     *
+     * @param array $wherePairs - column-name/value pairs, which the caller has checked aren't empty.
+     *
+     * @param Conjunction $conjunction - whether a row must match ALL of the pairs, or ANY of them.
+     *
+     * @return void
+     *
+     * @throws ExceptionUnknownColumn - if a where pair's key isn't one of this table's columns.
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     */
+    private function deleteWhere(array $wherePairs, Conjunction $conjunction) : void
+    {
+        $this->assertKnownColumns($wherePairs);
+        $query = $this->getDb()->generateDeleteWhereQuery($this->getTable(), $wherePairs, $conjunction);
+        $result = $this->getDb()->query($query . " RETURNING {$this->getEscapedIdColumnName()}");
         $idColumnName = $this->getIdColumnName();
 
-        // prefer generating the ID in code whenever possible.
-        if (!isset($row[$idColumnName]))
+        while (($deletedRow = pg_fetch_assoc($result)) !== false)
         {
-            if ($this->canCodeGenerateId())
+            $this->forgetDeletedRow($deletedRow[$idColumnName]);
+        }
+    }
+
+
+    /**
+     * Forget the cached object of a row that has been deleted: mark it as deleted, so that its save() and update()
+     * throw ExceptionObjectDeleted rather than inserting the row again, and remove it from the cache. Does nothing if
+     * the row's object isn't cached.
+     *
+     * @param int|string $id - the ID of the deleted row.
+     *
+     * @return void
+     */
+    private function forgetDeletedRow(int|string $id) : void
+    {
+        if (isset($this->m_objectCache[$id]))
+        {
+            // the deleted flag is protected, so set it from within the object's scope.
+            $markDeleted = function () : void {
+                $this->m_isDeleted = true;
+                $this->m_isSavedInDatabase = false;
+            };
+
+            $markDeleted->call($this->m_objectCache[$id]);
+            unset($this->m_objectCache[$id]);
+        }
+    }
+
+
+    /**
+     * Generate the query that inserts new objects that have no ID yet, for batchSave(). It's a MERGE, as that can
+     * return each inserted row along with the position of the object it came from in $objects (from WITH ORDINALITY),
+     * which a plain INSERT ... RETURNING can't, as it doesn't promise to return the rows in any particular order. The
+     * objects' values are sent as JSON, which jsonb_populate_record() turns into rows of this table's type, so that
+     * every value has its column's type.
+     *
+     * Objects don't all have to have the same columns, e.g. a row class may leave out a column it has no value for, so
+     * that the column gets its database default. So the objects are grouped by their columns, and each group gets its
+     * own INSERT, which only inserts those columns, just as insert() would for each object on its own.
+     *
+     * @param array<AbstractTableRowObject> $objects - the objects to insert, as a list.
+     *
+     * @return string - the query.
+     *
+     * @throws ExceptionUnknownColumn - if an object has a column this table doesn't.
+     * @throws \JsonException - if a value can't be encoded as JSON, e.g. INF, NAN or a string that isn't UTF-8.
+     */
+    private function generateBatchInsertObjectsQuery(array $objects) : string
+    {
+        $db = $this->getDb();
+
+        // getDatabaseArrayForm() is protected, so call it from within each object's scope.
+        $getDatabaseArrayForm = function () : array { return $this->getDatabaseArrayForm(); };
+        $elements = [];
+        $groupNumbersByColumns = [];
+        $columnsByGroupNumber = [];
+
+        foreach ($objects as $object)
+        {
+            $row = $getDatabaseArrayForm->call($object);
+            $this->assertKnownColumns($row);
+            $columnNames = array_keys($row);
+            sort($columnNames);
+            $groupKey = implode(",", $columnNames);
+
+            if (!isset($groupNumbersByColumns[$groupKey]))
             {
-                $row[$idColumnName] = $this->generateId();
+                $groupNumbersByColumns[$groupKey] = count($columnsByGroupNumber);
+                $columnsByGroupNumber[] = $columnNames;
             }
-            else if ($this->canDatabaseGenerateId())
+
+            $elements[] = ['group' => $groupNumbersByColumns[$groupKey], 'row' => $row];
+        }
+
+        $group = $db->escapeIdentifier(self::BATCH_GROUP_COLUMN);
+        $whenClauses = [];
+
+        foreach ($columnsByGroupNumber as $groupNumber => $columnNames)
+        {
+            $whenClauses[] = " WHEN NOT MATCHED AND \"source\".{$group} = {$groupNumber} THEN " .
+                $this->generateMergeInsert($columnNames);
+        }
+
+        $tableName = $this->getEscapedQualifiedTableName();
+        $position = $db->escapeIdentifier(self::BATCH_POSITION_COLUMN);
+        $elementsLiteral = $db->escapeValue($this->encodeJson($elements));
+
+        $query =
+            "MERGE INTO {$tableName} AS \"target\"" .
+            " USING (" .
+                "SELECT \"element\".{$position}," .
+                " (\"element\".\"value\" ->> 'group')::int AS {$group}," .
+                " \"row\".*" .
+                " FROM jsonb_array_elements({$elementsLiteral}::jsonb)" .
+                " WITH ORDINALITY AS \"element\"(\"value\", {$position})" .
+                " CROSS JOIN LATERAL" .
+                " jsonb_populate_record(NULL::{$tableName}, \"element\".\"value\" -> 'row') AS \"row\"" .
+            ") AS \"source\"" .
+            " ON FALSE" .
+            implode("", $whenClauses) .
+            " RETURNING \"source\".{$position}, \"target\".*";
+
+        return $query;
+    }
+
+
+    /**
+     * Generate the INSERT part of a MERGE clause, inserting the given columns from the source row.
+     *
+     * @param array<string> $columnNames - the names of the columns to insert. If empty, every column gets its default.
+     *
+     * @return string - e.g. INSERT ("title") VALUES ("source"."title").
+     */
+    private function generateMergeInsert(array $columnNames) : string
+    {
+        if (count($columnNames) > 0)
+        {
+            $escapedColumnNames = $this->getDb()->escapeIdentifiers($columnNames);
+            $sourceColumns = [];
+
+            foreach ($escapedColumnNames as $escapedColumnName)
             {
-                unset($row[$idColumnName]); // have the database create the ID.
+                $sourceColumns[] = "\"source\".{$escapedColumnName}";
             }
-            else
+
+            $columnsList = implode(", ", $escapedColumnNames);
+            $insert = "INSERT ({$columnsList}) VALUES (" . implode(", ", $sourceColumns) . ")";
+        }
+        else
+        {
+            $insert = "INSERT DEFAULT VALUES";
+        }
+
+        return $insert;
+    }
+
+
+    /**
+     * Give each new object from batchSave() its inserted row, so that it takes on its generated ID, column defaults and
+     * generated columns, and is marked as saved, and cached if the cache is enabled.
+     *
+     * @param array<AbstractTableRowObject> $objects - the objects that were inserted, in the order they were sent in.
+     *
+     * @param \PgSql\Result $result - the result of the query from generateBatchInsertObjectsQuery().
+     *
+     * @return void
+     */
+    private function takeOnInsertedRows(array $objects, \PgSql\Result $result) : void
+    {
+        $fieldInfoMap = $this->getFieldInfoMap();
+
+        while (($row = pg_fetch_assoc($result)) !== false)
+        {
+            // WITH ORDINALITY counts from 1.
+            $object = $objects[(int)$row[self::BATCH_POSITION_COLUMN] - 1];
+            unset($row[self::BATCH_POSITION_COLUMN]);
+            $this->refreshObject($object, $row, $fieldInfoMap);
+            $this->cacheObject($object);
+        }
+    }
+
+
+    /**
+     * Check that the database supports MERGE ... RETURNING, which batchSave() needs to insert objects without IDs. The
+     * version comes from the connection, so this doesn't need a query.
+     *
+     * @return void
+     *
+     * @throws ExceptionUnsupportedDatabaseVersion - if the database is older than PostgreSQL 17.
+     */
+    private function assertDatabaseSupportsMergeReturning() : void
+    {
+        // the server's version, e.g. "18.6 (Debian 18.6-1)". Not the client library's, which may differ.
+        $version = pg_version($this->getDb()->getResource());
+        $serverVersion = isset($version['server']) ? $version['server'] : 'unknown';
+        $majorVersion = (int)explode('.', $serverVersion)[0];
+
+        if ($majorVersion < 17)
+        {
+            throw new ExceptionUnsupportedDatabaseVersion(
+                "batchSave() can only save new {$this->getTableName()} objects that don't have IDs yet (as the" .
+                " database generates them) on PostgreSQL 17 or newer, but the database is version {$serverVersion}." .
+                " Save those objects with save(), or insert their rows with batchInsert(), instead."
+            );
+        }
+    }
+
+
+    /**
+     * Encode the rows as JSON, keeping every float exact, regardless of the serialize_precision setting.
+     *
+     * @param array $rows - the rows to encode.
+     *
+     * @return string - the JSON.
+     *
+     * @throws \JsonException - if a value can't be encoded.
+     */
+    private function encodeJson(array $rows) : string
+    {
+        // with serialize_precision set to -1, floats are encoded as the shortest string that converts back to exactly
+        // the same float. -1 is the default, but set it for this call in case the application has changed it.
+        $previousPrecision = ini_set('serialize_precision', '-1');
+
+        try
+        {
+            $json = json_encode($rows, JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION);
+        }
+        finally
+        {
+            if ($previousPrecision !== false)
             {
-                throw new ExceptionMissingRequiredData(
-                    "No {$idColumnName} was provided for the new {$this->getTableName()} row, and this table can't" .
-                    " generate one in code, nor does the database generate one."
-                );
+                ini_set('serialize_precision', $previousPrecision);
             }
         }
 
-        return $row;
+        return $json;
     }
+
+
+    # Accessors
+    public function isCacheEnabled() : bool { return $this->m_isCacheEnabled; }
 }

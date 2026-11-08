@@ -20,8 +20,8 @@
         "ext-pgsql": "*"
     },
     "require-dev" : {
-        "irap/autoloader" : "1.0.*",
-        "programster/pgsql-migrations": ">=0.3 <2.0"
+        "programster/pgsql-migrations": ">=0.3 <2.0",
+        "programster/autoloader": "^1.0.3"
     },
     "autoload": {
         "psr-4": {

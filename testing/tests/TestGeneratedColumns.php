@@ -8,10 +8,13 @@
  * - their values are read back from the database after save(), update(), insert() and updateById().
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestGeneratedColumns
 {
     public function __construct()
     {
+        InvoiceTable::getInstance()->enableCache(); // this test checks how the cache behaves.
         $db = ConnectionHandler::getDb();
         $db->query("TRUNCATE {$db->escapeIdentifier("invoice")}");
         InvoiceTable::getInstance()->emptyCache();
@@ -66,7 +69,8 @@ class TestGeneratedColumns
         $invoice = InvoiceRecord::createNewFromArray(['quantity' => 4, 'unit_price_pence' => 25]);
         $invoice->save();
         $this->assertTotal($invoice, 100, "save() of a new object");
-        $this->assertTotal(InvoiceTable::getInstance()->load($invoice->getId(), false), 100, "loading a saved object");
+        $loaded = InvoiceTable::getInstance()->load($invoice->getId(), CacheMode::UPDATE_CACHE);
+        $this->assertTotal($loaded, 100, "loading a saved object");
     }
 
 
@@ -107,8 +111,9 @@ class TestGeneratedColumns
 
         $table->batchSave([$existing, $new]);
 
-        $this->assertTotal($table->load($existing->getId(), false), 10, "batchSave() of an existing object");
-        $this->assertTotal($table->load($new->getId(), false), 15, "batchSave() of a new object");
+        $loaded = $table->load($existing->getId(), CacheMode::UPDATE_CACHE);
+        $this->assertTotal($loaded, 10, "batchSave() of an existing object");
+        $this->assertTotal($table->load($new->getId(), CacheMode::UPDATE_CACHE), 15, "batchSave() of a new object");
     }
 
 

@@ -6,6 +6,8 @@
  * splits a "schema.table" string on the first dot).
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestDottedNames
 {
     public function __construct()
@@ -19,27 +21,28 @@ class TestDottedNames
     {
         $table = DottedNameTable::getInstance();
         $created = $table->insert(['reading' => 1.5]);
-        $this->assertReading($table->load($created->getId(), false), 1.5, "insert()");
+        $this->assertReading($table->load($created->getId(), CacheMode::UPDATE_CACHE), 1.5, "insert()");
 
         $table->updateById($created->getId(), ['reading' => 2.5]);
-        $this->assertReading($table->load($created->getId(), false), 2.5, "updateById()");
+        $this->assertReading($table->load($created->getId(), CacheMode::UPDATE_CACHE), 2.5, "updateById()");
 
-        $loaded = $table->load($created->getId(), false);
+        $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
         $loaded->update(['reading' => 3.5]);
-        $this->assertReading($table->load($created->getId(), false), 3.5, "the row object's update()");
+        $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
+        $this->assertReading($loaded, 3.5, "the row object's update()");
 
         $newRecord = DottedNameRecord::createNewFromArray(['reading' => 4.5]);
         $table->batchSave([$newRecord]);
-        $this->assertReading($table->load($newRecord->getId(), false), 4.5, "batchSave() inserting");
+        $this->assertReading($table->load($newRecord->getId(), CacheMode::UPDATE_CACHE), 4.5, "batchSave() inserting");
 
         // batch saving an existing object uses its update query, rather than its insert query.
-        $existingRecord = $table->load($newRecord->getId(), false);
+        $existingRecord = $table->load($newRecord->getId(), CacheMode::UPDATE_CACHE);
         $setReading = function (float $reading) : void { $this->m_reading = $reading; };
         $setReading->call($existingRecord, 5.5);
         $table->batchSave([$existingRecord]);
-        $this->assertReading($table->load($newRecord->getId(), false), 5.5, "batchSave() updating");
+        $this->assertReading($table->load($newRecord->getId(), CacheMode::UPDATE_CACHE), 5.5, "batchSave() updating");
 
-        $matches = $table->loadWhereOr(['reading' => [3.5, 5.5]]);
+        $matches = $table->loadWhereOr(['reading' => [3.5, 5.5]], CacheMode::USE_CACHE);
 
         if (count($matches) !== 2)
         {
@@ -49,7 +52,7 @@ class TestDottedNames
         $table->deleteByIds([$created->getId()]);
         $table->deleteAll();
 
-        if (count($table->loadAll()) !== 0)
+        if (count($table->loadAll(CacheMode::UPDATE_CACHE)) !== 0)
         {
             throw new \Exception("deleteByIds() and deleteAll() did not delete every row.");
         }

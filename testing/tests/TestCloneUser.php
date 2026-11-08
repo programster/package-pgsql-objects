@@ -4,18 +4,14 @@
  * Test that we can clone an existing record to create a new one in the database.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestCloneUser
 {
     public function __construct()
     {
         $db = ConnectionHandler::getDb();
-        $query = "TRUNCATE \"user\"";
-        $result = $db->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Failed to empty the test table.");
-        }
+        $db->query("TRUNCATE {$db->escapeIdentifier("user")}"); // throws if it fails.
     }
 
 
@@ -32,7 +28,7 @@ class TestCloneUser
         $userClone = clone($userRecord);
         $userClone->save();
 
-        $loadedUserRecords = UserTable::getInstance()->loadAll();
+        $loadedUserRecords = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($loadedUserRecords) !== 2)
         {

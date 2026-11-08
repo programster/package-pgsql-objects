@@ -4,10 +4,13 @@
  * Test that deleteByIds() deletes only the rows with the given IDs, and removes them from the cache.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestDeleteByIds
 {
     public function __construct()
     {
+        UserTable::getInstance()->enableCache(); // this test checks how the cache behaves.
         $db = ConnectionHandler::getDb();
         $db->query("TRUNCATE {$db->escapeIdentifier("user")}");
         UserTable::getInstance()->emptyCache();
@@ -22,10 +25,10 @@ class TestDeleteByIds
 
         UserTable::getInstance()->deleteByIds([$user1->getId(), $user2->getId()]);
 
-        // bypass the cache so we see what is actually in the database.
+        // ignore the cache so we see what is actually in the database.
         $remainingUsers = UserTable::getInstance()->loadIds(
             [$user1->getId(), $user2->getId(), $user3->getId()],
-            false
+            CacheMode::IGNORE_CACHE
         );
 
         if (count($remainingUsers) !== 1 || !isset($remainingUsers[$user3->getId()]))

@@ -43,4 +43,16 @@ class TicketRecord extends AbstractTableRowObject
     # Accessors
     public function getTitle() : ?string { return $this->m_title; }
     public function getStatus() : ?string { return $this->m_status; }
+
+
+    # Setters
+    /**
+     * Change the title without saving, so the tests can batch save tickets.
+     * @param string $title
+     * @return void
+     */
+    public function setTitle(string $title) : void
+    {
+        $this->m_title = $title;
+    }
 }

@@ -4,19 +4,15 @@
  * Test that running deleteAll on the table works.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestDeleteAll
 {
 
     public function __construct()
     {
         $db = ConnectionHandler::getDb();
-        $query = "TRUNCATE \"user\"";
-        $result = $db->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Failed to empty the test table.");
-        }
+        $db->query("TRUNCATE {$db->escapeIdentifier("user")}"); // throws if it fails.
     }
 
 
@@ -39,7 +35,7 @@ class TestDeleteAll
         $userRecord2->save();
 
 
-        $loadedUserRecords = UserTable::getInstance()->loadAll();
+        $loadedUserRecords = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($loadedUserRecords) !== 2)
         {
@@ -48,7 +44,7 @@ class TestDeleteAll
 
         UserTable::getInstance()->deleteAll();
 
-        $loadedUserRecords2 = UserTable::getInstance()->loadAll();
+        $loadedUserRecords2 = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($loadedUserRecords2) !== 0)
         {

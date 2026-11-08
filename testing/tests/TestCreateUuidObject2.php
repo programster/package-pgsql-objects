@@ -4,26 +4,20 @@
  * Test that we can create a uuid record with providing our own uuid
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestCreateUuidObject2
 {
     public function __construct()
     {
         $db = ConnectionHandler::getDb();
-        $query = "TRUNCATE {$db->escapeIdentifier("user")}";
-        $result = $db->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Failed to empty the test table.");
-        }
+        $db->query("TRUNCATE {$db->escapeIdentifier("user")}"); // throws if it fails.
     }
 
 
     public function run() : void
     {
         $uuid = UserTable::getInstance()->generateId();
-
-        print "creating user with uuid: {$uuid}" . PHP_EOL;
 
         $userDetails = [
             'id' => $uuid,
@@ -33,9 +27,8 @@ class TestCreateUuidObject2
 
         $userRecord = UserRecord::createNewFromArray($userDetails);
         $userRecord->save();
-        print "user record after saving: " . $userRecord->getId() . PHP_EOL;
 
-        $loadedUserRecords = UserTable::getInstance()->loadAll();
+        $loadedUserRecords = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($loadedUserRecords) !== 1)
         {
@@ -64,7 +57,7 @@ class TestCreateUuidObject2
         # test table delete all.
         UserTable::getInstance()->deleteAll();
 
-        $loadedUserRecords = UserTable::getInstance()->loadAll();
+        $loadedUserRecords = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($loadedUserRecords) !== 0)
         {

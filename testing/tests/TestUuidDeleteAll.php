@@ -4,19 +4,15 @@
  * Test that running deleteAll on a UUID table works.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestUuidDeleteAll
 {
 
     public function __construct()
     {
         $db = ConnectionHandler::getDb();
-        $query = "TRUNCATE {$db->escapeIdentifier("user")}";
-        $result = $db->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Failed to empty the test table.");
-        }
+        $db->query("TRUNCATE {$db->escapeIdentifier("user")}"); // throws if it fails.
     }
 
 
@@ -37,7 +33,7 @@ class TestUuidDeleteAll
 
         $userRecord2 = UserRecord::createNewFromArray($userDetails2);
         $userRecord2->save();
-        $loadedUserRecords = UserTable::getInstance()->loadAll();
+        $loadedUserRecords = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($loadedUserRecords) !== 2)
         {
@@ -46,7 +42,7 @@ class TestUuidDeleteAll
 
         UserTable::getInstance()->deleteAll();
 
-        $loadedUserRecords2 = UserTable::getInstance()->loadAll();
+        $loadedUserRecords2 = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($loadedUserRecords2) !== 0)
         {

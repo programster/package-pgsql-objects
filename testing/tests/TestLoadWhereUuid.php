@@ -5,18 +5,14 @@
  * (it automatically gets created for us)
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestLoadWhereUuid
 {
     public function __construct()
     {
         $db = ConnectionHandler::getDb();
-        $query = "TRUNCATE {$db->escapeIdentifier("user")}";
-        $result = $db->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Failed to empty the test table.");
-        }
+        $db->query("TRUNCATE {$db->escapeIdentifier("user")}"); // throws if it fails.
     }
 
 
@@ -37,7 +33,8 @@ class TestLoadWhereUuid
 
 
         $loadedUserRecords = UserTable::getInstance()->loadWhereAnd(
-            ['id' => $id]
+            ['id' => $id],
+            CacheMode::USE_CACHE
         );
 
         /* @var $loadedUserRecord UserRecord */
@@ -61,7 +58,7 @@ class TestLoadWhereUuid
         # test deletion works.
         $userRecord->delete();
 
-        $loadedUserRecords2 = UserTable::getInstance()->loadAll();
+        $loadedUserRecords2 = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($loadedUserRecords2) !== 0)
         {

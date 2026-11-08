@@ -5,6 +5,8 @@
  * column name was used first.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestEscapedIdColumnNamePerTable
 {
     public function __construct()
@@ -32,7 +34,7 @@ class TestEscapedIdColumnNamePerTable
         $product = ProductTable::getInstance()->insert(['name' => 'widget']);
         ProductTable::getInstance()->deleteById($product->getId());
 
-        if (count(ProductTable::getInstance()->loadAll()) !== 0)
+        if (count(ProductTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE)) !== 0)
         {
             throw new \Exception("deleteById() did not delete the product.");
         }

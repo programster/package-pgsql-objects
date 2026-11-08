@@ -5,6 +5,8 @@
  * and money left as the string the database returns rather than being mangled by floatval().
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestColumnTypeConversion
 {
     public function __construct()
@@ -21,7 +23,7 @@ class TestColumnTypeConversion
         $created = $table->insert(['reading' => 1.5, 'price' => '12.34']);
 
         // bypass the cache so the values come from the database.
-        $loaded = $table->load($created->getId(), false);
+        $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
 
         if ($loaded->getReading() !== 1.5)
         {

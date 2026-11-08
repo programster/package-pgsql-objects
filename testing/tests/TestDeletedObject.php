@@ -5,6 +5,7 @@
  * but its data can still be read, deleting it again does nothing, and a clone of it can be saved as a new row.
  */
 
+use Programster\PgsqlObjects\CacheMode;
 use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
 
 class TestDeletedObject
@@ -51,7 +52,7 @@ class TestDeletedObject
             }
         }
 
-        if (count($table->loadAll()) !== 0)
+        if (count($table->loadAll(CacheMode::UPDATE_CACHE)) !== 0)
         {
             throw new \Exception("A deleted object's row was re-inserted.");
         }
@@ -63,7 +64,7 @@ class TestDeletedObject
 
         $clone = clone $user;
         $clone->save();
-        $loaded = $table->load($clone->getId(), false);
+        $loaded = $table->load($clone->getId(), CacheMode::UPDATE_CACHE);
 
         if ($loaded->getName() !== 'deleted' || $clone->getId() === $user->getId())
         {

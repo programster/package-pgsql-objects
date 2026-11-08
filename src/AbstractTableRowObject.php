@@ -12,6 +12,7 @@ namespace Programster\PgsqlObjects;
 
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
+use Programster\PgsqlObjects\Exceptions\ExceptionUnknownColumn;
 
 /**
  * @template T of \Programster\PgsqlObjects\AbstractTableRowObject
@@ -46,13 +47,16 @@ abstract class AbstractTableRowObject
      *
      * @param array $row - the row, which must include the ID column, as a row in the database always has an ID.
      *
-     * @param ?array $fieldInfoMap - optional array of field info, as returned by pg_meta_data(), used to convert
-     * the values to the right PHP types.
+     * @param ?array $fieldInfoMap - optional array of field info, from the table's getFieldInfoMap() (in the same form
+     * as pg_meta_data() returns), used to convert the values to the right PHP types.
      *
      * @return static
      *
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if the row has no ID, or is missing
      * other required name/value pairs that this object gets created from.
+     *
+     * @throws ExceptionUnknownColumn - if the row has a column that this object has no setter for. If the row came from
+     * a custom query, select only the table's columns.
      */
     public static function createFromDatabaseRow(array $row, ?array $fieldInfoMap = null) : static
     {
@@ -86,6 +90,9 @@ abstract class AbstractTableRowObject
      *
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if the data array is missing required
      * name/value pairs, or has no ID when neither the code nor the database can generate one.
+     *
+     * @throws ExceptionUnknownColumn - if the data has a key that is neither the ID column nor one this object has a
+     * setter for, which is usually a typo.
      */
     public static function createNewFromArray(array $data) : static
     {
@@ -149,15 +156,21 @@ abstract class AbstractTableRowObject
 
 
     /**
-     * Update part of the object. This is the same as replace, except that it
-     * can take a subset of the objects parameters, rather than requiring all of them.
-     * Afterwards, this object takes on the values the database returns, such as generated columns.
+     * Update some of the object's values, and always save the object to the database: its row is updated if the
+     * object has been saved before, or inserted if it hasn't (e.g. a new object from createNewFromArray()), just as
+     * save() does. Afterwards, this object takes on the values the database returns, such as a SERIAL ID, column
+     * defaults and generated columns. Every key is checked before anything is changed, so if one isn't recognised,
+     * neither the object nor the database are changed.
      *
-     * @param array $data - array of name value pairs.
+     * @param array $data - column name/value pairs to update. This may include the ID column, to change the object's
+     * ID (and its row's), in which case any foreign keys referencing the old ID must allow it.
      *
      * @return void
      *
      * @throws ExceptionObjectDeleted - if the object has been deleted.
+     *
+     * @throws ExceptionUnknownColumn - if a key is neither the ID column nor one this object has a setter for, which
+     * is usually a typo.
      */
     public function update(array $data) : void
     {
@@ -166,15 +179,19 @@ abstract class AbstractTableRowObject
             throw new ExceptionObjectDeleted("Can't update this " . get_class($this) . ", as it has been deleted.");
         }
 
+        $this->assertKnownColumns($data);
         $originalId = $this->getId();
+        $tableHandler = $this->getTableHandler();
+        $idColumnName = $tableHandler->getIdColumnName();
         $setters = $this->getSetFunctions();
 
         foreach ($data as $name => $value)
         {
-            if (!isset($setters[$name]))
+            if ($name === $idColumnName)
             {
-                $warningMessage = "Missing setter for: $name when updating: " . get_called_class();
-                trigger_error($warningMessage, E_USER_WARNING);
+                // for a saved object, updateById() below changes the row's ID to this, as it's updated by its original
+                // ID. For an unsaved one, the row is inserted with it.
+                $this->m_id = $value;
             }
             else
             {
@@ -183,14 +200,29 @@ abstract class AbstractTableRowObject
             }
         }
 
-        $updatedObject = $this->getTableHandler()->updateById($originalId, $this->getDatabaseArrayForm());
-        $this->initializeFromArray($updatedObject->getArrayForm());
+        if ($this->m_isSavedInDatabase)
+        {
+            $updatedObject = $tableHandler->updateById($originalId, $this->getDatabaseArrayForm());
+            $this->initializeFromArray($updatedObject->getArrayForm());
+
+            // make this object the cached one for its row, rather than the copy the table built from its reply.
+            $tableHandler->cacheObject($this);
+        }
+        else
+        {
+            // it has never been saved, so there's no row to update yet: insert it instead.
+            $this->save();
+        }
     }
 
 
     /**
-     * Saves this object to the database.
+     * Saves this object to the database: its row is updated if the object has been saved before, or inserted if it
+     * hasn't (e.g. a new object from createNewFromArray()). Afterwards, this object takes on the values the database
+     * returns, such as a SERIAL ID, column defaults and generated columns.
+     *
      * @return void
+     *
      * @throws ExceptionObjectDeleted - if the object has been deleted. Clone it to save it as a new row.
      */
     public function save() : void
@@ -215,6 +247,9 @@ abstract class AbstractTableRowObject
 
         $this->initializeFromArray($savedObject->getArrayForm());
         $this->m_isSavedInDatabase = true;
+
+        // make this object the cached one for its row, rather than the copy the table built from its reply.
+        $this->getTableHandler()->cacheObject($this);
     }
 
 
@@ -371,8 +406,10 @@ abstract class AbstractTableRowObject
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if the provided row is missing a
      * required key/column, including the ID column.
      */
-    protected function initializeFromArray(array $row, ?array $fieldInfoMap=null) : void
+    protected function initializeFromArray(array $row, ?array $fieldInfoMap = null) : void
     {
+        $this->assertKnownColumns($row);
+
         $intFieldTypes = [
             "int2", // smallint
             "int4", // integer or serial
@@ -513,6 +550,33 @@ abstract class AbstractTableRowObject
 
 
     /**
+     * Check that every key in the data is a column this object knows: its ID column, or one it has a setter for.
+     *
+     * @param array $data - column name/value pairs.
+     *
+     * @return void
+     *
+     * @throws ExceptionUnknownColumn - if any key isn't one of those, listing every such key.
+     */
+    private function assertKnownColumns(array $data) : void
+    {
+        $knownColumns = array_keys($this->getSetFunctions());
+        $knownColumns[] = $this->getTableHandler()->getIdColumnName();
+        $unknownColumns = array_diff(array_keys($data), $knownColumns);
+
+        if (count($unknownColumns) > 0)
+        {
+            $unknownColumnsList = implode(", ", $unknownColumns);
+
+            throw new ExceptionUnknownColumn(
+                get_class($this) . " has no column(s) called: {$unknownColumnsList}. Its columns are: " .
+                implode(", ", $knownColumns) . "."
+            );
+        }
+    }
+
+
+    /**
      * Get the query that could be used to update this object in the database.
      *
      * @return string
@@ -561,4 +625,6 @@ abstract class AbstractTableRowObject
 
     # Accessors
     public function getId() : int|string|null { return $this->m_id; }
+    public function isSavedInDatabase() : bool { return $this->m_isSavedInDatabase; }
+    public function isDeleted() : bool { return $this->m_isDeleted; }
 }

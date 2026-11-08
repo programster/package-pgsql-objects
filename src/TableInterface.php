@@ -61,6 +61,47 @@ interface TableInterface
 
 
     /**
+     * Enable the cache for this table. It is disabled by default. While it's enabled, there is only one object for
+     * each row, and loading a row again returns that object without a query.
+     *
+     * @return void
+     */
+    public function enableCache() : void;
+
+
+    /**
+     * Disable the cache for this table, and empty it.
+     * @return void
+     */
+    public function disableCache() : void;
+
+
+    /**
+     * Check whether the cache is enabled for this table.
+     * @return bool
+     */
+    public function isCacheEnabled() : bool;
+
+
+    /**
+     * Empty the cache, leaving it enabled if it was.
+     * @return void
+     */
+    public function emptyCache() : void;
+
+
+    /**
+     * Make this saved object the one that is cached for its row, if the cache is enabled. Row objects call this after
+     * they have been saved.
+     *
+     * @param AbstractTableRowObject $object - the object, which must have been saved to the database.
+     *
+     * @return void
+     */
+    public function cacheObject(AbstractTableRowObject $object) : void;
+
+
+    /**
      * Specifies the name of the identifier column. This will commonly be "id" or "uuid".
      * @return string
      */
@@ -103,9 +144,13 @@ interface TableInterface
 
     /**
      * Loads all of these objects from the database.
+     *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default, so
+     * that you choose each time.
+     *
      * @return array<AbstractTableRowObject>
      */
-    public function loadAll() : array;
+    public function loadAll(CacheMode $cacheMode) : array;
 
 
     /**
@@ -113,22 +158,33 @@ interface TableInterface
      *
      * @param string|int $id - the id of the row in the database table.
      *
-     * @param bool $useCache - optionally set to false to force a database lookup even if we have a
-     * cached value from a previous lookup.
+     * @param CacheMode $cacheMode - (optional) how to use the cache, when it's enabled (see CacheMode). Defaults to
+     * USE_CACHE, which returns the cached object without a query if the row is cached.
      *
      * @return AbstractTableRowObject - the loaded object.
      */
-    public function load(string|int $id, bool $useCache=true) : AbstractTableRowObject;
+    public function load(string|int $id, CacheMode $cacheMode = CacheMode::USE_CACHE) : AbstractTableRowObject;
 
 
     /**
      * Loads a range of rows from the table, in a stable order so that successive calls can page through the table.
+     *
      * @param int $offset - the number of rows to skip.
+     *
      * @param int $numElements - the maximum number of rows to load.
+     *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
+     *
      * @param string|null $orderByColumn - optionally the name of the column to order by. Defaults to the ID column.
+     *
      * @return array<AbstractTableRowObject>
      */
-    public function loadRange(int $offset, int $numElements, ?string $orderByColumn = null) : array;
+    public function loadRange(
+        int $offset,
+        int $numElements,
+        CacheMode $cacheMode,
+        ?string $orderByColumn = null
+    ) : array;
 
 
     /**
@@ -139,9 +195,11 @@ interface TableInterface
      *
      * @param int $numElements - the maximum number of rows to load.
      *
+     * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
+     *
      * @return array<AbstractTableRowObject>
      */
-    public function loadAfterId(string|int|null $afterId, int $numElements) : array;
+    public function loadAfterId(string|int|null $afterId, int $numElements, CacheMode $cacheMode) : array;
 
 
     /**

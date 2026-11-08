@@ -11,6 +11,7 @@ class TestDeleteAllModes
 {
     public function __construct()
     {
+        SampleTable::getInstance()->enableCache(); // this test checks how the cache behaves.
         $db = ConnectionHandler::getDb();
         $db->query('DROP TABLE IF EXISTS "delete_all_reference"');
         SampleTable::getInstance()->deleteAll();

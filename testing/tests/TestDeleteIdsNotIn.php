@@ -5,6 +5,7 @@
  * ExceptionMissingRequiredData rather than deleting every row when given an empty list.
  */
 
+use Programster\PgsqlObjects\CacheMode;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 use Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException;
 
@@ -12,6 +13,7 @@ class TestDeleteIdsNotIn
 {
     public function __construct()
     {
+        UserTable::getInstance()->enableCache(); // this test checks how the cache behaves.
         $db = ConnectionHandler::getDb();
         $db->query("TRUNCATE {$db->escapeIdentifier("user")}");
         UserTable::getInstance()->emptyCache();
@@ -39,7 +41,7 @@ class TestDeleteIdsNotIn
             throw new \Exception("deleteIdsNotIn() did not throw an ExceptionMissingRequiredData for an empty list.");
         }
 
-        if (count($table->loadAll()) !== 2)
+        if (count($table->loadAll(CacheMode::UPDATE_CACHE)) !== 2)
         {
             throw new \Exception("deleteIdsNotIn() deleted rows when given an empty list, instead of only throwing.");
         }
@@ -50,7 +52,7 @@ class TestDeleteIdsNotIn
         $table->deleteIdsNotIn([$kept->getId()]);
         $this->assertNotLoadable($table, $deletedId);
         $table->load($kept->getId()); // throws if the kept object was wrongly removed and is no longer in the table.
-        $remaining = $table->loadAll();
+        $remaining = $table->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($remaining) !== 1 || $remaining[0]->getId() !== $kept->getId())
         {

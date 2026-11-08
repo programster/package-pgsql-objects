@@ -11,6 +11,7 @@ class TestUpdateChangesIdColumn
 {
     public function __construct()
     {
+        ProductTable::getInstance()->enableCache(); // this test checks how the cache behaves.
         $db = ConnectionHandler::getDb();
         $db->query("TRUNCATE {$db->escapeIdentifier("product")}");
         ProductTable::getInstance()->emptyCache();

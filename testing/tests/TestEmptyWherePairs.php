@@ -5,6 +5,7 @@
  * than loading or deleting every row in the table.
  */
 
+use Programster\PgsqlObjects\CacheMode;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 
 class TestEmptyWherePairs
@@ -27,8 +28,8 @@ class TestEmptyWherePairs
         $deleteWhereOr = function (array $wherePairs) : void { $this->deleteWhereOr($wherePairs); };
 
         $calls = [
-            'loadWhereAnd'   => function () use ($table) : void { $table->loadWhereAnd([]); },
-            'loadWhereOr'    => function () use ($table) : void { $table->loadWhereOr([]); },
+            'loadWhereAnd'   => function () use ($table) : void { $table->loadWhereAnd([], CacheMode::USE_CACHE); },
+            'loadWhereOr'    => function () use ($table) : void { $table->loadWhereOr([], CacheMode::USE_CACHE); },
             'deleteWhereAnd' => function () use ($table, $deleteWhereAnd) : void { $deleteWhereAnd->call($table, []); },
             'deleteWhereOr'  => function () use ($table, $deleteWhereOr) : void { $deleteWhereOr->call($table, []); },
         ];
@@ -53,7 +54,7 @@ class TestEmptyWherePairs
             }
         }
 
-        if (count($table->loadAll()) !== 1)
+        if (count($table->loadAll(CacheMode::UPDATE_CACHE)) !== 1)
         {
             throw new \Exception("A call with empty where pairs deleted rows, instead of only throwing.");
         }

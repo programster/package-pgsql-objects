@@ -4,18 +4,14 @@
  * Test that we can create a uuid record from the table, without providing our own uuid.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestCreateUuidObject3
 {
     public function __construct()
     {
         $db = ConnectionHandler::getDb();
-        $query = "TRUNCATE {$db->escapeIdentifier("user")}";
-        $result = $db->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Failed to empty the test table.");
-        }
+        $db->query("TRUNCATE {$db->escapeIdentifier("user")}"); // throws if it fails.
     }
 
 
@@ -30,7 +26,7 @@ class TestCreateUuidObject3
         $userRecord->save();
 
 
-        $loadedUserRecords = UserTable::getInstance()->loadAll();
+        $loadedUserRecords = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($loadedUserRecords) !== 1)
         {
@@ -53,7 +49,7 @@ class TestCreateUuidObject3
         # test table delete all.
         UserTable::getInstance()->deleteAll();
 
-        $loadedUserRecords = UserTable::getInstance()->loadAll();
+        $loadedUserRecords = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($loadedUserRecords) !== 0)
         {

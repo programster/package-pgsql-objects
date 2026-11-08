@@ -1,13 +1,16 @@
 <?php
 
 /*
- * Test that deleteWhereOr() deletes rows matching any of the given attributes, and clears the cache.
+ * Test that deleteWhereOr() deletes rows matching any of the given attributes.
  */
+
+use Programster\PgsqlObjects\CacheMode;
 
 class TestDeleteWhereOr
 {
     public function __construct()
     {
+        UserTable::getInstance()->enableCache(); // this test checks how the cache behaves.
         $db = ConnectionHandler::getDb();
         $db->query("TRUNCATE {$db->escapeIdentifier("user")}");
         UserTable::getInstance()->emptyCache();
@@ -28,7 +31,7 @@ class TestDeleteWhereOr
 
         $deleteWhereOr->call($table, ['name' => 'user1', 'email' => 'user2@gmail.com']);
 
-        $remainingUsers = $table->loadAll();
+        $remainingUsers = $table->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($remainingUsers) !== 1 || $remainingUsers[0]->getId() !== $user3->getId())
         {
@@ -38,7 +41,7 @@ class TestDeleteWhereOr
         // values containing quotes must be escaped exactly once to match.
         $deleteWhereOr->call($table, ['name' => "o'brien"]);
 
-        if (count($table->loadAll()) !== 0)
+        if (count($table->loadAll(CacheMode::UPDATE_CACHE)) !== 0)
         {
             throw new \Exception("deleteWhereOr() did not delete a row matched by a value containing a quote.");
         }

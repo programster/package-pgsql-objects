@@ -5,6 +5,8 @@
  * without skipping or repeating rows when rows are updated between pages.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestLoadRange
 {
     public function __construct()
@@ -33,12 +35,12 @@ class TestLoadRange
     private function testDefaultOrderSurvivesUpdates() : void
     {
         $table = TicketTable::getInstance();
-        $firstPage = $table->loadRange(0, 3);
+        $firstPage = $table->loadRange(0, 3, CacheMode::USE_CACHE);
 
         // updating a row moves it physically in PostgreSQL, which used to make later pages skip/repeat rows.
         $firstPage[0]->update(['title' => 'updated']);
 
-        $secondPage = $table->loadRange(3, 3);
+        $secondPage = $table->loadRange(3, 3, CacheMode::USE_CACHE);
         $getId = function (TicketRecord $ticket) : int { return $ticket->getId(); };
         $ids = array_map($getId, array_merge($firstPage, $secondPage));
 
@@ -52,8 +54,8 @@ class TestLoadRange
     private function testOrderByColumn() : void
     {
         $table = TicketTable::getInstance();
-        $firstPage = $table->loadRange(0, 3, 'title');
-        $secondPage = $table->loadRange(3, 3, 'title');
+        $firstPage = $table->loadRange(0, 3, CacheMode::USE_CACHE, 'title');
+        $secondPage = $table->loadRange(3, 3, CacheMode::USE_CACHE, 'title');
         $tickets = array_merge($firstPage, $secondPage);
 
         $getTitle = function (TicketRecord $ticket) : ?string { return $ticket->getTitle(); };

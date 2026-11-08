@@ -6,6 +6,7 @@
  */
 
 use Programster\PgsqlLib\Exceptions\ExceptionQueryError;
+use Programster\PgsqlObjects\CacheMode;
 
 class TestQueryErrorsThrow
 {
@@ -19,9 +20,11 @@ class TestQueryErrorsThrow
         $table = UserTable::getInstance();
 
         $failingCalls = [
-            'loadWhereOr' => function () use ($table) : void { $table->loadWhereOr(['no_such_column' => 1]); },
+            'loadWhereOr' => function () use ($table) : void {
+                $table->loadWhereOr(['id' => 'not-a-uuid'], CacheMode::USE_CACHE);
+            },
             // a negative OFFSET is an error.
-            'loadRange'   => function () use ($table) : void { $table->loadRange(-1, 1); },
+            'loadRange'   => function () use ($table) : void { $table->loadRange(-1, 1, CacheMode::USE_CACHE); },
             'updateById'  => function () use ($table) : void { $table->updateById('not-a-uuid', ['name' => 'x']); },
         ];
 

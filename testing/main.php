@@ -3,7 +3,7 @@
 require_once(__DIR__ . '/settings.php');
 require_once(__DIR__ . '/../vendor/autoload.php');
 
-$autoloader = new \iRAP\Autoloader\Autoloader([
+$autoloader = new \Programster\Autoloader\Autoloader([
     __DIR__,
     __DIR__ . '/tests',
     __DIR__ . '/models',
@@ -26,6 +26,21 @@ if ($testFiles === false)
 $testResults = [];
 $testOutput = [];
 $testExceptions = [];
+
+// the test tables, whose caches are switched off after each test (see below).
+$tableFiles = glob(__DIR__ . '/models/*Table.php');
+
+if ($tableFiles === false)
+{
+    throw new \RuntimeException("Failed to list the test tables in " . __DIR__ . "/models");
+}
+
+$tableClassNames = [];
+
+foreach ($tableFiles as $tableFile)
+{
+    $tableClassNames[] = basename($tableFile, '.php');
+}
 
 foreach ($testFiles as $testFile)
 {
@@ -55,6 +70,12 @@ foreach ($testFiles as $testFile)
     }
 
     $testOutput[$testFile] = ob_get_clean();
+
+    // the tables are singletons, so switch off any cache a test enabled, so that it can't affect the next test.
+    foreach ($tableClassNames as $tableClassName)
+    {
+        $tableClassName::getInstance()->disableCache();
+    }
 }
 
 arsort($testResults);

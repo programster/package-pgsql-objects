@@ -8,12 +8,14 @@
 
 use Programster\PgsqlLib\Exceptions\ExceptionMismatchedRows;
 use Programster\PgsqlLib\Exceptions\ExceptionQueryError;
+use Programster\PgsqlObjects\CacheMode;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 
 class TestBatchInsert
 {
     public function __construct()
     {
+        TicketTable::getInstance()->enableCache(); // this test checks how the cache behaves.
         $db = ConnectionHandler::getDb();
         $tableNames = ["ticket", "user", "invoice"];
         $escapedTableNames = implode(", ", $db->escapeIdentifiers($tableNames));
@@ -79,7 +81,7 @@ class TestBatchInsert
             $ids[] = $ticket->getId();
         }
 
-        if (count(array_unique($ids)) !== 3 || count($table->loadAll()) !== 3)
+        if (count(array_unique($ids)) !== 3 || count($table->loadAll(CacheMode::UPDATE_CACHE)) !== 3)
         {
             throw new \Exception("batchInsert() did not insert three tickets with different IDs.");
         }
@@ -155,7 +157,7 @@ class TestBatchInsert
     private function testRejected(string $description, string $exceptionClass, array $rows) : void
     {
         $table = TicketTable::getInstance();
-        $countBefore = count($table->loadAll());
+        $countBefore = count($table->loadAll(CacheMode::UPDATE_CACHE));
         $threw = false;
 
         try
@@ -177,7 +179,7 @@ class TestBatchInsert
             throw new \Exception("batchInsert() did not throw a {$exceptionClass} for {$description}.");
         }
 
-        if (count($table->loadAll()) !== $countBefore)
+        if (count($table->loadAll(CacheMode::UPDATE_CACHE)) !== $countBefore)
         {
             throw new \Exception("batchInsert() inserted rows for {$description}, instead of none.");
         }

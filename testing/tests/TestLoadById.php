@@ -5,18 +5,14 @@
  * (it automatically gets created for us)
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestLoadById
 {
     public function __construct()
     {
         $db = ConnectionHandler::getDb();
-        $query = "TRUNCATE \"user\"";
-        $result = $db->query($query);
-
-        if ($result === FALSE)
-        {
-            throw new \Exception("Failed to empty the test table.");
-        }
+        $db->query("TRUNCATE {$db->escapeIdentifier("user")}"); // throws if it fails.
     }
 
 
@@ -55,7 +51,7 @@ class TestLoadById
         $userRecord->delete();
 
 
-        $loadedUserRecords2 = UserTable::getInstance()->loadAll();
+        $loadedUserRecords2 = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($loadedUserRecords2) !== 0)
         {

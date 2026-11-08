@@ -4,6 +4,8 @@
  * Test that methods taking a list of IDs handle an empty list without generating invalid SQL.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestEmptyIdLists
 {
     public function __construct()
@@ -21,7 +23,7 @@ class TestEmptyIdLists
 
         $table->deleteByIds([]);
 
-        if (count($table->loadAll()) !== 1)
+        if (count($table->loadAll(CacheMode::UPDATE_CACHE)) !== 1)
         {
             throw new \Exception("Deleting an empty list of IDs deleted rows.");
         }

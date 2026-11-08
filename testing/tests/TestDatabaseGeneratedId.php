@@ -5,6 +5,8 @@
  * and default values back after being created or saved.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestDatabaseGeneratedId
 {
     public function __construct()
@@ -74,8 +76,8 @@ class TestDatabaseGeneratedId
         }
 
         // SERIAL is an integer column, so its IDs should come back as PHP ints, however the object was made.
-        $loadedFromDatabase = TicketTable::getInstance()->load($ticket1->getId(), false);
-        $loadedFromLoadAll = TicketTable::getInstance()->loadAll()[0];
+        $loadedFromDatabase = TicketTable::getInstance()->load($ticket1->getId(), CacheMode::UPDATE_CACHE);
+        $loadedFromLoadAll = TicketTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE)[0];
 
         $ticketsBySource = ['insert()' => $ticket1, 'load()' => $loadedFromDatabase, 'loadAll()' => $loadedFromLoadAll];
 
@@ -117,7 +119,7 @@ class TestDatabaseGeneratedId
 
         // a second save must update the existing row, not silently update nothing.
         $ticket->update(['title' => 'renamed']);
-        $reloaded = TicketTable::getInstance()->load($ticket->getId(), false);
+        $reloaded = TicketTable::getInstance()->load($ticket->getId(), CacheMode::UPDATE_CACHE);
 
         if ($reloaded->getTitle() !== 'renamed')
         {

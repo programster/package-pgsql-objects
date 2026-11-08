@@ -5,6 +5,8 @@
  * columns of the same type are still converted.
  */
 
+use Programster\PgsqlObjects\CacheMode;
+
 class TestFieldsToKeepAsString
 {
     public function __construct()
@@ -23,7 +25,7 @@ class TestFieldsToKeepAsString
         $created = $table->insert(['exact_amount' => $amount, 'approximate_amount' => $amount]);
 
         // bypass the cache so the values come from the database.
-        $loaded = $table->load($created->getId(), false);
+        $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
 
         if ($loaded->getExactAmount() !== $amount)
         {
