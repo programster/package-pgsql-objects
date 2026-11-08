@@ -233,8 +233,8 @@ latest results for this branch:
   `tests-native.yml`): GitHub's runners for these can't run the Linux PostgreSQL
   images, so each supported version of PostgreSQL is installed on the runner 
   directly, and tested on PHP 8.5.
-- **WSL** (`tests-wsl.yml`): PHP 8.3 in WSL, against PostgreSQL 18 on the 
-  Windows side. GitHub's Windows runners only have WSL 1, so WSL 2 isn't tested.
+- **WSL** (`tests-wsl.yml`): PHP 8.3 and PostgreSQL 16 (Ubuntu 24.04's own), 
+  both in WSL 2.
 
 Each run also lists its results and any failed tests as annotations on the run's 
 summary page. They can be run by hand on any branch with "Run workflow" on the 

@@ -1,6 +1,6 @@
-# Runs the tests with PHP in WSL (the Windows Subsystem for Linux), against PostgreSQL running on the Windows side,
-# which WSL reaches on 127.0.0.1. GitHub's Windows runners only have WSL 1, which shares Windows' network, so WSL 2
-# isn't tested. This is a separate workflow from the Linux tests, with its own badge in the README.
+# Runs the tests in WSL 2 (the Windows Subsystem for Linux), with PHP and PostgreSQL both installed in WSL's Ubuntu.
+# WSL 2 runs in its own lightweight virtual machine, with its own network, so it can't reach a PostgreSQL running on
+# the Windows side at 127.0.0.1. This is a separate workflow from the Linux tests, with its own badge in the README.
 name: WSL tests
 
 on:
@@ -25,7 +25,7 @@ permissions:
 
 jobs:
     tests:
-        name: Tests in WSL, PostgreSQL 18 on Windows
+        name: Tests in WSL 2, PostgreSQL 16
         runs-on: windows-latest
         timeout-minutes: 40
 
@@ -33,21 +33,12 @@ jobs:
             - name: Check out the code
               uses: actions/checkout@v5
 
-            # The same version of this action as tests-native.yml, which explains why it's v8.
-            - name: Install PostgreSQL 18 on Windows
-              uses: ikalnytskyi/action-setup-postgres@v8
-              with:
-                  postgres-version: "18"
-                  username: test
-                  password: test
-                  database: pgsql_objects_test
-                  port: 5433
-
-            # Ubuntu 24.04's own PHP is 8.3. Commands run in WSL as root.
-            - name: Install WSL, with PHP
-              uses: Vampire/setup-wsl@v6
+            # Ubuntu 24.04's own PHP is 8.3, and its own PostgreSQL is 16. Commands run in WSL as root.
+            - name: Install WSL, with PHP and PostgreSQL
+              uses: Vampire/setup-wsl@v7
               with:
                   distribution: Ubuntu-24.04
+                  wsl-version: 2
                   additional-packages:
                       php8.3-cli
                       php8.3-pgsql
@@ -56,6 +47,7 @@ jobs:
                       php8.3-zip
                       composer
                       unzip
+                      postgresql
 
             # Copy the code into WSL's own filesystem (the checkout is on a Windows drive, at /mnt/...), so the tests
             # run where WSL's files really are. Environment variables set by GitHub don't reach WSL, so the connection
@@ -63,11 +55,16 @@ jobs:
             - name: Run the tests in WSL
               shell: wsl-bash {0}
               run: |
+                  echo "::notice title=WSL kernel::$(uname -r)"
+                  service postgresql start
+                  su postgres -c "psql -c \"CREATE ROLE test WITH LOGIN SUPERUSER PASSWORD 'test'\""
+                  su postgres -c "createdb --owner=test pgsql_objects_test"
+
                   rm -rf /src
                   cp -r . /src
                   cd /src
                   composer install --no-interaction --no-progress --prefer-dist
-                  export TEST_DB_HOST=127.0.0.1 TEST_DB_PORT=5433 TEST_DB_USER=test TEST_DB_PASSWORD=test
+                  export TEST_DB_HOST=127.0.0.1 TEST_DB_PORT=5432 TEST_DB_USER=test TEST_DB_PASSWORD=test
                   export TEST_DB_NAME=pgsql_objects_test
 
                   # Catch the exit code, so the annotations are still written if the tests fail. pipefail makes it the
