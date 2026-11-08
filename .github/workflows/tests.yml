@@ -1,7 +1,7 @@
 # Runs the tests on Linux against every supported major version of PostgreSQL, using the same script as running them
 # locally (testing/run-all-versions.sh), which tests each version in its own throwaway Docker container. This runs on
-# every supported version of PHP. The README's "Linux tests" badge shows the result of the latest run on the default
-# branch.
+# every supported version of PHP. The README's "Linux tests" badge shows the result of the latest run on the branch it
+# names.
 name: Linux tests
 
 on:

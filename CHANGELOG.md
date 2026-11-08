@@ -174,6 +174,12 @@ The row object's own `delete()` and `update($data)` are unchanged.
   still refuse empty where pairs, rather than deleting every row.
 
 ### Changed
+- Composer installs only include `src/`, `composer.json`, the README, this changelog and
+  the licence. The tests, the documentation and the GitHub workflows are still in the
+  repository, but no longer downloaded into your `vendor/` folder.
+- The README is a short overview, and the detail is in the new [docs/](docs/README.md)
+  folder, including a guide to transactions, and how foreign keys and other constraints,
+  deferrable or not, affect the order of their changes.
 - A table's column info, used to convert loaded values to PHP types, is fetched from the
   database once per table class and then reused, instead of on every load, insert and
   update. This halves the queries those operations need.
