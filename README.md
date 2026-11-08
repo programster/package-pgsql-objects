@@ -7,6 +7,44 @@ PostgreSQL Objects Package
 [![macOS tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml?query=branch%3A5.x)
 [![WSL tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml?query=branch%3A5.x)
 
+## Contents
+
+**On this page:** [About](#about) · [Requirements](#requirements) · 
+[Quick start](#quick-start) · [Features](#features)
+
+**Guides**
+- [Getting started](docs/getting-started.md): connect, create a table, write 
+  its classes, and load and save your first rows.
+- [Tables and rows](docs/tables.md): the two classes for each table, required 
+  columns and defaults, column types, generated columns and schemas.
+- [IDs](docs/ids.md): why we recommend UUIDs, and where new rows' IDs come 
+  from.
+- [Loading](docs/loading.md): by ID, by filter, and a page at a time.
+- [Saving](docs/saving.md): one object, many objects with `batchSave()`, and 
+  many rows with `batchInsert()`.
+- [Deleting](docs/deleting.md): through the object or the table, and what 
+  happens to deleted objects.
+- [Transactions](docs/transactions.md): saving and deleting objects of several 
+  tables together, and how foreign keys and deferrable constraints affect the 
+  order.
+- [Constraints](docs/constraints.md): adding primary key, unique and foreign 
+  key constraints, deferrable or not.
+- [The cache](docs/cache.md): the optional cache, and `CacheMode`.
+- [Writing your own queries](docs/custom-queries.md): table methods of your 
+  own, safely escaped, that return objects.
+
+**Reference**
+- [Methods](docs/reference.md): every public method, in one place.
+- [Exceptions](docs/exceptions.md): what each one means, and when it's thrown.
+
+**Project**
+- [Changelog](CHANGELOG.md): what has changed in each version, and how to 
+  upgrade.
+- [Testing](docs/testing.md): running this package's tests.
+
+
+## About
+
 This package aims to act as your object-relational-map (ORM) to a PostgreSQL 
 database. You write a class for each table, and one for its rows, and the 
 package loads, saves and deletes the rows as objects for you.
@@ -16,11 +54,27 @@ package loads, saves and deletes the rows as objects for you.
 
 - PHP 8.2 or newer, with the `pgsql` extension.
 - PostgreSQL 14 or newer. Saving many new objects whose IDs the database 
-  generates in one go needs PostgreSQL 17 or newer (see [IDs](docs/ids.md)).
+  generates (e.g. `SERIAL`) in one go needs PostgreSQL 17 or newer.
 
 ```bash
 composer require programster/pgsql-objects
 ```
+
+**We recommend giving your tables UUID IDs** (a `uuid` column), and extending 
+`AbstractUuidTable`, which generates them in code. Then every feature works on 
+any supported version of PostgreSQL, and a new object's ID is known as soon as 
+it's created, before it's saved, so related objects can reference it straight 
+away and be saved together. The package generates v7 UUIDs, which are 
+time-ordered, so they're fast to index. It already requires 
+[ramsey/uuid](https://github.com/ramsey/uuid), so you can make one yourself 
+the same way, e.g. for a migration or a test:
+
+```php
+$id = \Ramsey\Uuid\Uuid::uuid7()->toString(); // e.g. "019a5f3e-8c1b-7d2e-9f4a-3b6c8d0e1f2a"
+```
+
+See [IDs](docs/ids.md) for more, including tables whose IDs the database 
+generates.
 
 
 ## Quick start
@@ -28,7 +82,8 @@ composer require programster/pgsql-objects
 For each table, write a table class, extending `AbstractUuidTable` if its IDs 
 are UUIDs or `AbstractTable` otherwise, and a row class extending 
 `AbstractTableRowObject`, then fill in their abstract methods (see 
-[Tables and rows](docs/tables.md) for a full example). Then:
+[Tables and rows](docs/tables.md) for a full example, or 
+[Getting started](docs/getting-started.md) for a walkthrough). Then:
 
 ```php
 $users = UserTable::getInstance();
@@ -64,17 +119,7 @@ $users->deleteByIds([$user->getId()]);
 - **Generated columns**, schemas other than `public`, cloning, and safe 
   defaults: unknown column names, empty filters and saving deleted objects all 
   throw, rather than doing something you didn't mean.
+- **Tested** on Linux, macOS, Windows and WSL, against PostgreSQL 14 to 18 
+  (see [Testing](docs/testing.md)).
 
-The [documentation](docs/README.md) has the detail of each.
-
-
-## Changes
-
-See [CHANGELOG.md](CHANGELOG.md) for what has changed in each version, 
-including what to update when upgrading to a new major version.
-
-
-## Testing
-
-The package is tested on Linux, macOS, Windows and WSL, against PostgreSQL 14 
-to 18. See [Testing](docs/testing.md) to run the tests yourself.
+See the [contents](#contents) for the documentation of each.

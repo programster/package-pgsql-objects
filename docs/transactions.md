@@ -124,7 +124,8 @@ $foreignKey = Constraint::createForeignKey(
 $db->query($foreignKey->getSqlCreate());
 ```
 
-`Constraint::createUnique()` and `createPrimary()` take a `DeferConfig` too.
+`Constraint::createUnique()` and `createPrimary()` take a `DeferConfig` too 
+(see [Constraints](constraints.md)).
 
 **For an existing table**, find its constraints' names, and whether they're 
 deferrable (`contype` is `f` for a foreign key, `p` for the primary key and `u` 

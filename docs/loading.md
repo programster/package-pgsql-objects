@@ -21,7 +21,9 @@ $others = $table->loadIdsNotIn([$id1], CacheMode::USE_CACHE);
 ```
 
 A value in a filter can be an array, to match any of those values, e.g. 
-`'id' => [1, 2, 3]`.
+`'id' => [1, 2, 3]`. Filters only compare for equality: for anything else, 
+such as ranges, joins or ordering, write a method of your own (see 
+[Writing your own queries](custom-queries.md)).
 
 Some safety checks:
 

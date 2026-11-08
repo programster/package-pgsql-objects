@@ -10,6 +10,8 @@ There are several ways to save, depending on how much you're saving at once:
 - Objects of several tables, and deletes, together, with a 
   [Transaction](transactions.md).
 
+For deleting, see [Deleting](deleting.md).
+
 
 ## One object
 

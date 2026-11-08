@@ -1,18 +1,33 @@
 # Documentation
 
-The [README](../README.md) has a quick start. These pages go into the detail.
+New to the package? Start with [Getting started](getting-started.md). The 
+[README](../README.md) has the requirements and a quick start.
 
-- [Tables and rows](tables.md): the two classes you write for each table, 
-  column types, and columns the database generates.
-- [IDs](ids.md): where new rows' IDs come from, and changing an ID.
-- [Loading](loading.md): loading by ID or by filter, and pagination.
-- [Saving](saving.md): saving one object, many objects of a table with 
-  `batchSave()`, inserting rows with `batchInsert()`, and cloning.
+**Guides**
+- [Getting started](getting-started.md): connect, create a table, write its 
+  classes, and load and save your first rows.
+- [Tables and rows](tables.md): the two classes for each table, required 
+  columns and defaults, column types, generated columns and schemas.
+- [IDs](ids.md): why we recommend UUIDs, and where new rows' IDs come from.
+- [Loading](loading.md): by ID, by filter, and a page at a time.
+- [Saving](saving.md): one object, many objects with `batchSave()`, and many 
+  rows with `batchInsert()`.
+- [Deleting](deleting.md): through the object or the table, and what happens 
+  to deleted objects.
 - [Transactions](transactions.md): saving and deleting objects of several 
-  tables together, in one transaction and one round trip, and how foreign keys 
-  and other constraints affect the order.
+  tables together, and how foreign keys and deferrable constraints affect the 
+  order.
+- [Constraints](constraints.md): adding primary key, unique and foreign key 
+  constraints, deferrable or not.
 - [The cache](cache.md): the optional cache, and `CacheMode`.
-- [Testing](testing.md): running this package's tests.
+- [Writing your own queries](custom-queries.md): table methods of your own, 
+  safely escaped, that return objects.
 
-See the [changelog](../CHANGELOG.md) for what has changed in each version, 
-including what to update when upgrading to a new major version.
+**Reference**
+- [Methods](reference.md): every public method, in one place.
+- [Exceptions](exceptions.md): what each one means, and when it's thrown.
+
+**Project**
+- [Changelog](../CHANGELOG.md): what has changed in each version, and how to 
+  upgrade.
+- [Testing](testing.md): running this package's tests.

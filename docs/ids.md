@@ -8,6 +8,34 @@ Tables that extend `AbstractUuidTable` generate v7 UUIDs in code, which are
 time-ordered for good database index performance.
 
 
+## We recommend UUIDs
+
+Give your tables a `uuid` ID column, and extend `AbstractUuidTable`, unless you 
+have a reason not to. As the IDs are generated in code:
+
+- A new object's ID is known as soon as it's created, before it's saved. So a 
+  new user's ID can go straight into their new projects' `user_id`, and they 
+  can all be saved together in one [transaction](transactions.md).
+- Saving many new objects at once, with `batchSave()` or a transaction, works 
+  on every supported version of PostgreSQL. With IDs the database generates, 
+  it needs PostgreSQL 17 or newer (see below).
+- IDs can't be guessed from each other, or tell anyone how many rows there 
+  are, as counting IDs can.
+
+v7 UUIDs start with a timestamp, so new ones sort after older ones, which keeps 
+the table's index fast to insert into, unlike random (v4) UUIDs.
+
+The package requires [ramsey/uuid](https://github.com/ramsey/uuid), so you can 
+generate one the same way the package does, e.g. in a migration or a test:
+
+```php
+$id = \Ramsey\Uuid\Uuid::uuid7()->toString(); // e.g. "019a5f3e-8c1b-7d2e-9f4a-3b6c8d0e1f2a"
+
+// or through a table, which generates whatever kind of ID that table uses.
+$id = UserTable::getInstance()->generateId();
+```
+
+
 ## Where new rows' IDs come from
 
 IDs are only ever generated for new rows: by `createNewFromArray()`, by the 
