@@ -299,8 +299,18 @@ For new tables, use UUIDs.
 
 Some tables use a value the row already has as its ID, a "natural key", such as 
 a subscriber's email address, rather than a UUID or a number. The package 
-supports that: the ID column can have any name and type, and neither the code 
-nor the database generates it, so it must always be given.
+supports that, within these limits:
+
+- **The ID is always a single column**, which can have any name. Keys made of 
+  several columns (composite keys) aren't supported.
+- **In PHP, an ID is always an `int` or a `string`.** Integer columns 
+  (`smallint`, `integer` and `bigint`, including `SERIAL`) are turned into 
+  ints. Every other type, such as `uuid`, `varchar` or `text`, stays the string 
+  PostgreSQL gives for it, and is sent back as a quoted value, which PostgreSQL 
+  turns back into the column's type. So a natural key works as long as its 
+  value is an integer, or is written as a string, as an email address is.
+- **Neither the code nor the database generates it**, so it must always be 
+  given.
 
 ```sql
 CREATE TABLE "subscriber" (
