@@ -1,0 +1,65 @@
+# Runs the tests on Linux against every supported major version of PostgreSQL, using the same script as running them
+# locally (testing/run-all-versions.sh), which tests each version in its own throwaway Docker container. This runs on
+# every supported version of PHP. The README's "Linux tests" badge shows the result of the latest run on the default
+# branch.
+name: Linux tests
+
+on:
+    # Pushes to the main branch (not work-in-progress branches), and every tag, e.g. a new release.
+    push:
+        branches:
+            - main
+            # TEMPORARY: also run on the 5.x branch, where version 5 is developed until it is released, so both the
+            # main branch (4.x) and 5.x are tested. Remove this line once 5.x has been merged into the main branch.
+            - "5.x"
+        tags:
+            - "*"
+    # Pull requests into the main branch, so they are tested before being merged.
+    pull_request:
+        branches:
+            - main
+            # TEMPORARY: as above, remove this line once 5.x has been merged into the main branch.
+            - "5.x"
+    # Adds a "Run workflow" button on the Actions tab, to run the tests by hand on any branch.
+    workflow_dispatch:
+
+# The tests only need to read the code.
+permissions:
+    contents: read
+
+jobs:
+    tests:
+        name: Tests on Linux, PHP ${{ matrix.php }}, PostgreSQL 14 to 18
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+
+        strategy:
+            # Run every version, even if one fails, to see all the failures at once.
+            fail-fast: false
+            matrix:
+                php: ["8.2", "8.3", "8.4", "8.5"]
+
+        steps:
+            - name: Check out the code
+              uses: actions/checkout@v5
+
+            - name: Install PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: ${{ matrix.php }}
+                  extensions: pgsql
+                  coverage: none
+
+            - name: Install Composer dependencies
+              run: composer install --no-interaction --no-progress --prefer-dist
+
+            - name: Run the tests against every supported version of PostgreSQL
+              shell: bash
+              run: |
+                  # GitHub runs bash with -e, which would stop here if the tests failed, so catch the exit code instead.
+                  # pipefail (which GitHub also sets) makes it the tests' exit code, rather than tee's.
+                  set -o pipefail
+                  status=0
+                  bash testing/run-all-versions.sh 2>&1 | tee test-output.txt || status=$?
+                  bash testing/github-annotations.sh "Linux, PHP ${{ matrix.php }}" test-output.txt "$status"
+                  exit $status

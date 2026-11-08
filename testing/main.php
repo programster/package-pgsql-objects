@@ -1,6 +1,12 @@
 <?php
 
-require_once(__DIR__ . '/settings.php');
+// settings.php is optional when every connection detail comes from a TEST_ environment variable (see
+// ConnectionHandler), as it does when run-all-versions.sh runs the tests.
+if (file_exists(__DIR__ . '/settings.php'))
+{
+    require_once(__DIR__ . '/settings.php');
+}
+
 require_once(__DIR__ . '/../vendor/autoload.php');
 
 $autoloader = new \Programster\Autoloader\Autoloader([
@@ -15,6 +21,7 @@ $migrationManager = new Programster\PgsqlMigrations\MigrationManager(
 );
 
 $migrationManager->migrate();
+print "Testing against PostgreSQL " . pg_version(ConnectionHandler::getDb()->getResource())['server'] . PHP_EOL;
 
 $testFiles = glob(__DIR__ . '/tests/*.php');
 

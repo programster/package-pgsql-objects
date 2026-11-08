@@ -1,0 +1,78 @@
+# Runs the tests with PHP in WSL (the Windows Subsystem for Linux), against PostgreSQL running on the Windows side,
+# which WSL reaches on 127.0.0.1. GitHub's Windows runners only have WSL 1, which shares Windows' network, so WSL 2
+# isn't tested. This is a separate workflow from the Linux tests, with its own badge in the README.
+name: WSL tests
+
+on:
+    push:
+        branches:
+            - main
+            # TEMPORARY: also run on the 5.x branch, where version 5 is developed until it is released, so both the
+            # main branch (4.x) and 5.x are tested. Remove this line once 5.x has been merged into the main branch.
+            - "5.x"
+        tags:
+            - "*"
+    pull_request:
+        branches:
+            - main
+            # TEMPORARY: as above, remove this line once 5.x has been merged into the main branch.
+            - "5.x"
+    # Adds a "Run workflow" button on the Actions tab (only once this file is on the default branch).
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    tests:
+        name: Tests in WSL, PostgreSQL 18 on Windows
+        runs-on: windows-latest
+        timeout-minutes: 40
+
+        steps:
+            - name: Check out the code
+              uses: actions/checkout@v5
+
+            - name: Install PostgreSQL 18 on Windows
+              uses: ikalnytskyi/action-setup-postgres@v7
+              with:
+                  postgres-version: "18"
+                  username: test
+                  password: test
+                  database: pgsql_objects_test
+                  port: 5433
+
+            # Ubuntu 24.04's own PHP is 8.3. Commands run in WSL as root.
+            - name: Install WSL, with PHP
+              uses: Vampire/setup-wsl@v6
+              with:
+                  distribution: Ubuntu-24.04
+                  additional-packages:
+                      php8.3-cli
+                      php8.3-pgsql
+                      php8.3-mbstring
+                      php8.3-xml
+                      php8.3-zip
+                      composer
+                      unzip
+
+            # Copy the code into WSL's own filesystem (the checkout is on a Windows drive, at /mnt/...), so the tests
+            # run where WSL's files really are. Environment variables set by GitHub don't reach WSL, so the connection
+            # details are set here.
+            - name: Run the tests in WSL
+              shell: wsl-bash {0}
+              run: |
+                  rm -rf /src
+                  cp -r . /src
+                  cd /src
+                  composer install --no-interaction --no-progress --prefer-dist
+                  export TEST_DB_HOST=127.0.0.1 TEST_DB_PORT=5433 TEST_DB_USER=test TEST_DB_PASSWORD=test
+                  export TEST_DB_NAME=pgsql_objects_test
+
+                  # Catch the exit code, so the annotations are still written if the tests fail. pipefail makes it the
+                  # tests' exit code, rather than tee's.
+                  set -o pipefail
+                  status=0
+                  php testing/main.php 2>&1 | tee test-output.txt || status=$?
+                  bash testing/github-annotations.sh "WSL" test-output.txt "$status"
+                  exit $status

@@ -1,0 +1,3 @@
+# Keep Unix line endings in the working copy everywhere, including on Windows (e.g. the Windows and WSL test runners),
+# where Git would otherwise convert them to CRLF, which stops bash from running the scripts in testing/.
+* text=auto eol=lf

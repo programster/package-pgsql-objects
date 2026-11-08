@@ -162,6 +162,17 @@ The row object's own `delete()` and `update($data)` are unchanged.
   saved, e.g. a new one from `createNewFromArray()`, it inserts the row, as `save()` does.
   It used to try to update a row that didn't exist, throwing `ExceptionNoSuchIdException`,
   or a `TypeError` if the database generates the table's IDs.
+- The test suite's development dependencies match pgsql-lib 3.0's: `programster/autoloader`
+  replaces `irap/autoloader`, and `programster/pgsql-migrations` is `^1.1` instead of
+  `>=0.3 <2.0`. Applications using this package aren't affected.
+- The tests run on PostgreSQL 14 to 18, not just 18. `testing/run-all-versions.sh` runs
+  them against each version in a throwaway docker container, and the test connection
+  details can be set with `TEST_`-prefixed environment variables, e.g. `TEST_DB_PORT`. On
+  versions older than 17, the tests check that `batchSave()` rejects new objects without
+  IDs with `ExceptionUnsupportedDatabaseVersion`, saving nothing.
+- The tests run on GitHub Actions, on Linux (PHP 8.2 to 8.5), macOS, Windows and WSL,
+  against PostgreSQL 14 to 18 (18 in WSL), for both the `main` and `5.x` branches, with
+  a badge for each platform and branch at the top of the README.
 
 ### Fixed
 - `deleteIdsNotIn()` left the deleted objects in the cache, so `load()` could still

@@ -1,6 +1,11 @@
 PostgreSQL Objects Package
 ==========================
 
+| Branch | Tests |
+|---|---|
+| `main` (4.x) | [![Linux tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml?query=branch%3Amain) [![Windows tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml?query=branch%3Amain) [![macOS tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml?query=branch%3Amain) [![WSL tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml?query=branch%3Amain) |
+| `5.x` | [![Linux tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml?query=branch%3A5.x) [![Windows tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml?query=branch%3A5.x) [![macOS tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml?query=branch%3A5.x) [![WSL tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml?query=branch%3A5.x) |
+
 This package aims to act as your object-relational-map (ORM) to a PostgreSQL 
 database.
 
@@ -206,10 +211,40 @@ what to update when upgrading to a new major version.
 
 
 ## Testing
-The tests need a PostgreSQL 18 or newer database (for virtual generated 
-columns) that they are free to empty, as they create tables and truncate them. 
-You can run a throwaway one through docker 
-with:
+The package is tested against every supported major version of PostgreSQL 
+(14 to 18). To run the tests against all of them, each in a throwaway docker 
+container that is removed afterwards, run:
+
+```bash
+testing/run-all-versions.sh
+```
+
+Or pass the versions to test, e.g. `testing/run-all-versions.sh 16 18`. It 
+needs docker and bash (on Windows, Git Bash or WSL), and uses ports 5454 to 
+5458 (5440 plus the version).
+
+The tests also run on GitHub Actions, for pushes to `main` and `5.x`, every tag, 
+and pull requests into either, which is what the badges at the top of this 
+README show, with a row for each branch:
+- **Linux** (`.github/workflows/tests.yml`): runs `testing/run-all-versions.sh`
+  on PHP 8.2, 8.3, 8.4 and 8.5.
+- **macOS and Windows** (`tests-macos.yml` and `tests-windows.yml`, which share
+  `tests-native.yml`): GitHub's runners for these can't run the Linux PostgreSQL
+  images, so each supported version of PostgreSQL is installed on the runner 
+  directly, and tested on PHP 8.5.
+- **WSL** (`tests-wsl.yml`): PHP 8.3 in WSL, against PostgreSQL 18 on the 
+  Windows side. GitHub's Windows runners only have WSL 1, so WSL 2 isn't tested.
+
+Each run also lists its results and any failed tests as annotations on the run's 
+summary page. They can be run by hand on any branch with "Run workflow" on the 
+repository's Actions tab.
+
+To run the tests against a single database instead, they need one that they 
+are free to empty, as they create tables and truncate them. On PostgreSQL 
+older than 18, the test table's virtual generated column is created as a stored 
+one instead, and on PostgreSQL older than 17, the tests check that 
+`batchSave()` rejects objects without IDs. You can run a throwaway database 
+through docker with:
 
 ```bash
 docker run -d \
@@ -223,7 +258,9 @@ docker run -d \
 
 Then fill in your PostgreSQL connection details (including `DB_PORT`, which is 
 `5433` for the container above) into the `/testing/settings.php.tmpl` file and 
-rename it to `/testing/settings.php`.
+rename it to `/testing/settings.php`. Any of them can also be set with an 
+environment variable of the same name prefixed with `TEST_`, e.g. 
+`TEST_DB_PORT=5433`, which takes precedence over `settings.php`.
 
 Then run the tests with:
 

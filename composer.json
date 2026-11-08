@@ -20,7 +20,7 @@
         "ext-pgsql": "*"
     },
     "require-dev" : {
-        "programster/pgsql-migrations": ">=0.3 <2.0",
+        "programster/pgsql-migrations": "^1.1",
         "programster/autoloader": "^1.0.3"
     },
     "autoload": {

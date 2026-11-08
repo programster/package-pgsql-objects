@@ -1,0 +1,69 @@
+# The steps shared by the macOS and Windows tests (tests-macos.yml and tests-windows.yml), which call this with their
+# runner. GitHub's runners for those can't run the Linux PostgreSQL images that the Linux tests use, so PHP and each
+# supported major version of PostgreSQL are installed on the runner directly. It doesn't run by itself.
+name: Tests with PostgreSQL installed on the runner
+
+on:
+    workflow_call:
+        inputs:
+            runs-on:
+                description: The runner to test on, e.g. macos-latest.
+                type: string
+                required: true
+
+permissions:
+    contents: read
+
+jobs:
+    tests:
+        name: PostgreSQL ${{ matrix.postgres }}
+        runs-on: ${{ inputs.runs-on }}
+        timeout-minutes: 30
+
+        strategy:
+            # Run every version, even if one fails, to see all the failures at once.
+            fail-fast: false
+            matrix:
+                # PostgreSQL's supported major versions, as in testing/run-all-versions.sh.
+                postgres: ["14", "15", "16", "17", "18"]
+
+        steps:
+            - name: Check out the code
+              uses: actions/checkout@v5
+
+            - name: Install PostgreSQL ${{ matrix.postgres }}
+              uses: ikalnytskyi/action-setup-postgres@v7
+              with:
+                  postgres-version: ${{ matrix.postgres }}
+                  username: test
+                  password: test
+                  database: pgsql_objects_test
+                  port: 5433
+
+            - name: Install PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: "8.5"
+                  extensions: pgsql
+                  coverage: none
+
+            - name: Install Composer dependencies
+              run: composer install --no-interaction --no-progress --prefer-dist
+
+            - name: Run the tests
+              shell: bash
+              env:
+                  TEST_DB_HOST: 127.0.0.1
+                  TEST_DB_PORT: 5433
+                  TEST_DB_USER: test
+                  TEST_DB_PASSWORD: test
+                  TEST_DB_NAME: pgsql_objects_test
+              run: |
+                  # GitHub runs bash with -e, which would stop here if the tests failed, so catch the exit code instead.
+                  # pipefail (which GitHub also sets) makes it the tests' exit code, rather than tee's.
+                  set -o pipefail
+                  status=0
+                  php testing/main.php 2>&1 | tee test-output.txt || status=$?
+                  title="${{ runner.os }}, PostgreSQL ${{ matrix.postgres }}"
+                  bash testing/github-annotations.sh "$title" test-output.txt "$status"
+                  exit $status
