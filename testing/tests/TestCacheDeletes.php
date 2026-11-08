@@ -19,10 +19,6 @@ class TestCacheDeletes
 
     public function run() : void
     {
-        // deleteWhereAnd() and deleteWhereOr() are protected, so call them from within the table's scope.
-        $deleteWhereAnd = function (array $wherePairs) : void { $this->deleteWhereAnd($wherePairs); };
-        $deleteWhereOr = function (array $wherePairs) : void { $this->deleteWhereOr($wherePairs); };
-
         $deleteOne = [
             'deleteById()' => function (UserTable $table, UserRecord $one) : void {
                 $table->deleteById($one->getId());
@@ -30,11 +26,11 @@ class TestCacheDeletes
             'deleteByIds()' => function (UserTable $table, UserRecord $one) : void {
                 $table->deleteByIds([$one->getId()]);
             },
-            'deleteWhereAnd()' => function (UserTable $table, UserRecord $one) use ($deleteWhereAnd) : void {
-                $deleteWhereAnd->call($table, ['name' => 'one', 'email' => 'one@gmail.com']);
+            'deleteWhereAnd()' => function (UserTable $table, UserRecord $one) : void {
+                $table->deleteWhereAnd(['name' => 'one', 'email' => 'one@gmail.com']);
             },
-            'deleteWhereOr()' => function (UserTable $table, UserRecord $one) use ($deleteWhereOr) : void {
-                $deleteWhereOr->call($table, ['name' => 'one', 'email' => 'no-such-email']);
+            'deleteWhereOr()' => function (UserTable $table, UserRecord $one) : void {
+                $table->deleteWhereOr(['name' => 'one', 'email' => 'no-such-email']);
             },
         ];
 

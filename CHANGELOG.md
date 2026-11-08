@@ -46,6 +46,9 @@ The row object's own `delete()` and `update($data)` are unchanged.
   `ExceptionQueryError`.
 - `getCachedObject()`, which nothing used.
 - The protected `updateCache()`. Use the new public `cacheObject()` instead.
+- `unsetCache()`. It forgot a cached object without marking it deleted, so the next load
+  made a second object for the same row. Use `emptyCache()` to empty the cache, or load
+  with `CacheMode::UPDATE_CACHE` to refresh the cached objects.
 
 **Table classes**
 - `getVirtualFields()` no longer has a default implementation, and is now abstract like
@@ -53,6 +56,8 @@ The row object's own `delete()` and `update($data)` are unchanged.
   array if it has no generated columns.
 - `TableInterface::generateId()` now returns `int|string`, instead of `mixed`. A table
   whose `generateId()` always throws can declare `never`.
+- `deleteWhereAnd()` and `deleteWhereOr()` are now public, so a table that overrides
+  either of them must declare its override `public` too.
 - A class that implements `TableInterface` directly, rather than extending `AbstractTable`,
   must also implement the new `getSchemaName()`, `getEscapedQualifiedTableName()`,
   `getTable()`, `batchInsert()`, `enableCache()`, `disableCache()`, `isCacheEnabled()`,
@@ -145,6 +150,9 @@ The row object's own `delete()` and `update($data)` are unchanged.
 - The row object's `isSavedInDatabase()` and `isDeleted()`.
 - `ExceptionUnsupportedDatabaseVersion`, for something that needs a newer version of
   PostgreSQL than the server's.
+- `deleteWhereAnd()` and `deleteWhereOr()` can be called from outside the table, like
+  `loadWhereAnd()` and `loadWhereOr()`, instead of only by the table class itself. They
+  still refuse empty where pairs, rather than deleting every row.
 
 ### Changed
 - A table's column info, used to convert loaded values to PHP types, is fetched from the
@@ -171,7 +179,7 @@ The row object's own `delete()` and `update($data)` are unchanged.
   versions older than 17, the tests check that `batchSave()` rejects new objects without
   IDs with `ExceptionUnsupportedDatabaseVersion`, saving nothing.
 - The tests run on GitHub Actions, on Linux (PHP 8.2 to 8.5), macOS, Windows and WSL,
-  against PostgreSQL 14 to 18 (18 in WSL), with a badge for each platform at the top of
+  against PostgreSQL 14 to 18 (16 in WSL), with a badge for each platform at the top of
   the README.
 
 ### Fixed

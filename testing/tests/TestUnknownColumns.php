@@ -25,9 +25,6 @@ class TestUnknownColumns
         $user = $table->insert(['name' => 'original', 'email' => 'original@gmail.com']);
         $userId = $user->getId();
 
-        // deleteWhereAnd() and deleteWhereOr() are protected, so call them from within the table's scope.
-        $deleteWhereAnd = function (array $wherePairs) : void { $this->deleteWhereAnd($wherePairs); };
-        $deleteWhereOr = function (array $wherePairs) : void { $this->deleteWhereOr($wherePairs); };
         $typoRow = ['name' => 'typo', 'emial' => 'typo@gmail.com'];
 
         $calls = [
@@ -51,11 +48,11 @@ class TestUnknownColumns
             'loadWhereOr()'           => function () use ($table) : void {
                 $table->loadWhereOr(['name' => 'x', 'emial' => 'x'], CacheMode::USE_CACHE);
             },
-            'deleteWhereAnd()'        => function () use ($table, $deleteWhereAnd) : void {
-                $deleteWhereAnd->call($table, ['emial' => 'x']);
+            'deleteWhereAnd()'        => function () use ($table) : void {
+                $table->deleteWhereAnd(['emial' => 'x']);
             },
-            'deleteWhereOr()'         => function () use ($table, $deleteWhereOr) : void {
-                $deleteWhereOr->call($table, ['name' => 'original', 'emial' => 'x']);
+            'deleteWhereOr()'         => function () use ($table) : void {
+                $table->deleteWhereOr(['name' => 'original', 'emial' => 'x']);
             },
             'loadRange()'             => function () use ($table) : void {
                 $table->loadRange(0, 10, CacheMode::USE_CACHE, 'emial');

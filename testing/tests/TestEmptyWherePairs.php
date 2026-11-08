@@ -23,15 +23,11 @@ class TestEmptyWherePairs
         $table = UserTable::getInstance();
         $table->insert(['name' => 'kept', 'email' => 'kept@gmail.com']);
 
-        // deleteWhereAnd() and deleteWhereOr() are protected, so call them from within the table's scope.
-        $deleteWhereAnd = function (array $wherePairs) : void { $this->deleteWhereAnd($wherePairs); };
-        $deleteWhereOr = function (array $wherePairs) : void { $this->deleteWhereOr($wherePairs); };
-
         $calls = [
             'loadWhereAnd'   => function () use ($table) : void { $table->loadWhereAnd([], CacheMode::USE_CACHE); },
             'loadWhereOr'    => function () use ($table) : void { $table->loadWhereOr([], CacheMode::USE_CACHE); },
-            'deleteWhereAnd' => function () use ($table, $deleteWhereAnd) : void { $deleteWhereAnd->call($table, []); },
-            'deleteWhereOr'  => function () use ($table, $deleteWhereOr) : void { $deleteWhereOr->call($table, []); },
+            'deleteWhereAnd' => function () use ($table) : void { $table->deleteWhereAnd([]); },
+            'deleteWhereOr'  => function () use ($table) : void { $table->deleteWhereOr([]); },
         ];
 
         foreach ($calls as $methodName => $call)

@@ -391,6 +391,61 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
+     * Delete rows from the table that have ALL of the attributes specified in the provided wherePairs parameter, in a
+     * single query. The cached objects of the deleted rows are marked as deleted (so their save() and update() throw
+     * ExceptionObjectDeleted) and removed from the cache. Objects of the rows that remain are left in the cache.
+     *
+     * @param array $wherePairs - column-name/value pairs that the rows must all have in order to be deleted.
+     * Must not be empty. Use deleteAll() to delete every row.
+     *
+     * @return void
+     *
+     * @throws ExceptionMissingRequiredData - if $wherePairs is empty, rather than deleting every row.
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     */
+    public function deleteWhereAnd(array $wherePairs) : void
+    {
+        if (count($wherePairs) === 0)
+        {
+            throw new ExceptionMissingRequiredData(
+                "deleteWhereAnd() was given no where pairs, which would delete every row in the " .
+                "{$this->getTableName()} table. If that is intended, use deleteAll()."
+            );
+        }
+
+        $this->deleteWhere($wherePairs, Conjunction::AND);
+    }
+
+
+    /**
+     * Delete rows from the table that meet ANY of the attributes specified in the provided wherePairs parameter, in a
+     * single query. The cached objects of the deleted rows are marked as deleted (so their save() and update() throw
+     * ExceptionObjectDeleted) and removed from the cache. Objects of the rows that remain are left in the cache.
+     *
+     * @param array $wherePairs - column-name/value pairs that the row must have at least one of in order to be
+     * deleted. The value in a pair may be an array, to delete any rows that have any one of those values, e.g.
+     * id => [1,2,3] would delete rows that have ID 1, 2 or 3. Must not be empty. Use deleteAll() to delete every row.
+     *
+     * @return void
+     *
+     * @throws ExceptionMissingRequiredData - if $wherePairs is empty, rather than deleting every row.
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     */
+    public function deleteWhereOr(array $wherePairs) : void
+    {
+        if (count($wherePairs) === 0)
+        {
+            throw new ExceptionMissingRequiredData(
+                "deleteWhereOr() was given no where pairs, which would delete every row in the " .
+                "{$this->getTableName()} table. If that is intended, use deleteAll()."
+            );
+        }
+
+        $this->deleteWhere($wherePairs, Conjunction::OR);
+    }
+
+
+    /**
      * Get the escaped, schema-qualified name of this table, ready for use in a query, e.g. "public"."user".
      * @return string
      */
@@ -719,21 +774,6 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Remove the cache entry for an object.
-     * This should only happen when objects are destroyed.
-     * This will not throw exception/error if id doesn't exist.
-     *
-     * @param int|string $objectId - the ID of the object we wish to clear the cache of.
-     *
-     * @return void
-     */
-    public function unsetCache(int|string $objectId) : void
-    {
-        unset($this->m_objectCache[$objectId]);
-    }
-
-
-    /**
      * Update a row specified by the ID with the provided data.
      * The returned object has the values from the row the database returns, so it includes any values the database
      * changed, such as generated columns. When the cache is enabled and the row's object is cached, that object is
@@ -1017,61 +1057,6 @@ abstract class AbstractTable implements TableInterface
         }
 
         return $objects;
-    }
-
-
-    /**
-     * Delete rows from the table that have ALL of the attributes specified in the provided wherePairs parameter, in a
-     * single query. The cached objects of the deleted rows are marked as deleted (so their save() and update() throw
-     * ExceptionObjectDeleted) and removed from the cache. Objects of the rows that remain are left in the cache.
-     *
-     * @param array $wherePairs - column-name/value pairs that the rows must all have in order to be deleted.
-     * Must not be empty. Use deleteAll() to delete every row.
-     *
-     * @return void
-     *
-     * @throws ExceptionMissingRequiredData - if $wherePairs is empty, rather than deleting every row.
-     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
-     */
-    protected function deleteWhereAnd(array $wherePairs) : void
-    {
-        if (count($wherePairs) === 0)
-        {
-            throw new ExceptionMissingRequiredData(
-                "deleteWhereAnd() was given no where pairs, which would delete every row in the " .
-                "{$this->getTableName()} table. If that is intended, use deleteAll()."
-            );
-        }
-
-        $this->deleteWhere($wherePairs, Conjunction::AND);
-    }
-
-
-    /**
-     * Delete rows from the table that meet ANY of the attributes specified in the provided wherePairs parameter, in a
-     * single query. The cached objects of the deleted rows are marked as deleted (so their save() and update() throw
-     * ExceptionObjectDeleted) and removed from the cache. Objects of the rows that remain are left in the cache.
-     *
-     * @param array $wherePairs - column-name/value pairs that the row must have at least one of in order to be
-     * deleted. The value in a pair may be an array, to delete any rows that have any one of those values, e.g.
-     * id => [1,2,3] would delete rows that have ID 1, 2 or 3. Must not be empty. Use deleteAll() to delete every row.
-     *
-     * @return void
-     *
-     * @throws ExceptionMissingRequiredData - if $wherePairs is empty, rather than deleting every row.
-     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
-     */
-    protected function deleteWhereOr(array $wherePairs) : void
-    {
-        if (count($wherePairs) === 0)
-        {
-            throw new ExceptionMissingRequiredData(
-                "deleteWhereOr() was given no where pairs, which would delete every row in the " .
-                "{$this->getTableName()} table. If that is intended, use deleteAll()."
-            );
-        }
-
-        $this->deleteWhere($wherePairs, Conjunction::OR);
     }
 
 
