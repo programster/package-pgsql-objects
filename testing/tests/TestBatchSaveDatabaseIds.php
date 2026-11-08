@@ -51,7 +51,7 @@ class TestBatchSaveDatabaseIds
         // each new object has its own ID, from the row with its own values, and took on the status default.
         foreach (['first' => [$first, 'open'], 'second' => [$second, 'closed']] as $title => [$ticket, $status])
         {
-            if (!is_int($ticket->getId()) || $ticket->getStatus() !== $status || !$ticket->isSavedInDatabase())
+            if (!is_int($ticket->getId()) || $ticket->getStatus() !== $status || !$ticket->isPersisted())
             {
                 throw new \Exception("The {$title} ticket didn't get its generated ID and status from batchSave().");
             }

@@ -73,7 +73,7 @@ Your table class fills in the abstract ones.
 | `getVirtualFields()` | The columns the database always generates. Abstract. |
 | `getFieldsToKeepAsString()` | The columns not to convert to PHP types. None unless overridden. |
 | `getIdColumnName()` | The ID column's name. `id` unless overridden. |
-| `generateId()` | A new ID ([IDs](ids.md)). `AbstractUuidTable` generates v7 UUIDs. |
+| `generateId()` | A new ID ([Identifiers](identifiers.md)). `AbstractUuidTable` generates v7 UUIDs. |
 | `canCodeGenerateId()` | Whether `generateId()` can generate IDs. |
 | `canDatabaseGenerateId()` | Whether the database generates IDs. |
 | `getEscapedQualifiedTableName()` | The escaped, schema-qualified name, e.g. `"public"."user"`, for your own queries. |
@@ -105,7 +105,8 @@ These are protected, so they can only be used from within the table class.
 | `delete()` | Deletes its row, and marks it as deleted ([Deleting](deleting.md)). |
 | `getId()` | Its ID, or `null` if the database will generate it and it hasn't been saved. |
 | `getArrayForm()` | Its values, keyed by column name. |
-| `isSavedInDatabase()` | Whether it has been saved. |
+| `isPersisted()` | Whether it has a row in the database: saved or loaded, and not deleted. Not whether it has unsaved changes. |
+| `existsInDatabase()` | An alias of `isPersisted()`. |
 | `isDeleted()` | Whether it has been deleted. |
 | `clone $object` | A new, unsaved copy with a new ID. |
 

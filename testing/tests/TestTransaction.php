@@ -90,12 +90,14 @@ class TestTransaction
             throw new \Exception("The transaction didn't delete the doomed book.");
         }
 
-        if (!$newAuthor->isSavedInDatabase() || $authorTable->load($newAuthor->getId()) !== $newAuthor)
+        if (!$newAuthor->isPersisted() || $authorTable->load($newAuthor->getId()) !== $newAuthor)
         {
             throw new \Exception("The new author wasn't marked as saved and cached after the commit.");
         }
 
-        if (!$doomedBook->isDeleted() || !$doomedAuthor->isDeleted() || $doomedAuthor->isSavedInDatabase())
+        $authorIsStillPersisted = ($doomedAuthor->isPersisted() || $doomedAuthor->existsInDatabase());
+
+        if (!$doomedBook->isDeleted() || !$doomedAuthor->isDeleted() || $authorIsStillPersisted)
         {
             throw new \Exception("The deleted objects weren't marked as deleted after the commit.");
         }
@@ -173,12 +175,12 @@ class TestTransaction
             throw new \Exception("A transaction that failed still saved or deleted some rows.");
         }
 
-        if ($book->isDeleted() || !$book->isSavedInDatabase())
+        if ($book->isDeleted() || !$book->isPersisted() || !$book->existsInDatabase())
         {
             throw new \Exception("A transaction that failed still marked the book as deleted.");
         }
 
-        if ($newAuthor->isSavedInDatabase() || count($authorTable->loadIds([$newAuthor->getId()])) !== 0)
+        if ($newAuthor->isPersisted() || count($authorTable->loadIds([$newAuthor->getId()])) !== 0)
         {
             throw new \Exception("A transaction that failed still marked the new author as saved, or cached it.");
         }
@@ -216,7 +218,7 @@ class TestTransaction
             $failureMessage = "A transaction saving new books didn't throw on PostgreSQL older than 17.";
             $this->assertThrows(ExceptionUnsupportedDatabaseVersion::class, $commit, $failureMessage);
 
-            if ($this->getAuthorNamesInDatabase() !== ['first'] || $secondAuthor->isSavedInDatabase())
+            if ($this->getAuthorNamesInDatabase() !== ['first'] || $secondAuthor->isPersisted())
             {
                 throw new \Exception("A transaction rejected on an older PostgreSQL still saved the new author.");
             }
@@ -371,7 +373,7 @@ class TestTransaction
         $failureMessage = "A review whose author is never saved didn't fail the commit.";
         $this->assertThrows(ExceptionQueryError::class, $commit, $failureMessage);
 
-        if ($this->getAuthorNamesInDatabase() !== [] || $author->isSavedInDatabase() || $review->isSavedInDatabase())
+        if ($this->getAuthorNamesInDatabase() !== [] || $author->isPersisted() || $review->isPersisted())
         {
             throw new \Exception("A commit that failed on a deferred constraint still saved, or marked, some objects.");
         }
@@ -391,7 +393,7 @@ class TestTransaction
 
         foreach ($books as $book)
         {
-            if (!is_int($book->getId()) || !$book->isSavedInDatabase())
+            if (!is_int($book->getId()) || !$book->isPersisted())
             {
                 throw new \Exception("The {$book->getTitle()} book wasn't given its generated ID.");
             }

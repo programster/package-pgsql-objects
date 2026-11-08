@@ -325,7 +325,7 @@ abstract class AbstractTable implements TableInterface
     {
         if ($this->m_isCacheEnabled)
         {
-            if ($object->getId() === null || $object->isSavedInDatabase() === false)
+            if ($object->getId() === null || $object->isPersisted() === false)
             {
                 throw new ExceptionMissingRequiredData(
                     "Can't cache this " . get_class($object) . ", as it hasn't been saved to the database."
@@ -1244,7 +1244,7 @@ abstract class AbstractTable implements TableInterface
         // initializeFromArray() is protected, so call it from within the object's scope.
         $refresh = function (array $row, array $fieldInfoMap) : void {
             $this->initializeFromArray($row, $fieldInfoMap);
-            $this->m_isSavedInDatabase = true;
+            $this->m_isPersisted = true;
         };
 
         $refresh->call($object, $row, $fieldInfoMap);
@@ -1310,7 +1310,7 @@ abstract class AbstractTable implements TableInterface
         // the deleted flag is protected, so set it from within the object's scope.
         $markDeleted = function () : void {
             $this->m_isDeleted = true;
-            $this->m_isSavedInDatabase = false;
+            $this->m_isPersisted = false;
         };
 
         $markDeleted->call($object);

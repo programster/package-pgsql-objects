@@ -1,7 +1,7 @@
 {
     "name": "programster/pgsql-objects",
     "type": "library",
-    "description": "A library for interfacing with a PostgreSQL database in PHP. Facilitates the creation of objects that represent tables and their rows.",
+    "description": "A PHP ORM built for PostgreSQL, using its features to save and delete many records across tables in one round trip.",
     "keywords": ["orm", "pgsql", "postgresql", "models"],
     "homepage": "https://github.com/programster/package-pgsql-objects",
     "license": "MIT",

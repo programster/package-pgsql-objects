@@ -87,7 +87,7 @@ class UserTable extends AbstractUuidTable
 
 A table whose IDs aren't UUIDs extends `AbstractTable`, and also says how its 
 IDs are generated, with `generateId()`, `canCodeGenerateId()` and 
-`canDatabaseGenerateId()` (see [IDs](ids.md)). A table whose ID column isn't 
+`canDatabaseGenerateId()` (see [Identifiers](identifiers.md)). A table whose ID column isn't 
 called `id` overrides `getIdColumnName()`.
 
 
@@ -276,5 +276,9 @@ Each object has a getter for each column, from your record class, and `getId()`.
 out anything sensitive, such as password hashes, before returning it from an 
 API.
 
-`isSavedInDatabase()` tells you whether the object has been saved, and 
-`isDeleted()` whether it has been deleted.
+`isPersisted()` tells you whether the record has a row in the database: true 
+once it has been saved, or if it was loaded, and false while it's new, or after 
+it has been deleted. It doesn't say whether the record has changes that haven't 
+been saved yet, as the package doesn't track those. `existsInDatabase()` is 
+an alias of it, if that reads better in your code. `isDeleted()` tells you 
+whether it has been deleted.

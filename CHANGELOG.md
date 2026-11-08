@@ -52,6 +52,9 @@ The record's own `delete()` and `update($data)` are unchanged.
   with `CacheMode::UPDATE_CACHE` to refresh the cached objects.
 
 **Table classes**
+- A record's protected `$m_isSavedInDatabase` property is now `$m_isPersisted`, to match
+  the new `isPersisted()`. Only a record class that used the property itself needs to
+  change.
 - `getVirtualFields()` no longer has a default implementation, and is now abstract like
   `getFieldsThatHaveDefaults()`, so every table has to implement it, returning an empty
   array if it has no generated columns.
@@ -161,7 +164,7 @@ The record's own `delete()` and `update($data)` are unchanged.
 - `enableCache()`, `disableCache()` and `isCacheEnabled()`, to switch a table's cache on
   and off, and `cacheObject()`, which records use to keep themselves in the cache
   after saving.
-- The record's `isSavedInDatabase()` and `isDeleted()`.
+- The record's `isPersisted()` (with an alias, `existsInDatabase()`) and `isDeleted()`.
 - `ExceptionUnsupportedDatabaseVersion`, for something that needs a newer version of
   PostgreSQL than the server's.
 - `Transaction`, which saves and deletes objects of any of your tables together, in the
@@ -184,11 +187,12 @@ The record's own `delete()` and `update($data)` are unchanged.
   the licence. The tests, the documentation and the GitHub workflows are still in the
   repository, but no longer downloaded into your `vendor/` folder.
 - The README is a short overview, with a table of contents, and the detail is in the new
-  [docs/](docs/README.md) folder: a getting started guide, pages on tables and records, IDs,
-  loading, saving, deleting, transactions, the cache and writing your own queries, and a
-  reference of every public method and exception. It recommends UUID IDs, and
-  deferrable foreign keys, so the order of a transaction's changes doesn't matter, with
-  how to make new and existing constraints deferrable, including with `Constraint`.
+  [docs/](docs/README.md) folder: a getting started guide, pages on tables and records,
+  identifiers, loading, saving, deleting, transactions, the cache and writing your own
+  queries, and a reference of every public method and exception. It makes the case for
+  UUID IDs over integers that count up, and recommends deferrable foreign keys, so the
+  order of a transaction's changes doesn't matter, with how to make new and existing
+  constraints deferrable, including with `Constraint`.
 - A table's column info, used to convert loaded values to PHP types, is fetched from the
   database once per table class and then reused, instead of on every load, insert and
   update. This halves the queries those operations need.

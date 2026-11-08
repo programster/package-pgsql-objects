@@ -33,7 +33,7 @@ class TestUpdateUnsavedObject
         $user->update(['name' => 'updated']);
         $fromDatabase = UserTable::getInstance()->load($user->getId(), CacheMode::IGNORE_CACHE);
 
-        if ($user->isSavedInDatabase() === false || $fromDatabase->getName() !== 'updated')
+        if ($user->isPersisted() === false || $fromDatabase->getName() !== 'updated')
         {
             throw new \Exception("update() of an unsaved object with a code-generated ID didn't insert its row.");
         }

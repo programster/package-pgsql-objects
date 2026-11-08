@@ -276,7 +276,7 @@ as in the example at the top, so this doesn't come up with them.
 
 New objects whose IDs the database generates can be saved in a transaction, 
 and take on their IDs, but this needs PostgreSQL 17 or newer (see 
-[IDs](ids.md)). On an older server, the commit throws an 
+[Identifiers](identifiers.md)). On an older server, the commit throws an 
 `ExceptionUnsupportedDatabaseVersion` before anything is sent.
 
 

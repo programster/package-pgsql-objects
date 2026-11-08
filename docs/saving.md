@@ -87,7 +87,7 @@ Things to be aware of with `batchSave()`:
 
 - New objects whose IDs the database generates are inserted with the rest, and 
   take on their generated IDs, but this needs PostgreSQL 17 or newer (see 
-  [IDs](ids.md)).
+  [Identifiers](identifiers.md)).
 - Every object takes on its row from the database afterwards, as with 
   `save()`, including any values the database filled in, such as column 
   defaults and generated columns. It's still one query, and one round trip.

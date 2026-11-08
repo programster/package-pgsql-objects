@@ -1,5 +1,5 @@
-PostgreSQL Objects Package
-==========================
+PgSQL Objects: the PHP ORM built for PostgreSQL
+===============================================
 
 <!-- These badges show the 5.x branch's tests. Change "5.x" to "main" in them when 5.x is merged into main. -->
 [![Linux tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml?query=branch%3A5.x)
@@ -17,8 +17,8 @@ PostgreSQL Objects Package
   its classes, and load and save your first rows.
 - [Tables and records](docs/tables.md): the two classes for each table, required 
   columns and defaults, column types, generated columns and schemas.
-- [IDs](docs/ids.md): why we recommend UUIDs, and where new rows' IDs come 
-  from.
+- [Identifiers](docs/identifiers.md): why we strongly recommend UUIDs over 
+  counting integers, and where new rows' IDs come from.
 - [Loading](docs/loading.md): by ID, by filter, and a page at a time.
 - [Saving](docs/saving.md): one object, many objects with `batchSave()`, and 
   many rows with `batchInsert()`.
@@ -44,10 +44,30 @@ PostgreSQL Objects Package
 
 ## About
 
-This package aims to act as your object-relational-map (ORM) to a PostgreSQL 
-database. You write a class for each table, and a record class for its rows, 
-and the package loads, saves and deletes the rows as records: objects you can 
-work with like any other.
+PgSQL Objects is an object-relational mapper (ORM) for PHP that only works 
+with PostgreSQL, **on purpose**. An ORM that supports many databases can only 
+rely on what they all have in common. By being specific to PostgreSQL, this 
+one is built around what PostgreSQL does well, and optimised for it:
+
+- **Every write returns its row** (`RETURNING`), so records take on their 
+  generated IDs, column defaults and generated columns, with no extra query.
+- **Batches and transactions are a single round trip**: many inserts, updates 
+  and deletes, across several tables, are sent as one query, which PostgreSQL 
+  runs as one transaction.
+- **New rows whose IDs the database generates are batch inserted** with one 
+  `MERGE ... RETURNING` (PostgreSQL 17+), and matched back to their records.
+- **Deferrable constraints are deferred** for every batch and transaction, so 
+  the order of the changes doesn't matter.
+- **PostgreSQL's own types and features**: native `uuid` IDs (time-ordered 
+  version 7 by default), generated columns (`STORED`, and `VIRTUAL` on 
+  PostgreSQL 18), and values converted to PHP types using each table's column 
+  types, read from PostgreSQL's system catalogs.
+- **Schemas are first-class**: every query uses the table's schema-qualified 
+  name, rather than relying on the connection's `search_path`.
+
+You write a class for each table, and a record class for its rows, and the 
+package loads, saves and deletes the rows as records: objects you can work 
+with like any other.
 
 
 ## Requirements
@@ -60,12 +80,18 @@ work with like any other.
 composer require programster/pgsql-objects
 ```
 
-**We recommend giving your tables UUID IDs** (a `uuid` column), and extending 
-`AbstractUuidTable`, which generates them in code. Then every feature works on 
-any supported version of PostgreSQL, and a new object's ID is known as soon as 
-it's created, before it's saved, so related objects can reference it straight 
-away and be saved together. The package generates v7 UUIDs, which are 
-time-ordered, so they're fast to index. It already requires 
+**We strongly recommend UUIDs for your tables' IDs**, rather than integers 
+that count up (`SERIAL`): give each table a `uuid` ID column, and extend 
+`AbstractUuidTable`, which generates them in code. Then:
+
+- a new record's ID is known as soon as it's created, so related records can 
+  reference it, and be saved together in one round trip,
+- every feature works on any supported version of PostgreSQL,
+- IDs can't be guessed (`/invoices/1042`) or counted to see how big you are,
+- and they never clash when you copy or merge data between databases.
+
+The package generates version 7 UUIDs, which are time-ordered, so they're as 
+quick to insert into an index as integers. It already requires 
 [ramsey/uuid](https://github.com/ramsey/uuid), so you can make one yourself 
 the same way, e.g. for a migration or a test:
 
@@ -73,8 +99,8 @@ the same way, e.g. for a migration or a test:
 $id = \Ramsey\Uuid\Uuid::uuid7()->toString(); // e.g. "019a5f3e-8c1b-7d2e-9f4a-3b6c8d0e1f2a"
 ```
 
-See [IDs](docs/ids.md) for more, including tables whose IDs the database 
-generates.
+See [Identifiers](docs/identifiers.md) for the full case for UUIDs, their 
+costs, and how to use tables whose IDs the database generates.
 
 
 ## Quick start
@@ -112,8 +138,8 @@ $userTable->deleteByIds([$user->getId()]);
 - **Transactions** that save and delete objects of several tables together, 
   all or nothing, in a single round trip, deferring the constraints that can 
   be. See [Transactions](docs/transactions.md).
-- **IDs** generated in code (e.g. v7 UUIDs) or by the database (e.g. 
-  `SERIAL`). See [IDs](docs/ids.md).
+- **Identifiers**: UUIDs generated in code (recommended), or IDs generated by 
+  the database (e.g. `SERIAL`). See [Identifiers](docs/identifiers.md).
 - **An optional cache**, off by default, with one object per row while it's 
   on. See [The cache](docs/cache.md).
 - **Generated columns**, schemas other than `public`, cloning, and safe 
