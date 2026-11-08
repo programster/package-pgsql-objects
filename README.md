@@ -1,11 +1,11 @@
 PgSQL Objects: the PHP ORM built for PostgreSQL
 ===============================================
 
-<!-- These badges show the 5.x branch's tests. Change "5.x" to "main" in them when 5.x is merged into main. -->
-[![Linux tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml?query=branch%3A5.x)
-[![Windows tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml?query=branch%3A5.x)
-[![macOS tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml?query=branch%3A5.x)
-[![WSL tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml?query=branch%3A5.x)
+<!-- These badges show the main branch's tests. 5.x is merged into main, so they cover it too. -->
+[![Linux tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml?query=branch%3Amain)
+[![Windows tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml?query=branch%3Amain)
+[![macOS tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml?query=branch%3Amain)
+[![WSL tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml?query=branch%3Amain)
 
 ## Contents
 

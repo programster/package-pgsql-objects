@@ -7,8 +7,8 @@ All notable changes to this package are documented here. The format is based on
 
 ## [5.0.0] - Unreleased
 
-5.0 is in development on the `5.x` branch, with alpha releases before the final tag. It
-can still change between alphas.
+5.0 is in development on the `5.x` branch, which is merged into `main`, with alpha releases
+before the final 5.0.0, starting with 5.0.0-alpha1. It can still change between alphas.
 
 ### Breaking changes
 Each of these needs a change to code that uses 4.x.

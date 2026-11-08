@@ -18,9 +18,10 @@ needs docker and bash (on Windows, Git Bash or WSL), and uses ports 5454 to
 
 ## GitHub Actions
 
-The tests also run on GitHub Actions, for pushes to `main` and `5.x`, every 
-tag, and pull requests into either. The badges at the top of the 
-[README](../README.md) show the latest results for that branch:
+The tests also run on GitHub Actions, for pushes to `main` and `5.x` (where 
+5.0 is developed, before being merged into `main`), every tag, and pull 
+requests into either. The badges at the top of the [README](../README.md) show 
+the latest results on `main`:
 
 - **Linux** (`.github/workflows/tests.yml`): runs `testing/run-all-versions.sh` 
   on PHP 8.2, 8.3, 8.4 and 8.5.

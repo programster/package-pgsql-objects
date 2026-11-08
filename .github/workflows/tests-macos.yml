@@ -6,15 +6,15 @@ on:
     push:
         branches:
             - main
-            # TEMPORARY: also run on the 5.x branch, where version 5 is developed until it is released, so both the
-            # main branch (4.x) and 5.x are tested. Remove this line once 5.x has been merged into the main branch.
+            # Also run on the 5.x branch, where 5.0 is developed and then merged into main. Remove this line once
+            # 5.0.0 has been released and 5.x is no longer used.
             - "5.x"
         tags:
             - "*"
     pull_request:
         branches:
             - main
-            # TEMPORARY: as above, remove this line once 5.x has been merged into the main branch.
+            # As above, remove this line once 5.0.0 has been released and 5.x is no longer used.
             - "5.x"
     # Adds a "Run workflow" button on the Actions tab (only once this file is on the default branch).
     workflow_dispatch:
