@@ -33,8 +33,9 @@ jobs:
             - name: Check out the code
               uses: actions/checkout@v5
 
+            # The same version of this action as tests-native.yml, which explains why it's v8.
             - name: Install PostgreSQL 18 on Windows
-              uses: ikalnytskyi/action-setup-postgres@v7
+              uses: ikalnytskyi/action-setup-postgres@v8
               with:
                   postgres-version: "18"
                   username: test

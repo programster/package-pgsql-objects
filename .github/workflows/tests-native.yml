@@ -31,8 +31,10 @@ jobs:
             - name: Check out the code
               uses: actions/checkout@v5
 
+            # v8 is the only version of this action that installs all of 14 to 18: v7 stops at 17, and v9 drops 14.
+            # Move to v9 when 14 is dropped from the matrix above.
             - name: Install PostgreSQL ${{ matrix.postgres }}
-              uses: ikalnytskyi/action-setup-postgres@v7
+              uses: ikalnytskyi/action-setup-postgres@v8
               with:
                   postgres-version: ${{ matrix.postgres }}
                   username: test
