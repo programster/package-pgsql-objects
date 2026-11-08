@@ -5,19 +5,19 @@ it's enabled. With the cache disabled, which is the default, every load gets
 new objects with fresh data from the database, whichever mode you pass.
 
 ```php
-$table = UserTable::getInstance();
+$userTable = UserTable::getInstance();
 
 // by ID. load() throws ExceptionNoSuchIdException if there's no such row.
-$user = $table->load($id);
-$users = $table->loadIds([$id1, $id2]); // indexed by their IDs.
+$user = $userTable->load($id);
+$users = $userTable->loadIds([$id1, $id2]); // indexed by their IDs.
 
 // by filter: rows that have all of the values, or any of them.
-$admins = $table->loadWhereAnd(['role' => 'admin', 'active' => true], CacheMode::USE_CACHE);
-$someUsers = $table->loadWhereOr(['id' => [$id1, $id2], 'role' => 'admin'], CacheMode::USE_CACHE);
+$admins = $userTable->loadWhereAnd(['role' => 'admin', 'active' => true], CacheMode::USE_CACHE);
+$someUsers = $userTable->loadWhereOr(['id' => [$id1, $id2], 'role' => 'admin'], CacheMode::USE_CACHE);
 
 // everything, or everything but some IDs.
-$everyone = $table->loadAll(CacheMode::USE_CACHE);
-$others = $table->loadIdsNotIn([$id1], CacheMode::USE_CACHE);
+$everyone = $userTable->loadAll(CacheMode::USE_CACHE);
+$others = $userTable->loadIdsNotIn([$id1], CacheMode::USE_CACHE);
 ```
 
 A value in a filter can be an array, to match any of those values, e.g. 
@@ -54,7 +54,7 @@ $afterId = null;
 
 do
 {
-    $page = $table->loadAfterId($afterId, 500, CacheMode::IGNORE_CACHE);
+    $page = $userTable->loadAfterId($afterId, 500, CacheMode::IGNORE_CACHE);
 
     foreach ($page as $user)
     {

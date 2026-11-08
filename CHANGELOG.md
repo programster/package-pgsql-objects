@@ -67,6 +67,11 @@ The row object's own `delete()` and `update($data)` are unchanged.
   had.
 
 **Behaviour**
+- A new object that was never given a value for a column that allows null and has a
+  default (one listed in both `getFieldsThatAllowNull()` and `getFieldsThatHaveDefaults()`)
+  now gets the column's default when it's inserted, rather than `NULL`. To store `NULL`,
+  give it on purpose, as a key of `createNewFromArray()` or `update()`, e.g.
+  `['category' => null]`. A null set through your own public setter counts as never given.
 - The object cache is now disabled by default, so every load queries the database. Code
   that relied on it, e.g. calling `loadAll()` and then `load($id)` without another query,
   still works, but runs more queries until it calls `enableCache()` on the table first.
@@ -213,3 +218,15 @@ The row object's own `delete()` and `update($data)` are unchanged.
 ### Fixed
 - `deleteIdsNotIn()` left the deleted objects in the cache, so `load()` could still
   return them.
+- Saving a new object sent `NULL` for a `NOT NULL` column with a default that it had no
+  value for, instead of letting the database fill in the default, so the insert failed.
+  Row classes no longer need to leave such columns out of `getAccessorFunctions()`
+  while they're null. This covers `save()`, `update()`, `batchSave()` and `Transaction`,
+  and each object decides for itself, so objects saved together can each give a value
+  or leave it to the default.
+- `batchSave()` didn't give objects that already had an ID (e.g. a UUID) the values the
+  database filled in, such as column defaults and generated columns, so they kept the
+  nulls they were saved with. A later `update()` then sent those nulls, failing for a
+  `NOT NULL` column, or overwriting the stored value with `NULL`. Every insert and update
+  in `batchSave()` and `Transaction` now returns its row, which its object takes on, as
+  with `save()`, all still in one query and one round trip.

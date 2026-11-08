@@ -86,19 +86,19 @@ are UUIDs or `AbstractTable` otherwise, and a row class extending
 [Getting started](docs/getting-started.md) for a walkthrough). Then:
 
 ```php
-$users = UserTable::getInstance();
+$userTable = UserTable::getInstance();
 
 // create and save a new row.
 $user = UserRecord::createNewFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
 $user->save();
 
-// load it again, change it, and save the change straight away.
-$user = $users->load($user->getId());
+// load a row whose ID you know, e.g. from a form submission, change it, and save the change straight away.
+$user = $userTable->load('01a1bc23-57a0-7318-8532-ce41ea306b73');
 $user->update(['name' => 'Ada Lovelace']);
 
 // load by a filter, and delete.
-$matches = $users->loadWhereAnd(['email' => 'ada@example.com'], CacheMode::IGNORE_CACHE);
-$users->deleteByIds([$user->getId()]);
+$matches = $userTable->loadWhereAnd(['email' => 'ada@example.com'], CacheMode::IGNORE_CACHE);
+$userTable->deleteByIds([$user->getId()]);
 ```
 
 

@@ -128,23 +128,23 @@ each column.
 ```php
 use Programster\PgsqlObjects\CacheMode;
 
-$users = UserTable::getInstance();
+$userTable = UserTable::getInstance();
 
 // create a new object, which gets its ID straight away, and save it.
 $ada = UserRecord::createNewFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
 $ada->save();
 
-// load a row by its ID.
-$ada = $users->load($ada->getId());
+// load a row whose ID you know, e.g. from a form submission or a URL.
+$user = $userTable->load('01a1bc23-57a0-7318-8532-ce41ea306b73');
 
 // change it, and save the change straight away.
-$ada->update(['nickname' => 'Countess']);
+$user->update(['nickname' => 'Countess']);
 
 // load the rows that match a filter.
-$matches = $users->loadWhereAnd(['email' => 'ada@example.com'], CacheMode::IGNORE_CACHE);
+$matches = $userTable->loadWhereAnd(['email' => 'ada@example.com'], CacheMode::IGNORE_CACHE);
 
 // delete it. Its save() and update() throw from now on, so it can't come back by mistake.
-$ada->delete();
+$user->delete();
 ```
 
 The loads that return many rows take a `CacheMode`, saying how they use the 

@@ -27,6 +27,11 @@ abstract class AbstractTableRowObject
     // set by delete(), after which the object can't be saved or updated, so its row can't be re-inserted by mistake.
     protected bool $m_isDeleted = false;
 
+    // the columns this object has been given a value for, even null, e.g. as keys of createNewFromArray() or update(),
+    // or from its row in the database, as column name => true. A new object leaves a column that has a database default
+    // out of its insert while its value is null, unless it was given that null on purpose (see getDatabaseArrayForm()).
+    protected array $m_providedColumns = [];
+
 
     /**
      * Constructor with no parameters and declared final so cannot be overridden.
@@ -198,6 +203,8 @@ abstract class AbstractTableRowObject
                 $setter = $setters[$name];
                 $setter($value);
             }
+
+            $this->m_providedColumns[$name] = true;
         }
 
         if ($this->m_isSavedInDatabase)
@@ -362,9 +369,13 @@ abstract class AbstractTableRowObject
 
 
     /**
-     * Get this object in an array form appropriate for inserting into the database.
-     * E.g the indexes are the names of the columns in the databse etc.
+     * Get this object in an array form appropriate for inserting into, or updating, the database, keyed by column name.
      * The virtual fields (see getVirtualFields()) are left out, as PostgreSQL rejects any value for them.
+     *
+     * For a new object, which will be inserted, a column that has a database default is also left out while its value
+     * is null, so that the database fills in its default, rather than storing NULL (or rejecting it, for a NOT NULL
+     * column), unless the column allows null and the object was given that null on purpose (see
+     * isNullForTheDefault()). An object that has been saved sends every value, as it will be updated.
      *
      * @return array
      */
@@ -379,7 +390,12 @@ abstract class AbstractTableRowObject
             /* @var $callback \Closure */
             if (!in_array($columnName, $virtualFields))
             {
-                $properties[$columnName] = $callback();
+                $value = $callback();
+
+                if ($this->isNullForTheDefault($columnName, $value) === false)
+                {
+                    $properties[$columnName] = $value;
+                }
             }
         }
 
@@ -524,6 +540,13 @@ abstract class AbstractTableRowObject
                 }
             }
         }
+
+        // remember every column it was given a value for, even null, so that an insert can tell a null given on
+        // purpose from a column that was never given one (see getDatabaseArrayForm()).
+        foreach (array_keys($row) as $columnName)
+        {
+            $this->m_providedColumns[$columnName] = true;
+        }
     }
 
 
@@ -620,6 +643,37 @@ abstract class AbstractTableRowObject
             " VALUES ($valuesString)";
 
         return $query;
+    }
+
+
+    /**
+     * Check whether a column should be left out of this object's insert, so that the database fills in its default:
+     * the object is new, the column is listed in the table's getFieldsThatHaveDefaults(), and its value is null, and
+     * either the column doesn't allow null (so NULL could never be stored there anyway), or the object was never given
+     * a value for it. A column that allows null, and was given null on purpose (e.g. as a key of createNewFromArray()
+     * or update()), keeps its NULL. Each object decides for itself, so objects inserted together can differ.
+     *
+     * @param string $columnName - the column.
+     *
+     * @param mixed $value - the column's value on this object.
+     *
+     * @return bool - true to leave the column out, for its default.
+     */
+    private function isNullForTheDefault(string $columnName, mixed $value) : bool
+    {
+        $tableHandler = $this->getTableHandler();
+
+        $isNullForTheDefault = (
+               $this->m_isSavedInDatabase === false
+            && $value === null
+            && in_array($columnName, $tableHandler->getFieldsThatHaveDefaults(), true)
+            && (
+                   !in_array($columnName, $tableHandler->getFieldsThatAllowNull(), true)
+                || !isset($this->m_providedColumns[$columnName])
+            )
+        );
+
+        return $isNullForTheDefault;
     }
 
 

@@ -110,22 +110,15 @@ class UserRecord extends AbstractTableRowObject
     }
 
 
-    // a getter for each column to send to the database, apart from the ID, which the package handles.
+    // a getter for each column, apart from the ID, which the package handles.
     protected function getAccessorFunctions() : array
     {
-        $accessors = [
-            'name'     => function () : ?string { return $this->m_name; },
-            'email'    => function () : ?string { return $this->m_email; },
-            'nickname' => function () : ?string { return $this->m_nickname; },
+        return [
+            'name'       => function () : ?string { return $this->m_name; },
+            'email'      => function () : ?string { return $this->m_email; },
+            'nickname'   => function () : ?string { return $this->m_nickname; },
+            'created_at' => function () : ?string { return $this->m_createdAt; },
         ];
-
-        // leave created_at out until it has a value, so the database's default applies (see below).
-        if ($this->m_createdAt !== null)
-        {
-            $accessors['created_at'] = function () : ?string { return $this->m_createdAt; };
-        }
-
-        return $accessors;
     }
 
 
@@ -184,12 +177,42 @@ setter must be given a value, unless it's listed in the table's:
 Leaving out any other column throws `ExceptionMissingRequiredData`, saying 
 which one, before anything is sent to the database.
 
-**A column with a default must be left out of `getAccessorFunctions()` while 
-its value is null**, as `created_at` is above. A row object sends every column 
-its accessors return, so it would otherwise send `NULL`, which PostgreSQL 
-stores instead of using the default, or rejects if the column is `NOT NULL`. 
-Once the object has been saved, it takes on the value the database chose, so 
-the accessor is included from then on.
+**When a new object is inserted, a column with a default gets that default** 
+if the object has no value for it. Each object decides for itself, so objects 
+saved together, e.g. with `batchSave()` or a [Transaction](transactions.md), 
+can each give a value for a column or leave it to the default:
+
+- A column the object was **never given**, e.g. `created_at` here, isn't sent, 
+  so the database fills in its default.
+- A column given a value is sent as it is.
+- A column given `null` on purpose, as a key of `createNewFromArray()` or 
+  `update()`, is sent as `NULL` if it allows null, e.g. 
+  `['nickname' => null]` stores `NULL`, even if `nickname` had a default.
+- A `NOT NULL` column that's `null` always gets its default, as `NULL` could 
+  never be stored there.
+
+```php
+$userTable = UserTable::getInstance();
+$withDefault = UserRecord::createNewFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
+$withOwnValue = UserRecord::createNewFromArray([
+    'name' => 'Grace',
+    'email' => 'grace@example.com',
+    'created_at' => '2024-01-01 00:00:00+00',
+]);
+
+$userTable->batchSave([$withDefault, $withOwnValue]); // created_at is NOW() for Ada, and 2024 for Grace.
+```
+
+This only works for the columns listed in the table's 
+`getFieldsThatHaveDefaults()`, so list every column that has one. The package 
+can't see your own public setters, so a column set to `null` through one of 
+them counts as never given, and gets its default: to store `NULL` in a column 
+that has a default, pass it to `createNewFromArray()` or `update()`.
+
+Once an object has been saved, it sends every value, as it's updated rather 
+than inserted. However it was saved, with `save()`, `update()`, `batchSave()` 
+or a [Transaction](transactions.md), it takes on the values the database 
+chose, such as the default `created_at`, so updating it later keeps them.
 
 
 ## Column types
@@ -219,11 +242,8 @@ any value for them: generated columns (`GENERATED ALWAYS AS (...) STORED`, or
 `VIRTUAL` on PostgreSQL 18), and non-ID `GENERATED ALWAYS AS IDENTITY` columns. 
 List them in your table's `getVirtualFields()`. They then aren't required when 
 creating objects, are never sent in inserts or updates, and are read back from 
-the database after `save()`, `update()`, `insert()` and `updateById()`.
-
-`batchSave()` can't read them back for objects that already have an ID, so 
-reload those objects with `CacheMode::UPDATE_CACHE` if you need the new 
-values.
+the database after `save()`, `update()`, `insert()`, `updateById()`, 
+`batchSave()` and a [Transaction](transactions.md).
 
 
 ## Schemas
@@ -250,10 +270,9 @@ your own queries, and `getTable()` for pgsql-lib's query helpers and
 
 Each object has a getter for each column, from your row class, and `getId()`. 
 `getArrayForm()` returns its ID and the values of the columns in 
-`getAccessorFunctions()`, keyed by column name, so a column left out there 
-until it has a value (like `created_at` above) is left out here too. It's the 
-raw values, so filter out anything sensitive, such as password hashes, before 
-returning it from an API.
+`getAccessorFunctions()`, keyed by column name. It's the raw values, so filter 
+out anything sensitive, such as password hashes, before returning it from an 
+API.
 
 `isSavedInDatabase()` tells you whether the object has been saved, and 
 `isDeleted()` whether it has been deleted.

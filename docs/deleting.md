@@ -6,21 +6,21 @@ Rows can be deleted through the object, or through the table.
 // an object you already have.
 $user->delete();
 
-$table = UserTable::getInstance();
+$userTable = UserTable::getInstance();
 
 // by ID, or many IDs, in one query.
-$table->deleteById($id);
-$table->deleteByIds([$id1, $id2, $id3]);
+$userTable->deleteById($id);
+$userTable->deleteByIds([$id1, $id2, $id3]);
 
 // by filter: rows that have all of the values, or any of them.
-$table->deleteWhereAnd(['role' => 'guest', 'active' => false]);
-$table->deleteWhereOr(['id' => [$id1, $id2], 'role' => 'guest']);
+$userTable->deleteWhereAnd(['role' => 'guest', 'active' => false]);
+$userTable->deleteWhereOr(['id' => [$id1, $id2], 'role' => 'guest']);
 
 // every row except the ones to keep.
-$table->deleteIdsNotIn([$id1, $id2]);
+$userTable->deleteIdsNotIn([$id1, $id2]);
 
 // every row.
-$table->deleteAll();
+$userTable->deleteAll();
 ```
 
 To delete objects of several tables together, along with saving others, use a 

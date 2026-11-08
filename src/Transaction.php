@@ -264,30 +264,28 @@ final class Transaction
     /**
      * Run every group's statements, in order, as one query: a single round trip. PostgreSQL runs the statements of a
      * single query as one transaction, which it rolls back if any of them fail. If a transaction is already open, they
-     * run inside a savepoint instead, which is rolled back if they fail, so that only these changes are undone.
-     *
-     * The query is sent with pg_send_query(), rather than pg_query(), as that only returns the last statement's result,
-     * while pg_get_result() returns every statement's, so each group's result can be read, e.g. the IDs a group's
-     * insert generated.
+     * run inside a savepoint instead, which is rolled back if they fail, so that only these changes are undone. The
+     * query is run by the table's runStatements(), which returns every statement's result, so each saved object can
+     * take on its row.
      *
      * @param array<int, array<string>> $statementsByGroup - each group's statements, from generateStatements().
      *
-     * @return array<int, \PgSql\Result> - the result of each group's last statement, keyed by the group's index.
+     * @return array<int, array<\PgSql\Result>> - the results of each group's statements, in order, keyed by the
+     * group's index.
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if a statement failed, after rolling back.
      */
     private function runStatements(array $statementsByGroup) : array
     {
-        $results = [];
+        $resultsByGroup = [];
 
         if (count($statementsByGroup) > 0)
         {
             $db = $this->getDb();
-            $connection = $db->getResource();
             $savepoint = $db->escapeIdentifier(self::SAVEPOINT_NAME);
-            $isInTransaction = (pg_transaction_status($connection) !== PGSQL_TRANSACTION_IDLE);
+            $isInTransaction = (pg_transaction_status($db->getResource()) !== PGSQL_TRANSACTION_IDLE);
             $statements = [];
-            $groupIndexesByLastStatement = [];
+            $groupIndexesByStatement = [];
 
             if ($isInTransaction)
             {
@@ -303,10 +301,9 @@ final class Transaction
             {
                 foreach ($groupStatements as $statement)
                 {
+                    $groupIndexesByStatement[count($statements)] = $groupIndex;
                     $statements[] = $statement;
                 }
-
-                $groupIndexesByLastStatement[count($statements) - 1] = $groupIndex;
             }
 
             if ($isInTransaction)
@@ -314,37 +311,15 @@ final class Transaction
                 $statements[] = "RELEASE SAVEPOINT {$savepoint}";
             }
 
-            $query = implode(";\n", $statements) . ";";
+            // runStatements() is private to AbstractTable, so call it from within its scope.
+            $runStatements = function (array $statements) : array { return $this->runStatements($statements); };
+            $boundRunStatements = \Closure::bind($runStatements, $this->getFirstTable(), AbstractTable::class);
 
-            if (pg_send_query($connection, $query) === false)
+            try
             {
-                throw new ExceptionQueryError(pg_last_error($connection), $query);
+                $results = $boundRunStatements($statements);
             }
-
-            $statementIndex = 0;
-            $hasFailed = false;
-            $errorMessage = "";
-
-            // every result has to be read before the connection can be used again. After a statement fails, the rest
-            // aren't run, so there are no more results.
-            while (($result = pg_get_result($connection)) !== false)
-            {
-                $status = pg_result_status($result);
-
-                if ($status === PGSQL_FATAL_ERROR || $status === PGSQL_BAD_RESPONSE)
-                {
-                    $hasFailed = true;
-                    $errorMessage = pg_result_error($result);
-                }
-                elseif (isset($groupIndexesByLastStatement[$statementIndex]))
-                {
-                    $results[$groupIndexesByLastStatement[$statementIndex]] = $result;
-                }
-
-                $statementIndex++;
-            }
-
-            if ($hasFailed)
+            catch (ExceptionQueryError $exception)
             {
                 // outside a transaction, PostgreSQL has already rolled the query back, but an open transaction is
                 // left failed until the savepoint is rolled back.
@@ -353,11 +328,16 @@ final class Transaction
                     $this->undo($db, "ROLLBACK TO SAVEPOINT {$savepoint}; RELEASE SAVEPOINT {$savepoint}");
                 }
 
-                throw new ExceptionQueryError($errorMessage, $query);
+                throw $exception;
+            }
+
+            foreach ($groupIndexesByStatement as $statementIndex => $groupIndex)
+            {
+                $resultsByGroup[$groupIndex][] = $results[$statementIndex];
             }
         }
 
-        return $results;
+        return $resultsByGroup;
     }
 
 
@@ -390,7 +370,7 @@ final class Transaction
      *
      * @param array<array> $groups - the groups, from groupChanges().
      *
-     * @param array<int, \PgSql\Result> $results - the result of each group's last statement, keyed by its group's
+     * @param array<int, array<\PgSql\Result>> $results - the results of each group's statements, keyed by its group's
      * index, from runStatements().
      *
      * @return void
@@ -398,8 +378,8 @@ final class Transaction
     private function takeOnChanges(array $groups, array $results) : void
     {
         // the table's methods for this are private to AbstractTable, so call them from within its scope.
-        $takeOnSaved = function (array $objects, \PgSql\Result $result) : void {
-            $this->takeOnBatchSavedObjects($objects, $result);
+        $takeOnSaved = function (array $objects, array $results) : void {
+            $this->takeOnBatchSavedObjects($objects, $results);
         };
 
         $takeOnDeleted = function (array $objects) : void { $this->takeOnDeletedObjects($objects); };
@@ -524,6 +504,16 @@ final class Transaction
      */
     private function getDb() : PgSqlConnection
     {
-        return $this->m_changes[0]['object']->getTableHandler()->getDb();
+        return $this->getFirstTable()->getDb();
+    }
+
+
+    /**
+     * Get the table of the first object added, which extends AbstractTable, as every table added must.
+     * @return AbstractTable
+     */
+    private function getFirstTable() : AbstractTable
+    {
+        return $this->m_changes[0]['object']->getTableHandler();
     }
 }

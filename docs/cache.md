@@ -8,9 +8,9 @@ request:
 
 ```php
 // in the controller
-$users = UserTable::getInstance();
-$users->enableCache();
-$users->loadAll(CacheMode::USE_CACHE);
+$userTable = UserTable::getInstance();
+$userTable->enableCache();
+$userTable->loadAll(CacheMode::USE_CACHE);
 
 // later, in a view or model, without a query
 $author = UserTable::getInstance()->load($post->getAuthorId());

@@ -338,8 +338,8 @@ interface TableInterface
      * Save many objects in one go, as a single query that runs as one transaction, so either every object is saved,
      * or none are: the rows of objects that have been saved before are updated, and the rest are inserted.
      *
-     * New objects without IDs, as the database generates them, need PostgreSQL 17 or newer. Objects that already have
-     * an ID don't get their column defaults or generated columns read back.
+     * New objects without IDs, as the database generates them, need PostgreSQL 17 or newer. Every object takes on its
+     * row from the database afterwards, including column defaults and generated columns.
      *
      * @param array<AbstractTableRowObject> $objects - the objects to save.
      *

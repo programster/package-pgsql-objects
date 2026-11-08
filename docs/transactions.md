@@ -38,6 +38,10 @@ $transaction->commit();
   updated, **once the transaction has been committed**. So if it fails, every 
   object is left exactly as it was: a new object isn't marked as saved, and 
   doesn't keep an ID the database generated for a row that was rolled back.
+- After the commit, each saved object takes on its row from the database, as 
+  with `save()`, including any values the database filled in, such as its 
+  generated ID, column defaults and generated columns. Every insert and update 
+  returns its row in the same query, so this needs no extra round trips.
 - Each object is saved with the values it has when you call `commit()`, not 
   when you added it.
 

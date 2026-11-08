@@ -80,7 +80,7 @@ are only final once you commit it:
 $db = ConnectionHandler::getDb();
 $db->query("BEGIN");
 
-$users->batchSave($changedUsers);
+UserTable::getInstance()->batchSave($changedUsers);
 $db->query("UPDATE ...");
 
 $db->query("COMMIT");

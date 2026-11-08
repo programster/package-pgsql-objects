@@ -49,15 +49,15 @@ query. The query runs as one transaction, so either every object is saved, or
 none are.
 
 ```php
-$table = ProductTable::getInstance();
-$products = $table->loadWhereAnd(['category' => 'books'], CacheMode::USE_CACHE);
+$productTable = ProductTable::getInstance();
+$products = $productTable->loadWhereAnd(['category' => 'books'], CacheMode::USE_CACHE);
 
 foreach ($products as $product)
 {
     $product->setPrice($product->getPrice() * 2);
 }
 
-$table->batchSave($products);
+$productTable->batchSave($products);
 ```
 
 So that you can do this, give your row classes setters that only set the 
@@ -88,10 +88,9 @@ Things to be aware of with `batchSave()`:
 - New objects whose IDs the database generates are inserted with the rest, and 
   take on their generated IDs, but this needs PostgreSQL 17 or newer (see 
   [IDs](ids.md)).
-- For objects that already have an ID, it can't read back values the database 
-  generates, such as column defaults or generated columns, so they will be out 
-  of date on those objects until you reload them with 
-  `CacheMode::UPDATE_CACHE`. New objects without an ID do take them on.
+- Every object takes on its row from the database afterwards, as with 
+  `save()`, including any values the database filled in, such as column 
+  defaults and generated columns. It's still one query, and one round trip.
 - Deleted objects are rejected before anything is saved.
 - Constraints created `DEFERRABLE` are only checked once every object has been 
   saved (see [Transactions](transactions.md#constraints-and-the-order-of-changes)).

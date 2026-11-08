@@ -10,6 +10,7 @@ declare(strict_types = 1);
 namespace Programster\PgsqlObjects;
 
 use Programster\PgsqlLib\Conjunction;
+use Programster\PgsqlLib\Exceptions\ExceptionQueryError;
 use Programster\PgsqlLib\PgSqlConnection;
 use Programster\PgsqlLib\Table;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
@@ -530,7 +531,7 @@ abstract class AbstractTable implements TableInterface
      * GENERATED ALWAYS AS IDENTITY columns. This is unrelated to generating IDs (see generateId()), as this
      * package never generates these values itself. They don't have to be set when creating this object, and are
      * never sent to the database in inserts or updates, as PostgreSQL rejects any value for them. Their values are
-     * read back from the database after save(), update(), insert() and updateById().
+     * read back from the database after save(), update(), insert(), updateById(), batchSave() and a Transaction.
      * Return an empty array if the table has none.
      *
      * @return array<string> - array of column names.
@@ -891,9 +892,9 @@ abstract class AbstractTable implements TableInterface
      * objects throws an ExceptionUnsupportedDatabaseVersion, without saving anything, so save them with save(), or
      * insert their rows with batchInsert(), instead. Batches where every object has an ID work on any version.
      *
-     * WARNING - the database's values can't be read back for the objects that already have an ID, so their column
-     * defaults and generated columns (see getVirtualFields()) will be out of date on them (and in the cache) until they
-     * are reloaded with CacheMode::UPDATE_CACHE.
+     * Every object takes on its row from the database afterwards, as with save(), including any values the database
+     * filled in, such as column defaults and generated columns (see getVirtualFields()), as each insert and update
+     * returns its row.
      *
      * @param array<AbstractTableRowObject> $objects - the objects to save.
      *
@@ -911,11 +912,12 @@ abstract class AbstractTable implements TableInterface
     {
         if (count($objects) > 0)
         {
-            $query = implode(";", $this->generateBatchSaveStatements($objects)) . ";";
+            $statements = $this->generateBatchSaveStatements($objects);
 
-            // the statements run as a single implicit transaction, so if any fail, query() throws and none are saved.
-            $result = $this->getDb()->query($query);
-            $this->takeOnBatchSavedObjects($objects, $result);
+            // the statements are sent as one query, which PostgreSQL runs as a single implicit transaction, so if any
+            // fail, none are saved.
+            $results = $this->runStatements($statements);
+            $this->takeOnBatchSavedObjects($objects, $results);
         }
     }
 
@@ -1317,10 +1319,10 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Generate the SQL statements that save the objects for batchSave() (and Transaction), without running them or
-     * changing the objects: the update or insert of each object that has an ID, followed by one insert of the objects
-     * without IDs, whose rows its result returns (see generateBatchInsertObjectsQuery()). Every object is checked
-     * first, so if one is rejected, nothing has been sent to the database. Pass the result of the last statement to
-     * takeOnBatchSavedObjects().
+     * changing the objects: SET CONSTRAINTS ALL DEFERRED, the update or insert of each object that has an ID, which
+     * returns its row, and then one insert of the objects without IDs, which returns theirs (see
+     * generateBatchInsertObjectsQuery()). Every object is checked first, so if one is rejected, nothing has been sent
+     * to the database. Pass every statement's result, in order, to takeOnBatchSavedObjects().
      *
      * @param array<AbstractTableRowObject> $objects - the objects to save, of this table. Must not be empty.
      *
@@ -1360,10 +1362,16 @@ abstract class AbstractTable implements TableInterface
             "SET CONSTRAINTS ALL DEFERRED"
         ];
 
+        // return each object's row, so it takes on any values the database filled in, such as column defaults and
+        // generated columns, as save() does.
         foreach ($objectsWithIds as $object)
         {
-            $statements[] = $object->getSaveQuery();
+            $statements[] = $object->getSaveQuery() . " RETURNING *";
         }
+
+        // the column info is needed to read the rows back, so fetch it now (only the first time), rather than after the
+        // statements have run.
+        $this->getFieldInfoMap();
 
         // the insert of the objects without IDs goes last, as only the last statement's result is returned.
         if (count($objectsWithoutIds) > 0)
@@ -1378,19 +1386,24 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Mark the objects from generateBatchSaveStatements() as saved, once its statements have run (and, in a
-     * Transaction, been committed), giving each object that had no ID its inserted row, and caching them if the cache
-     * is enabled.
+     * Transaction, been committed): each object takes on its row from the database, including any values the database
+     * filled in, such as its generated ID, column defaults and generated columns, and is cached if the cache is
+     * enabled.
      *
      * @param array<AbstractTableRowObject> $objects - the objects that were saved, as passed to
      * generateBatchSaveStatements().
      *
-     * @param \PgSql\Result $result - the result of the last of those statements.
+     * @param array<\PgSql\Result> $results - the result of each of its statements, in the same order.
      *
      * @return void
      */
-    private function takeOnBatchSavedObjects(array $objects, \PgSql\Result $result) : void
+    private function takeOnBatchSavedObjects(array $objects, array $results) : void
     {
+        $fieldInfoMap = $this->getFieldInfoMap();
         $objectsWithoutIds = [];
+
+        // the first statement is SET CONSTRAINTS, then there's one for each object that has an ID, in order.
+        $statementIndex = 1;
 
         foreach ($objects as $object)
         {
@@ -1400,14 +1413,27 @@ abstract class AbstractTable implements TableInterface
             }
             else
             {
-                $object->markSaved(); // just in case it was an insert instead of update call.
+                $row = pg_fetch_assoc($results[$statementIndex]);
+                $statementIndex++;
+
+                if ($row !== false)
+                {
+                    $this->refreshObject($object, $row, $fieldInfoMap);
+                }
+                else
+                {
+                    // an update of a row that no longer exists, e.g. deleted elsewhere, changes nothing.
+                    $object->markSaved();
+                }
+
                 $this->cacheObject($object);
             }
         }
 
+        // the insert of the objects without IDs is the last statement.
         if (count($objectsWithoutIds) > 0)
         {
-            $this->takeOnInsertedRows($objectsWithoutIds, $result);
+            $this->takeOnInsertedRows($objectsWithoutIds, $results[$statementIndex]);
         }
     }
 
@@ -1583,6 +1609,63 @@ abstract class AbstractTable implements TableInterface
             $this->refreshObject($object, $row, $fieldInfoMap);
             $this->cacheObject($object);
         }
+    }
+
+
+    /**
+     * Run several SQL statements as one query: a single round trip to the database. PostgreSQL runs the statements of a
+     * single query as one transaction, which it rolls back if any of them fail, unless a transaction is already open,
+     * in which case they run within it.
+     *
+     * The query is sent with pg_send_query(), rather than pg_query(), as that only returns the last statement's result,
+     * while pg_get_result() returns every statement's, so each statement's returned rows can be read. Transaction uses
+     * this too.
+     *
+     * @param array<string> $statements - the statements, in order, each a single SQL statement without a trailing
+     * semicolon.
+     *
+     * @return array<\PgSql\Result> - the result of each statement, in the same order.
+     *
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if a statement failed, after which none of the
+     * statements' changes have been kept (or, within an open transaction, that transaction has failed).
+     */
+    private function runStatements(array $statements) : array
+    {
+        $connection = $this->getDb()->getResource();
+        $query = implode(";\n", $statements) . ";";
+
+        if (pg_send_query($connection, $query) === false)
+        {
+            throw new ExceptionQueryError(pg_last_error($connection), $query);
+        }
+
+        $results = [];
+        $hasFailed = false;
+        $errorMessage = "";
+
+        // every result has to be read before the connection can be used again. After a statement fails, the rest
+        // aren't run, so there are no more results.
+        while (($result = pg_get_result($connection)) !== false)
+        {
+            $status = pg_result_status($result);
+
+            if ($status === PGSQL_FATAL_ERROR || $status === PGSQL_BAD_RESPONSE)
+            {
+                $hasFailed = true;
+                $errorMessage = pg_result_error($result);
+            }
+            else
+            {
+                $results[] = $result;
+            }
+        }
+
+        if ($hasFailed)
+        {
+            throw new ExceptionQueryError($errorMessage, $query);
+        }
+
+        return $results;
     }
 
 
