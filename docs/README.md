@@ -6,7 +6,7 @@ New to the package? Start with [Getting started](getting-started.md). The
 **Guides**
 - [Getting started](getting-started.md): connect, create a table, write its 
   classes, and load and save your first rows.
-- [Tables and rows](tables.md): the two classes for each table, required 
+- [Tables and records](tables.md): the two classes for each table, required 
   columns and defaults, column types, generated columns and schemas.
 - [IDs](ids.md): why we recommend UUIDs, and where new rows' IDs come from.
 - [Loading](loading.md): by ID, by filter, and a page at a time.
@@ -15,10 +15,9 @@ New to the package? Start with [Getting started](getting-started.md). The
 - [Deleting](deleting.md): through the object or the table, and what happens 
   to deleted objects.
 - [Transactions](transactions.md): saving and deleting objects of several 
-  tables together, and how foreign keys and deferrable constraints affect the 
-  order.
-- [Constraints](constraints.md): adding primary key, unique and foreign key 
-  constraints, deferrable or not.
+  tables together, and why we recommend 
+  [deferrable constraints](transactions.md#deferrable-constraints), so the 
+  order of the changes doesn't matter.
 - [The cache](cache.md): the optional cache, and `CacheMode`.
 - [Writing your own queries](custom-queries.md): table methods of your own, 
   safely escaped, that return objects.

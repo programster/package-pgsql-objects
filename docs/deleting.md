@@ -37,7 +37,7 @@ be read, and `isDeleted()` tells you whether it has been deleted.
 To create the row again on purpose, clone the object and save the clone: the 
 clone isn't deleted, and gets a new ID.
 
-Deleting through the table marks the deleted rows' objects as deleted too, but 
+Deleting through the table marks the deleted rows' records as deleted too, but 
 only the ones in the [cache](cache.md), as the table has no way to find any 
 others. So if the cache is off, prefer deleting an object you're holding 
 through its own `delete()`, or a [Transaction](transactions.md), which marks 

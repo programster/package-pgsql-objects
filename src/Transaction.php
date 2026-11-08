@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Saves and deletes row objects, of any of your tables, together in one database transaction.
+ * Saves and deletes records, of any of your tables, together in one database transaction.
  */
 
 declare(strict_types = 1);
@@ -15,7 +15,7 @@ use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
 
 
 /**
- * Saves and deletes many row objects, of any of your tables, together in one database transaction: either every change
+ * Saves and deletes many records, of any of your tables, together in one database transaction: either every change
  * is made, or none are. Add the objects with save() and delete(), then call commit().
  *
  * Nothing is sent to the database until commit(), which sends every change as one query: a single round trip to the
@@ -30,7 +30,7 @@ use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
  * Objects are only marked as saved or deleted, and the cache only updated, once the transaction has been committed. So
  * if it fails, every object is left as it was, and nothing has been saved or deleted.
  *
- * This only saves and deletes row objects: it doesn't run any other queries. Every object's table must extend
+ * This only saves and deletes records: it doesn't run any other queries. Every object's table must extend
  * AbstractTable, and every table must use the same database connection, as a transaction can only cover one. A foreign
  * key to a row whose ID the database generates (e.g. SERIAL) must already be set when the object is added, as the new
  * ID isn't known until the transaction runs. IDs generated in code, such as UUIDs, are known straight away.
@@ -57,7 +57,7 @@ final class Transaction
      * before, or inserted if it hasn't. It's saved with the values it has when commit() is called. Adding the same
      * object to save again does nothing, so it stays where it was first added.
      *
-     * @param AbstractTableRowObject $object - the object to save.
+     * @param AbstractRecord $object - the object to save.
      *
      * @return void
      *
@@ -67,7 +67,7 @@ final class Transaction
      * doesn't extend AbstractTable or uses a different database connection from the other objects' tables, or the
      * transaction has already been committed.
      */
-    public function save(AbstractTableRowObject $object) : void
+    public function save(AbstractRecord $object) : void
     {
         if ($object->isDeleted())
         {
@@ -85,7 +85,7 @@ final class Transaction
      * saved has no row to delete, but is still marked as deleted. Adding the same object to delete again, or one that
      * has already been deleted, does nothing.
      *
-     * @param AbstractTableRowObject $object - the object to delete.
+     * @param AbstractRecord $object - the object to delete.
      *
      * @return void
      *
@@ -93,7 +93,7 @@ final class Transaction
      * doesn't extend AbstractTable or uses a different database connection from the other objects' tables, or the
      * transaction has already been committed.
      */
-    public function delete(AbstractTableRowObject $object) : void
+    public function delete(AbstractRecord $object) : void
     {
         $this->addChange(TransactionChangeType::DELETE, $object);
     }
@@ -147,13 +147,13 @@ final class Transaction
      *
      * @param TransactionChangeType $type - whether to save or delete the object.
      *
-     * @param AbstractTableRowObject $object - the object to save or delete.
+     * @param AbstractRecord $object - the object to save or delete.
      *
      * @return void
      *
      * @throws ExceptionInvalidTransaction - see save() and delete().
      */
-    private function addChange(TransactionChangeType $type, AbstractTableRowObject $object) : void
+    private function addChange(TransactionChangeType $type, AbstractRecord $object) : void
     {
         $this->assertNotFinished();
         $objectId = spl_object_id($object);
@@ -184,7 +184,7 @@ final class Transaction
      * sent as one query, while keeping the order they were added in.
      *
      * @return array<array> - the groups, in order, each as ['type' => TransactionChangeType, 'table' => AbstractTable,
-     * 'objects' => array<AbstractTableRowObject>].
+     * 'objects' => array<AbstractRecord>].
      */
     private function groupChanges() : array
     {
@@ -405,7 +405,7 @@ final class Transaction
      * Get the IDs of the rows to delete for some objects, leaving out objects that have no row: those with no ID yet
      * (as the database generates it, and they haven't been saved), and those that have already been deleted.
      *
-     * @param array<AbstractTableRowObject> $objects - the objects being deleted.
+     * @param array<AbstractRecord> $objects - the objects being deleted.
      *
      * @return array<int|string>
      */
@@ -428,9 +428,9 @@ final class Transaction
     /**
      * Leave out the objects that have already been deleted, which deleting again does nothing to.
      *
-     * @param array<AbstractTableRowObject> $objects
+     * @param array<AbstractRecord> $objects
      *
-     * @return array<AbstractTableRowObject>
+     * @return array<AbstractRecord>
      */
     private function getObjectsNotYetDeleted(array $objects) : array
     {

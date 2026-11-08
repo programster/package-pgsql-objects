@@ -1,9 +1,9 @@
 <?php
 
-use Programster\PgsqlObjects\AbstractTableRowObject;
+use Programster\PgsqlObjects\AbstractRecord;
 use Programster\PgsqlObjects\TableInterface;
 
-class DottedNameRecord extends AbstractTableRowObject
+class DottedNameRecord extends AbstractRecord
 {
     // deliberately untyped, so the test can see exactly what type the column was converted to.
     private mixed $m_reading = null;

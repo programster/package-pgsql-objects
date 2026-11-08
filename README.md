@@ -15,7 +15,7 @@ PostgreSQL Objects Package
 **Guides**
 - [Getting started](docs/getting-started.md): connect, create a table, write 
   its classes, and load and save your first rows.
-- [Tables and rows](docs/tables.md): the two classes for each table, required 
+- [Tables and records](docs/tables.md): the two classes for each table, required 
   columns and defaults, column types, generated columns and schemas.
 - [IDs](docs/ids.md): why we recommend UUIDs, and where new rows' IDs come 
   from.
@@ -25,10 +25,9 @@ PostgreSQL Objects Package
 - [Deleting](docs/deleting.md): through the object or the table, and what 
   happens to deleted objects.
 - [Transactions](docs/transactions.md): saving and deleting objects of several 
-  tables together, and how foreign keys and deferrable constraints affect the 
-  order.
-- [Constraints](docs/constraints.md): adding primary key, unique and foreign 
-  key constraints, deferrable or not.
+  tables together, and why we recommend 
+  [deferrable constraints](docs/transactions.md#deferrable-constraints), so the 
+  order of the changes doesn't matter.
 - [The cache](docs/cache.md): the optional cache, and `CacheMode`.
 - [Writing your own queries](docs/custom-queries.md): table methods of your 
   own, safely escaped, that return objects.
@@ -46,8 +45,9 @@ PostgreSQL Objects Package
 ## About
 
 This package aims to act as your object-relational-map (ORM) to a PostgreSQL 
-database. You write a class for each table, and one for its rows, and the 
-package loads, saves and deletes the rows as objects for you.
+database. You write a class for each table, and a record class for its rows, 
+and the package loads, saves and deletes the rows as records: objects you can 
+work with like any other.
 
 
 ## Requirements
@@ -80,9 +80,9 @@ generates.
 ## Quick start
 
 For each table, write a table class, extending `AbstractUuidTable` if its IDs 
-are UUIDs or `AbstractTable` otherwise, and a row class extending 
-`AbstractTableRowObject`, then fill in their abstract methods (see 
-[Tables and rows](docs/tables.md) for a full example, or 
+are UUIDs or `AbstractTable` otherwise, and a record class extending 
+`AbstractRecord`, then fill in their abstract methods (see 
+[Tables and records](docs/tables.md) for a full example, or 
 [Getting started](docs/getting-started.md) for a walkthrough). Then:
 
 ```php

@@ -1,9 +1,9 @@
 <?php
 
-use Programster\PgsqlObjects\AbstractTableRowObject;
+use Programster\PgsqlObjects\AbstractRecord;
 use Programster\PgsqlObjects\TableInterface;
 
-class LedgerRecord extends AbstractTableRowObject
+class LedgerRecord extends AbstractRecord
 {
     // deliberately untyped, so the test can see exactly what type each column was converted to.
     private mixed $m_exactAmount = null;

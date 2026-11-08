@@ -1,9 +1,9 @@
 <?php
 
-use Programster\PgsqlObjects\AbstractTableRowObject;
+use Programster\PgsqlObjects\AbstractRecord;
 use Programster\PgsqlObjects\TableInterface;
 
-class TicketRecord extends AbstractTableRowObject
+class TicketRecord extends AbstractRecord
 {
     private ?string $m_title = null;
     private ?string $m_status = null;

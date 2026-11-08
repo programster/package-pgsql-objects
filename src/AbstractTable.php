@@ -22,7 +22,7 @@ use Programster\PgsqlObjects\Exceptions\ExceptionUnsupportedDatabaseVersion;
 
 
 /**
- * @template T of \Programster\PgsqlObjects\AbstractTableRowObject
+ * @template T of \Programster\PgsqlObjects\AbstractRecord
  */
 abstract class AbstractTable implements TableInterface
 {
@@ -84,14 +84,14 @@ abstract class AbstractTable implements TableInterface
      * @param array $row - name value pairs to insert. Any values for the fields listed in getVirtualFields() are
      * ignored, as the database generates them.
      *
-     * @return AbstractTableRowObject - the object for the inserted row.
+     * @return AbstractRecord - the object for the inserted row.
      *
      * @throws ExceptionMissingRequiredData - if no ID was provided, and neither the code nor the database can
      * generate one.
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
-    public function insert(array $row) : AbstractTableRowObject
+    public function insert(array $row) : AbstractRecord
     {
         $row = $this->prepareRowForInsert($row);
 
@@ -130,7 +130,7 @@ abstract class AbstractTable implements TableInterface
      * @param array<array> $rows - the rows to insert, as name value pairs. Any values for the fields listed in
      * getVirtualFields() are ignored, as the database generates them. Must not be empty.
      *
-     * @return array<AbstractTableRowObject> - the objects for the inserted rows.
+     * @return array<AbstractRecord> - the objects for the inserted rows.
      *
      * @throws ExceptionMissingRequiredData - if $rows is empty, if a row has no ID and neither the code nor the
      * database can generate one, or if no row has any columns at all. This is checked before anything is inserted.
@@ -194,7 +194,7 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
-     * @return array<AbstractTableRowObject>
+     * @return array<AbstractRecord>
      *
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
@@ -236,7 +236,7 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
-     * @return array<AbstractTableRowObject>
+     * @return array<AbstractRecord>
      *
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
@@ -311,17 +311,17 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Make this object the one that is cached for its row, if the cache is enabled. A row object calls this after it
+     * Make this object the one that is cached for its row, if the cache is enabled. A record calls this after it
      * has been saved, so that the cache holds the object that was saved, rather than a copy of it.
      *
-     * @param AbstractTableRowObject $object - the object, which must have been saved to the database.
+     * @param AbstractRecord $object - the object, which must have been saved to the database.
      *
      * @return void
      *
      * @throws ExceptionMissingRequiredData - if the object hasn't been saved to the database, as there is then no row
      * for it to be the cached object of.
      */
-    public function cacheObject(AbstractTableRowObject $object) : void
+    public function cacheObject(AbstractRecord $object) : void
     {
         if ($this->m_isCacheEnabled)
         {
@@ -338,8 +338,8 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Delete the row with the given ID. This doesn't throw if there is no row with the ID. To delete a row object you
-     * already have, you can call delete() on the object itself instead. If the row's object is cached, it is marked as
+     * Delete the row with the given ID. This doesn't throw if there is no row with the ID. To delete a record you
+     * already have, you can call delete() on the object itself instead. If the row's record is cached, it is marked as
      * deleted (so its save() and update() throw ExceptionObjectDeleted, rather than inserting the row again) and
      * removed from the cache.
      *
@@ -586,7 +586,7 @@ abstract class AbstractTable implements TableInterface
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException
      */
-    public function load(string|int $id, CacheMode $cacheMode = CacheMode::USE_CACHE) : AbstractTableRowObject
+    public function load(string|int $id, CacheMode $cacheMode = CacheMode::USE_CACHE) : AbstractRecord
     {
         $objects = $this->loadIds([$id], $cacheMode);
 
@@ -666,7 +666,7 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
-     * @return array<AbstractTableRowObject>
+     * @return array<AbstractRecord>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
@@ -698,7 +698,7 @@ abstract class AbstractTable implements TableInterface
      *
      * @param string|null $orderByColumn - optionally the name of the column to order by. Defaults to the ID column.
      *
-     * @return array<AbstractTableRowObject>
+     * @return array<AbstractRecord>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
@@ -744,7 +744,7 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
-     * @return array<AbstractTableRowObject>
+     * @return array<AbstractRecord>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
@@ -771,7 +771,7 @@ abstract class AbstractTable implements TableInterface
     /**
      * Update a row specified by the ID with the provided data.
      * The returned object has the values from the row the database returns, so it includes any values the database
-     * changed, such as generated columns. When the cache is enabled and the row's object is cached, that object is
+     * changed, such as generated columns. When the cache is enabled and the row's record is cached, that object is
      * refreshed and returned, moving to its new ID in the cache if the ID was changed.
      *
      * @param int|string $id - the current ID of the object being updated (may not necessarily be the same as the
@@ -780,14 +780,14 @@ abstract class AbstractTable implements TableInterface
      * @param array $row - the data to update the object with. Any values for the fields listed in
      * getVirtualFields() are ignored, as the database generates them.
      *
-     * @return AbstractTableRowObject
+     * @return AbstractRecord
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the query failed.
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException - if there is no row with the ID.
      */
-    public function updateById(int|string $id, array $row) : AbstractTableRowObject
+    public function updateById(int|string $id, array $row) : AbstractRecord
     {
-        # This logic must not ever be changed to load the row object and then call update on that
+        # This logic must not ever be changed to load the record and then call update on that
         # because it's update method will call this method and you will end up with a loop.
         $this->assertKnownColumns($row);
         $row = $this->removeVirtualFields($row);
@@ -896,7 +896,7 @@ abstract class AbstractTable implements TableInterface
      * filled in, such as column defaults and generated columns (see getVirtualFields()), as each insert and update
      * returns its row.
      *
-     * @param array<AbstractTableRowObject> $objects - the objects to save.
+     * @param array<AbstractRecord> $objects - the objects to save.
      *
      * @return void
      *
@@ -934,7 +934,7 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
-     * @return AbstractTableRowObject[]
+     * @return AbstractRecord[]
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
@@ -982,7 +982,7 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Helper function that converts a query result into a collection of the row objects, using the cache as
+     * Helper function that converts a query result into a collection of the records, using the cache as
      * $cacheMode says (see CacheMode).
      *
      * @param \Pgsql\Result $result - the result of a query that selected whole rows of this table.
@@ -1005,7 +1005,7 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Return a closure that hydrates a row of data into this table's row object, by calling the row object's
+     * Return a closure that hydrates a row of data into this table's record, by calling the record's
      * createFromDatabaseRow() method.
      *
      * @return \Closure - the closure takes the data row (and optional field info map from getFieldInfoMap()) and
@@ -1018,7 +1018,7 @@ abstract class AbstractTable implements TableInterface
         $rowHydrator = function (
             array $row,
             ?array $fieldInfoMap = null
-        ) use ($objectClassName) : AbstractTableRowObject {
+        ) use ($objectClassName) : AbstractRecord {
             return $objectClassName::createFromDatabaseRow($row, $fieldInfoMap);
         };
 
@@ -1196,9 +1196,9 @@ abstract class AbstractTable implements TableInterface
      *
      * @param CacheMode $cacheMode - how to use the cache.
      *
-     * @return AbstractTableRowObject - the object for the row.
+     * @return AbstractRecord - the object for the row.
      */
-    private function hydrateRow(array $row, CacheMode $cacheMode) : AbstractTableRowObject
+    private function hydrateRow(array $row, CacheMode $cacheMode) : AbstractRecord
     {
         $rowHydrator = $this->getRowHydrator();
         $fieldInfoMap = $this->getFieldInfoMap();
@@ -1231,7 +1231,7 @@ abstract class AbstractTable implements TableInterface
     /**
      * Refresh an existing object with a row's values, so that everything holding the object sees them.
      *
-     * @param AbstractTableRowObject $object - the object to refresh.
+     * @param AbstractRecord $object - the object to refresh.
      *
      * @param array $row - the row from the database.
      *
@@ -1239,7 +1239,7 @@ abstract class AbstractTable implements TableInterface
      *
      * @return void
      */
-    private function refreshObject(AbstractTableRowObject $object, array $row, array $fieldInfoMap) : void
+    private function refreshObject(AbstractRecord $object, array $row, array $fieldInfoMap) : void
     {
         // initializeFromArray() is protected, so call it from within the object's scope.
         $refresh = function (array $row, array $fieldInfoMap) : void {
@@ -1281,7 +1281,7 @@ abstract class AbstractTable implements TableInterface
     /**
      * Forget the cached object of a row that has been deleted: mark it as deleted, so that its save() and update()
      * throw ExceptionObjectDeleted rather than inserting the row again, and remove it from the cache. Does nothing if
-     * the row's object isn't cached.
+     * the row's record isn't cached.
      *
      * @param int|string $id - the ID of the deleted row.
      *
@@ -1301,11 +1301,11 @@ abstract class AbstractTable implements TableInterface
      * Mark an object as deleted, so that its save() and update() throw ExceptionObjectDeleted rather than inserting
      * its row again.
      *
-     * @param AbstractTableRowObject $object - the object whose row has been deleted.
+     * @param AbstractRecord $object - the object whose row has been deleted.
      *
      * @return void
      */
-    private function markObjectDeleted(AbstractTableRowObject $object) : void
+    private function markObjectDeleted(AbstractRecord $object) : void
     {
         // the deleted flag is protected, so set it from within the object's scope.
         $markDeleted = function () : void {
@@ -1324,7 +1324,7 @@ abstract class AbstractTable implements TableInterface
      * generateBatchInsertObjectsQuery()). Every object is checked first, so if one is rejected, nothing has been sent
      * to the database. Pass every statement's result, in order, to takeOnBatchSavedObjects().
      *
-     * @param array<AbstractTableRowObject> $objects - the objects to save, of this table. Must not be empty.
+     * @param array<AbstractRecord> $objects - the objects to save, of this table. Must not be empty.
      *
      * @return array<string> - the statements, in order, each a single SQL statement without a trailing semicolon.
      *
@@ -1390,7 +1390,7 @@ abstract class AbstractTable implements TableInterface
      * filled in, such as its generated ID, column defaults and generated columns, and is cached if the cache is
      * enabled.
      *
-     * @param array<AbstractTableRowObject> $objects - the objects that were saved, as passed to
+     * @param array<AbstractRecord> $objects - the objects that were saved, as passed to
      * generateBatchSaveStatements().
      *
      * @param array<\PgSql\Result> $results - the result of each of its statements, in the same order.
@@ -1461,7 +1461,7 @@ abstract class AbstractTable implements TableInterface
      * Mark the objects a Transaction deleted as deleted, once it has been committed, and forget their rows' cached
      * objects, just as their delete() would.
      *
-     * @param array<AbstractTableRowObject> $objects - the deleted objects, of this table.
+     * @param array<AbstractRecord> $objects - the deleted objects, of this table.
      *
      * @return void
      */
@@ -1486,11 +1486,11 @@ abstract class AbstractTable implements TableInterface
      * objects' values are sent as JSON, which jsonb_populate_record() turns into rows of this table's type, so that
      * every value has its column's type.
      *
-     * Objects don't all have to have the same columns, e.g. a row class may leave out a column it has no value for, so
-     * that the column gets its database default. So the objects are grouped by their columns, and each group gets its
-     * own INSERT, which only inserts those columns, just as insert() would for each object on its own.
+     * Objects don't all have to have the same columns, e.g. a record leaves out a column with a default that it has no
+     * value for, so that the column gets its database default. So the objects are grouped by their columns, and each
+     * group gets its own INSERT, which only inserts those columns, just as insert() would for each object on its own.
      *
-     * @param array<AbstractTableRowObject> $objects - the objects to insert, as a list.
+     * @param array<AbstractRecord> $objects - the objects to insert, as a list.
      *
      * @return string - the query.
      *
@@ -1591,7 +1591,7 @@ abstract class AbstractTable implements TableInterface
      * Give each new object from batchSave() its inserted row, so that it takes on its generated ID, column defaults and
      * generated columns, and is marked as saved, and cached if the cache is enabled.
      *
-     * @param array<AbstractTableRowObject> $objects - the objects that were inserted, in the order they were sent in.
+     * @param array<AbstractRecord> $objects - the objects that were inserted, in the order they were sent in.
      *
      * @param \PgSql\Result $result - the result of the query from generateBatchInsertObjectsQuery().
      *

@@ -1,9 +1,9 @@
 <?php
 
-use Programster\PgsqlObjects\AbstractTableRowObject;
+use Programster\PgsqlObjects\AbstractRecord;
 use Programster\PgsqlObjects\TableInterface;
 
-class ReviewRecord extends AbstractTableRowObject
+class ReviewRecord extends AbstractRecord
 {
     private ?string $m_authorId = null;
     private ?string $m_text = null;

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Test that a row object's ID can be changed through its update(), which changes its row's ID too, and that the cache
+ * Test that a record's ID can be changed through its update(), which changes its row's ID too, and that the cache
  * is updated to match: the old ID is no longer cached, and the object is cached under its new ID.
  */
 

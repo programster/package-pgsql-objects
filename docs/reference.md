@@ -4,7 +4,7 @@ Every public method, in one place, with a link to where it's explained.
 `$cacheMode` is always a `CacheMode` (see [The cache](cache.md)).
 
 - [Table classes](#table-classes)
-- [Row classes](#row-classes)
+- [Record classes](#record-classes)
 - [Transaction](#transaction)
 - [Constraint](#constraint)
 - [Enums](#enums)
@@ -56,9 +56,9 @@ Every public method, in one place, with a link to where it's explained.
 | `disableCache()` | Turns the cache off, and empties it. |
 | `isCacheEnabled()` | Whether the cache is on. |
 | `emptyCache()` | Empties the cache, leaving it on if it was. |
-| `cacheObject($object)` | Makes a saved object the cached one for its row. Row objects call this themselves after saving. |
+| `cacheObject($object)` | Makes a saved object the cached one for its row. Records call this themselves after saving. |
 
-### Describing the table ([Tables and rows](tables.md))
+### Describing the table ([Tables and records](tables.md))
 
 Your table class fills in the abstract ones.
 
@@ -67,7 +67,7 @@ Your table class fills in the abstract ones.
 | `getDb()` | The connection. Abstract. |
 | `getTableName()` | The table's plain name. Abstract. |
 | `getSchemaName()` | The schema's plain name. `public` unless overridden. |
-| `getObjectClassName()` | The row class. Abstract. |
+| `getObjectClassName()` | The record class. Abstract. |
 | `getFieldsThatAllowNull()` | The columns that can be null. Abstract. |
 | `getFieldsThatHaveDefaults()` | The columns with a default. Abstract. |
 | `getVirtualFields()` | The columns the database always generates. Abstract. |
@@ -92,14 +92,14 @@ These are protected, so they can only be used from within the table class.
 | `removeVirtualFields($row)` | Removes the columns the database generates from a row. |
 
 
-## Row classes
+## Record classes
 
-`AbstractTableRowObject`.
+`AbstractRecord`.
 
 | Method | Does |
 |---|---|
 | `YourRecord::createNewFromArray($data)` | Creates a new, unsaved object, generating its ID if the table can ([Saving](saving.md)). |
-| `YourRecord::createFromDatabaseRow($row, $fieldInfoMap = null)` | Creates the object for a row that's already in the database. |
+| `YourRecord::createFromDatabaseRow($row, $fieldInfoMap = null)` | Creates the record for a row that's already in the database. |
 | `save()` | Saves the object: updates its row, or inserts it if it's new. |
 | `update($data)` | Changes some of its values, and saves straight away. |
 | `delete()` | Deletes its row, and marks it as deleted ([Deleting](deleting.md)). |
@@ -109,8 +109,8 @@ These are protected, so they can only be used from within the table class.
 | `isDeleted()` | Whether it has been deleted. |
 | `clone $object` | A new, unsaved copy with a new ID. |
 
-Your row class fills in `getTableHandler()`, `getAccessorFunctions()` and 
-`getSetFunctions()` ([Tables and rows](tables.md#a-row-class)).
+Your record class fills in `getTableHandler()`, `getAccessorFunctions()` and 
+`getSetFunctions()` ([Tables and records](tables.md#a-record-class)).
 
 `getSaveQuery()` and `markSaved()` are public for the table's use, and you 
 shouldn't need them.
@@ -130,7 +130,7 @@ shouldn't need them.
 
 ## Constraint
 
-([Constraints](constraints.md))
+([The Constraint class](transactions.md#the-constraint-class))
 
 | Method | Does |
 |---|---|
@@ -146,5 +146,5 @@ shouldn't need them.
 | Enum | Cases |
 |---|---|
 | `CacheMode` | `USE_CACHE`, `UPDATE_CACHE`, `IGNORE_CACHE` ([The cache](cache.md)). |
-| `DeferConfig` | `NOT_DEFERRABLE`, `INITIALLY_IMMEDIATE`, `INITIALLY_DEFERRED` ([Constraints](constraints.md)). |
+| `DeferConfig` | `NOT_DEFERRABLE`, `INITIALLY_IMMEDIATE`, `INITIALLY_DEFERRED` ([Which setting to use](transactions.md#which-setting-to-use)). |
 | `TransactionChangeType` | `SAVE`, `DELETE`. Used inside `Transaction`, so you don't need it. |

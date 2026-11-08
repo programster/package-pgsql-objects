@@ -1,4 +1,4 @@
-# Tables and rows
+# Tables and records
 
 For each table, you write two classes:
 
@@ -6,8 +6,9 @@ For each table, you write two classes:
   whole, such as loading and inserting rows. Extend `AbstractUuidTable` if the 
   table's IDs are UUIDs, or `AbstractTable` otherwise. Each table class is a 
   singleton, which you get with `getInstance()`.
-- A **row class**, for one row of the table, extending 
-  `AbstractTableRowObject`. Each object is one row.
+- A **record class**, ending in `Record`, extending `AbstractRecord`. Each 
+  record is one row of the table, as an object, which you can load, change, 
+  save and delete.
 
 Then fill in their abstract methods. If you need something rather special, you 
 can implement `TableInterface` yourself instead of extending `AbstractTable`, 
@@ -27,12 +28,12 @@ CREATE TABLE "user" (
 ```
 
 - [A table class](#a-table-class)
-- [A row class](#a-row-class)
+- [A record class](#a-record-class)
 - [Required columns, nulls and defaults](#required-columns-nulls-and-defaults)
 - [Column types](#column-types)
 - [Columns the database generates](#columns-the-database-generates)
 - [Schemas](#schemas)
-- [Getting an object's values](#getting-an-objects-values)
+- [Getting a record's values](#getting-a-records-values)
 
 
 ## A table class
@@ -90,13 +91,13 @@ IDs are generated, with `generateId()`, `canCodeGenerateId()` and
 called `id` overrides `getIdColumnName()`.
 
 
-## A row class
+## A record class
 
 ```php
-use Programster\PgsqlObjects\AbstractTableRowObject;
+use Programster\PgsqlObjects\AbstractRecord;
 use Programster\PgsqlObjects\TableInterface;
 
-class UserRecord extends AbstractTableRowObject
+class UserRecord extends AbstractRecord
 {
     private ?string $m_name = null;
     private ?string $m_email = null;
@@ -263,12 +264,12 @@ dots and quotes, and it qualifies every query with the schema, rather than
 relying on the connection's `search_path`. Use 
 `getEscapedQualifiedTableName()` (e.g. `"billing"."invoice"`) when writing 
 your own queries, and `getTable()` for pgsql-lib's query helpers and 
-[Constraint](constraints.md).
+[Constraint](transactions.md#the-constraint-class).
 
 
-## Getting an object's values
+## Getting a record's values
 
-Each object has a getter for each column, from your row class, and `getId()`. 
+Each object has a getter for each column, from your record class, and `getId()`. 
 `getArrayForm()` returns its ID and the values of the columns in 
 `getAccessorFunctions()`, keyed by column name. It's the raw values, so filter 
 out anything sensitive, such as password hashes, before returning it from an 

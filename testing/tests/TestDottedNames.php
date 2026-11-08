@@ -29,7 +29,7 @@ class TestDottedNames
         $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
         $loaded->update(['reading' => 3.5]);
         $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
-        $this->assertReading($loaded, 3.5, "the row object's update()");
+        $this->assertReading($loaded, 3.5, "the record's update()");
 
         $newRecord = DottedNameRecord::createNewFromArray(['reading' => 4.5]);
         $table->batchSave([$newRecord]);

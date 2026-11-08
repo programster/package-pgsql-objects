@@ -1,9 +1,9 @@
 <?php
 
-use Programster\PgsqlObjects\AbstractTableRowObject;
+use Programster\PgsqlObjects\AbstractRecord;
 use Programster\PgsqlObjects\TableInterface;
 
-class MeasurementRecord extends AbstractTableRowObject
+class MeasurementRecord extends AbstractRecord
 {
     // deliberately untyped, so the test can see exactly what type each column was converted to.
     private mixed $m_reading = null;

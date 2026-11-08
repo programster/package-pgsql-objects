@@ -8,15 +8,26 @@ $author = AuthorRecord::createNewFromArray(['name' => 'Ursula']);
 $book = BookRecord::createNewFromArray(['author_id' => $author->getId(), 'title' => 'Earthsea']);
 
 $transaction = new Transaction();
-$transaction->save($author);       // before the book, which has a foreign key to it.
+$transaction->save($author);
 $transaction->save($book);
-$transaction->delete($oldEdition); // delete rows before the rows they reference.
+$transaction->delete($oldEdition);
 $transaction->commit();
 ```
 
+The author is saved before the book, as the book has a foreign key to it. With 
+a deferrable foreign key, the order wouldn't matter (see 
+[Deferrable constraints](#deferrable-constraints)).
+
 - [How it works](#how-it-works)
-- [Constraints and the order of changes](#constraints-and-the-order-of-changes)
-- [Making constraints deferrable](#making-constraints-deferrable)
+- [Deferrable constraints](#deferrable-constraints): why we recommend them, and 
+  how to make yours deferrable
+  - [Why it helps](#why-it-helps)
+  - [What can be deferred](#what-can-be-deferred)
+  - [Which setting to use](#which-setting-to-use)
+  - [New tables](#new-tables)
+  - [Existing tables](#existing-tables)
+  - [The Constraint class](#the-constraint-class)
+  - [Things to be aware of](#things-to-be-aware-of)
 - [IDs the database generates](#ids-the-database-generates)
 - [Inside a transaction that's already open](#inside-a-transaction-thats-already-open)
 - [Rules](#rules)
@@ -46,94 +57,115 @@ $transaction->commit();
   when you added it.
 
 
-## Constraints and the order of changes
+## Deferrable constraints
 
-The changes are made in the order you add them. Whether that order matters 
-depends on when PostgreSQL checks each constraint.
+The changes are made in the order you add them, and how much that order 
+matters depends on your database's constraints, and whether they're 
+**deferrable**. **We recommend making your foreign keys deferrable**, with 
+`DEFERRABLE INITIALLY IMMEDIATE`, so that the order of a transaction's changes 
+doesn't matter. This section explains why, and how, for new tables and 
+existing ones, including with this package's `Constraint` class. It applies to 
+`batchSave()` too, which defers constraints in the same way.
 
-| Constraint | When it's checked |
-|---|---|
-| Foreign key, unique or primary key, created normally | As each change is made. This is PostgreSQL's default (`NOT DEFERRABLE`). |
-| Foreign key, unique or primary key, created `DEFERRABLE` | Once every change has been made, at the commit, as a `Transaction` defers them. |
-| `NOT NULL` and `CHECK` | Always as each change is made. They can't be deferred. |
+### Why it helps
 
-So with normal constraints, **the order matters**:
+PostgreSQL normally checks a foreign key, unique or primary key constraint as 
+each change is made. So when you save many objects together, **the order 
+matters**: every change has to leave the database valid, not just the last 
+one. A book saved before its new author fails, even if the author is saved a 
+moment later in the same transaction:
 
-- Add a row before any row with a foreign key to it, e.g. an author before 
-  their books.
-- Delete rows before the rows they reference, e.g. the books before their 
-  author.
-- Two rows can't swap values of a unique column, as the first change would 
-  briefly give both rows the same value.
+```php
+$author = AuthorRecord::createNewFromArray(['name' => 'Ursula']);
+$book = BookRecord::createNewFromArray(['author_id' => $author->getId(), 'title' => 'Earthsea']);
 
-If a change breaks a normal constraint, the whole transaction fails there, 
-even if a later change would have put things right.
+$transaction = new Transaction();
+$transaction->save($book);   // fails here, with a normal foreign key: the author doesn't exist yet.
+$transaction->save($author);
+$transaction->commit();
+```
 
-With `DEFERRABLE` constraints, **the order doesn't matter**, as long as 
-everything is right by the end. A `Transaction` starts by running 
-`SET CONSTRAINTS ALL DEFERRED`, so PostgreSQL checks them all at the commit 
-instead. `batchSave()` does the same. If one is still broken at the commit, 
-the whole transaction is rolled back, as with any other failure.
+The whole transaction is then rolled back, so nothing is lost, but you have to 
+work out the right order yourself, and keep it right as the code changes:
 
-You'll want deferrable constraints when no order can satisfy them, such as:
+- add rows before the rows that reference them,
+- delete rows before the rows they reference,
+- and save related objects of several tables in an order that suits every 
+  foreign key between them.
+
+Sometimes there's no order that works at all:
 
 - **Rows that reference each other**, e.g. a team whose `owner_id` references a 
-  user, whose `team_id` references the team. Whichever is inserted first 
+  user, whose `team_id` references the team. Whichever is saved first 
   references a row that doesn't exist yet.
 - **Swapping unique values**, e.g. reordering items with a unique `position`, 
-  or swapping two users' email addresses.
-- **Code that can't easily control the order**, e.g. saving whatever a form or 
-  an import changed.
+  or swapping two users' email addresses. The first change briefly gives two 
+  rows the same value.
 
-Otherwise, normal constraints and the right order are simpler, and catch a 
-mistake at the change that caused it.
+**A deferrable constraint can be checked once, at the end of the transaction, 
+instead.** Every `Transaction`, and every `batchSave()`, starts by running 
+`SET CONSTRAINTS ALL DEFERRED`, so with deferrable constraints, **the order 
+doesn't matter**: the example above just works, and so do the cases with no 
+working order, as long as everything is right by the end. If something is 
+still wrong then, e.g. a book whose author is never saved, the commit fails, 
+and the whole transaction is rolled back, as with any other failure.
+
+This matters most when the order is hard to control, such as code that saves 
+whatever a form or an import changed, or a `Transaction` built up by several 
+parts of your application.
 
 
-## Making constraints deferrable
+### What can be deferred
 
-A constraint is only deferrable if it was created that way. Nothing about the 
-table class changes: it's only the database's constraint.
+| Constraint | Can be deferred? |
+|---|---|
+| Foreign key | Yes, if it's created `DEFERRABLE`. |
+| Unique, and primary key | Yes, if it's created `DEFERRABLE`, but see [Things to be aware of](#things-to-be-aware-of). |
+| `NOT NULL` and `CHECK` | No. They're always checked as each change is made. |
 
-**`DEFERRABLE INITIALLY IMMEDIATE`** is usually what you want. It's checked as 
-each change is made, as normal, unless a transaction defers it, as a 
-`Transaction` and `batchSave()` do. So everywhere else, a mistake still shows 
-straight away. `DEFERRABLE INITIALLY DEFERRED` is always checked at the end of 
-the transaction instead.
+Constraints aren't deferrable unless they're created that way: PostgreSQL's 
+default is `NOT DEFERRABLE`, and `SET CONSTRAINTS ALL DEFERRED` quietly has no 
+effect on those. Nothing in your table or record classes changes: it's only the 
+database's constraint.
 
-In SQL, e.g. in a migration:
+
+### Which setting to use
+
+A deferrable constraint also says when it's checked, unless a transaction says 
+otherwise:
+
+| SQL | `DeferConfig` | Checked |
+|---|---|---|
+| `NOT DEFERRABLE` | `NOT_DEFERRABLE` | As each change is made, always. PostgreSQL's default. |
+| `DEFERRABLE INITIALLY IMMEDIATE` | `INITIALLY_IMMEDIATE` | As each change is made, unless the transaction defers it, as `Transaction` and `batchSave()` do. |
+| `DEFERRABLE INITIALLY DEFERRED` | `INITIALLY_DEFERRED` | At the end of the transaction, always. |
+
+**`DEFERRABLE INITIALLY IMMEDIATE` is usually what you want.** The package's 
+batches defer it, so their order doesn't matter, but everywhere else, such as 
+a single `save()` or a query of your own, it's checked straight away, so a 
+mistake still shows at the change that caused it.
+
+
+### New tables
+
+Add `DEFERRABLE INITIALLY IMMEDIATE` to the constraint, e.g. in a migration:
 
 ```sql
 CREATE TABLE "book" (
-    "id" SERIAL PRIMARY KEY,
+    "id" uuid PRIMARY KEY,
     "author_id" uuid NOT NULL REFERENCES "author" ("id") DEFERRABLE INITIALLY IMMEDIATE,
     "title" varchar(255) NOT NULL
 );
 ```
 
-Or with this package's `Constraint`, which takes a `DeferConfig`:
+Or add it afterwards, with the [Constraint class](#the-constraint-class).
 
-```php
-$db = BookTable::getInstance()->getDb();
 
-$foreignKey = Constraint::createForeignKey(
-    BookTable::getInstance()->getTable(),
-    'author_id',
-    'book_author_id_fkey',
-    AuthorTable::getInstance()->getTable(),
-    'id',
-    DeferConfig::INITIALLY_IMMEDIATE,
-    $db
-);
+### Existing tables
 
-$db->query($foreignKey->getSqlCreate());
-```
-
-`Constraint::createUnique()` and `createPrimary()` take a `DeferConfig` too 
-(see [Constraints](constraints.md)).
-
-**For an existing table**, find its constraints' names, and whether they're 
-deferrable (`contype` is `f` for a foreign key, `p` for the primary key and `u` 
-for unique):
+First, find the table's constraints, and whether they're deferrable 
+(`contype` is `f` for a foreign key, `p` for the primary key and `u` for 
+unique):
 
 ```sql
 SELECT conname, contype, condeferrable
@@ -156,17 +188,81 @@ ALTER TABLE "product"
     ADD CONSTRAINT "product_position_key" UNIQUE ("position") DEFERRABLE INITIALLY IMMEDIATE;
 ```
 
-Things to be aware of:
+
+### The Constraint class
+
+The `Constraint` class builds the SQL to add and drop primary key, unique and 
+foreign key constraints, with the names escaped for you, and takes a 
+`DeferConfig`, so it's easy to make them deferrable, e.g. in migrations. It 
+doesn't run anything itself: it gives you the SQL to run.
+
+```php
+use Programster\PgsqlObjects\Constraint;
+use Programster\PgsqlObjects\DeferConfig;
+
+$db = ConnectionHandler::getDb();
+
+$foreignKey = Constraint::createForeignKey(
+    BookTable::getInstance()->getTable(),
+    'author_id',
+    'book_author_id_fkey',
+    AuthorTable::getInstance()->getTable(),
+    'id',
+    DeferConfig::INITIALLY_IMMEDIATE,
+    $db
+);
+
+$db->query($foreignKey->getSqlCreate()); // ALTER TABLE "public"."book" ADD CONSTRAINT ...
+
+// and to undo it, e.g. in a migration's down():
+$db->query($foreignKey->getSqlDelete()); // ALTER TABLE "public"."book" DROP CONSTRAINT ...
+```
+
+The three kinds:
+
+```php
+Constraint::createPrimary($table, $constraintName, $columnNames, $deferConfig, $db);
+Constraint::createUnique($table, $constraintName, $columnNames, $deferConfig, $db);
+
+Constraint::createForeignKey(
+    $table,
+    $columnName,
+    $constraintName,
+    $referencedTable,
+    $referencedColumn,
+    $deferConfig,
+    $db
+);
+```
+
+A table can be given as a name, which PostgreSQL looks up using the 
+connection's `search_path`, or as a pgsql-lib `Table`, from a table class's 
+`getTable()`, which includes its schema. Use a `Table` for a table in a schema 
+other than `public`. A foreign key can reference a table in a different schema 
+from its own.
+
+A `Constraint` also has `getName()`, `getTable()` and `getTableName()`.
+
+To change an existing foreign key to be deferrable, use the `ALTER CONSTRAINT` 
+in [Existing tables](#existing-tables), rather than dropping it and adding it 
+again.
+
+
+### Things to be aware of
 
 - **A foreign key can't reference a deferrable unique or primary key.** 
   PostgreSQL refuses to create one. So keep the primary keys and unique 
   columns that other tables reference non-deferrable, and make the foreign 
-  keys that reference them deferrable instead.
+  keys that reference them deferrable instead. That covers the most common 
+  case, saving related rows in any order.
 - A deferrable unique constraint can't be used by `INSERT ... ON CONFLICT`, if 
   your own queries rely on one.
-- A deferred constraint that fails only fails at the commit, so the error 
+- A deferred constraint that's broken only fails at the commit, so the error 
   comes from the commit, not the change that caused it. The error message 
-  still says which constraint and which values.
+  still says which constraint, and which values.
+- Inside a transaction that's already open, deferred constraints aren't 
+  checked until that transaction is committed (see 
+  [below](#inside-a-transaction-thats-already-open)).
 
 
 ## IDs the database generates

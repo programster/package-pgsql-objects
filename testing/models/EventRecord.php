@@ -1,9 +1,9 @@
 <?php
 
-use Programster\PgsqlObjects\AbstractTableRowObject;
+use Programster\PgsqlObjects\AbstractRecord;
 use Programster\PgsqlObjects\TableInterface;
 
-class EventRecord extends AbstractTableRowObject
+class EventRecord extends AbstractRecord
 {
     private ?string $m_name = null;
 

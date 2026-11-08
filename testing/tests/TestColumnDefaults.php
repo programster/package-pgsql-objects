@@ -5,8 +5,8 @@
  * for them, while objects inserted alongside it can give their own values, including null on purpose for a column that
  * allows it. This is checked for every way of inserting objects: save(), update() on an unsaved object, batchSave() and
  * Transaction, for a table whose IDs are generated in code (inserted one INSERT per object), and one whose IDs the
- * database generates (inserted by a MERGE, which needs PostgreSQL 17 or newer). The row class's accessors list every
- * column, so this checks the package handles it, rather than the row class.
+ * database generates (inserted by a MERGE, which needs PostgreSQL 17 or newer). The record class's accessors list every
+ * column, so this checks the package handles it, rather than the record class.
  */
 
 use Programster\PgsqlObjects\AbstractTable;
@@ -149,7 +149,7 @@ class TestColumnDefaults
     /**
      * Create a new object for each case.
      *
-     * @param string $recordClass - the row class to create them with.
+     * @param string $recordClass - the record class to create them with.
      *
      * @return array<string, AbstractNoteRecord> - the objects, by title.
      */

@@ -1,12 +1,12 @@
 <?php
 
-use Programster\PgsqlObjects\AbstractTableRowObject;
+use Programster\PgsqlObjects\AbstractRecord;
 
 /**
  * A note, for the note_uuid and note_serial tables. Its accessors list every column, even while one with a default is
  * null, so that the tests check the package leaves those out of a new object's insert itself.
  */
-abstract class AbstractNoteRecord extends AbstractTableRowObject
+abstract class AbstractNoteRecord extends AbstractRecord
 {
     private ?string $m_title = null;
     private ?string $m_status = null;

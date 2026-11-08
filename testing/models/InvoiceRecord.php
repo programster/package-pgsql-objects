@@ -1,9 +1,9 @@
 <?php
 
-use Programster\PgsqlObjects\AbstractTableRowObject;
+use Programster\PgsqlObjects\AbstractRecord;
 use Programster\PgsqlObjects\TableInterface;
 
-class InvoiceRecord extends AbstractTableRowObject
+class InvoiceRecord extends AbstractRecord
 {
     private int $m_quantity;
     private int $m_unitPricePence;

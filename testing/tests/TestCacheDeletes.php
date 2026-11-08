@@ -2,7 +2,7 @@
 
 /*
  * Test that every way of deleting rows through the table, while the cache is enabled, only forgets the deleted rows'
- * cached objects, marking them as deleted so they can't be saved again, and leaves the remaining rows' objects in the
+ * cached objects, marking them as deleted so they can't be saved again, and leaves the remaining rows' records in the
  * cache, so there is still only one object for each of them.
  */
 

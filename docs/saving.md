@@ -60,11 +60,11 @@ foreach ($products as $product)
 $productTable->batchSave($products);
 ```
 
-So that you can do this, give your row classes setters that only set the 
+So that you can do this, give your record classes setters that only set the 
 value, and never call `save()`:
 
 ```php
-class ProductRecord extends AbstractTableRowObject
+class ProductRecord extends AbstractRecord
 {
     // ...
 
@@ -93,7 +93,7 @@ Things to be aware of with `batchSave()`:
   defaults and generated columns. It's still one query, and one round trip.
 - Deleted objects are rejected before anything is saved.
 - Constraints created `DEFERRABLE` are only checked once every object has been 
-  saved (see [Transactions](transactions.md#constraints-and-the-order-of-changes)).
+  saved (see [Deferrable constraints](transactions.md#deferrable-constraints)).
 - If a transaction is already open, it all runs within it.
 
 

@@ -1,9 +1,9 @@
 <?php
 
-use Programster\PgsqlObjects\AbstractTableRowObject;
+use Programster\PgsqlObjects\AbstractRecord;
 use Programster\PgsqlObjects\TableInterface;
 
-class UserRecord extends AbstractTableRowObject
+class UserRecord extends AbstractRecord
 {
     private ?string $m_email = null;
     private ?string $m_name = null;

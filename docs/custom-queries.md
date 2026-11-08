@@ -41,7 +41,7 @@ class UserTable extends AbstractUuidTable
 Things to get right:
 
 - **Select only the table's columns**, e.g. `SELECT * FROM` the table, or 
-  `SELECT "user".* FROM "user" JOIN ...`. A column the row class has no setter 
+  `SELECT "user".* FROM "user" JOIN ...`. A column the record class has no setter 
   for throws `ExceptionUnknownColumn`, and every row must include the ID.
 - **Escape everything you put into the query**: values with 
   `$db->escapeValue()` (or `escapeValues()` for a list), and names with 

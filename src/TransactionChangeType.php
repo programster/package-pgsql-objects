@@ -1,7 +1,7 @@
 <?php
 
 /*
- * The kinds of change a Transaction makes to a row object. Transaction uses this internally: add changes with its
+ * The kinds of change a Transaction makes to a record. Transaction uses this internally: add changes with its
  * save() and delete().
  */
 
