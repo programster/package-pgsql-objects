@@ -44,7 +44,7 @@ use Programster\PgsqlObjects\AbstractUuidTable;
 
 class UserTable extends AbstractUuidTable
 {
-    // the connection to use (see Getting started).
+    // the connection to use. Getting started has an example ConnectionHandler.
     public function getDb() : PgSqlConnection
     {
         return ConnectionHandler::getDb();
@@ -65,7 +65,7 @@ class UserTable extends AbstractUuidTable
     }
 
 
-    // the columns the database always generates itself (see below).
+    // generated columns, which the database always computes itself. See "Columns the database generates" below.
     public function getVirtualFields() : array
     {
         return [];
@@ -143,7 +143,7 @@ class UserRecord extends AbstractRecord
 
 
     # Setters
-    // setters that only set, so that many objects can be changed and saved together (see Saving).
+    // setters that only set, so that many records can be changed and then saved together, e.g. with batchSave().
     public function setNickname(?string $nickname) : void
     {
         $this->m_nickname = $nickname;
@@ -158,7 +158,8 @@ your own query, select only the table's columns (see
 [Writing your own queries](custom-queries.md)).
 
 `getAccessorFunctions()` lists the columns that are sent to the database when 
-the object is saved. Columns the database generates (see below) are never 
+the record is saved. 
+[Columns the database generates](#columns-the-database-generates) are never 
 sent, even if they're listed.
 
 The public setters are separate from `getSetFunctions()`, and are up to you. 

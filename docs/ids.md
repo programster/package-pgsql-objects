@@ -18,7 +18,8 @@ have a reason not to. As the IDs are generated in code:
   can all be saved together in one [transaction](transactions.md).
 - Saving many new objects at once, with `batchSave()` or a transaction, works 
   on every supported version of PostgreSQL. With IDs the database generates, 
-  it needs PostgreSQL 17 or newer (see below).
+  it needs PostgreSQL 17 or newer (see 
+  [IDs generated in code, or by the database](#ids-generated-in-code-or-by-the-database)).
 - IDs can't be guessed from each other, or tell anyone how many rows there 
   are, as counting IDs can.
 
