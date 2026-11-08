@@ -171,8 +171,8 @@ The row object's own `delete()` and `update($data)` are unchanged.
   versions older than 17, the tests check that `batchSave()` rejects new objects without
   IDs with `ExceptionUnsupportedDatabaseVersion`, saving nothing.
 - The tests run on GitHub Actions, on Linux (PHP 8.2 to 8.5), macOS, Windows and WSL,
-  against PostgreSQL 14 to 18 (18 in WSL), for both the `main` and `5.x` branches, with
-  a badge for each platform and branch at the top of the README.
+  against PostgreSQL 14 to 18 (18 in WSL), with a badge for each platform at the top of
+  the README.
 
 ### Fixed
 - `deleteIdsNotIn()` left the deleted objects in the cache, so `load()` could still

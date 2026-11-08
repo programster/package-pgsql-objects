@@ -1,10 +1,11 @@
 PostgreSQL Objects Package
 ==========================
 
-| Branch | Tests |
-|---|---|
-| `main` (4.x) | [![Linux tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml?query=branch%3Amain) [![Windows tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml?query=branch%3Amain) [![macOS tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml?query=branch%3Amain) [![WSL tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml?query=branch%3Amain) |
-| `5.x` | [![Linux tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml?query=branch%3A5.x) [![Windows tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml?query=branch%3A5.x) [![macOS tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml?query=branch%3A5.x) [![WSL tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml?query=branch%3A5.x) |
+<!-- These badges show the 5.x branch's tests. Change "5.x" to "main" in them when 5.x is merged into main. -->
+[![Linux tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml?query=branch%3A5.x)
+[![Windows tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml?query=branch%3A5.x)
+[![macOS tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml?query=branch%3A5.x)
+[![WSL tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml/badge.svg?branch=5.x)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml?query=branch%3A5.x)
 
 This package aims to act as your object-relational-map (ORM) to a PostgreSQL 
 database.
@@ -224,8 +225,8 @@ needs docker and bash (on Windows, Git Bash or WSL), and uses ports 5454 to
 5458 (5440 plus the version).
 
 The tests also run on GitHub Actions, for pushes to `main` and `5.x`, every tag, 
-and pull requests into either, which is what the badges at the top of this 
-README show, with a row for each branch:
+and pull requests into either. The badges at the top of this README show the 
+latest results for this branch:
 - **Linux** (`.github/workflows/tests.yml`): runs `testing/run-all-versions.sh`
   on PHP 8.2, 8.3, 8.4 and 8.5.
 - **macOS and Windows** (`tests-macos.yml` and `tests-windows.yml`, which share
