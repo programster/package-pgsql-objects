@@ -13,6 +13,7 @@ use Programster\PgsqlLib\Conjunction;
 use Programster\PgsqlLib\Exceptions\ExceptionQueryError;
 use Programster\PgsqlLib\PgSqlConnection;
 use Programster\PgsqlLib\Table;
+use Programster\PgsqlObjects\Exceptions\ExceptionInvalidId;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 use Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException;
 use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
@@ -90,6 +91,7 @@ abstract class AbstractTable implements TableInterface
      * generate one.
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function insert(array $row) : AbstractRecord
     {
@@ -140,6 +142,8 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the insert failed, in which case none of the
      * rows are inserted.
+     *
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function batchInsert(array $rows) : array
     {
@@ -198,6 +202,7 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function loadWhereAnd(array $wherePairs, CacheMode $cacheMode) : array
     {
@@ -210,6 +215,7 @@ abstract class AbstractTable implements TableInterface
         }
 
         $this->assertKnownColumns($wherePairs);
+        $wherePairs = $this->normalizeIdInPairs($wherePairs);
 
         $query = $this->getDb()->generateSelectWhereQuery(
             $this->getTable(),
@@ -240,6 +246,7 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function loadWhereOr(array $wherePairs, CacheMode $cacheMode) : array
     {
@@ -252,6 +259,7 @@ abstract class AbstractTable implements TableInterface
         }
 
         $this->assertKnownColumns($wherePairs);
+        $wherePairs = $this->normalizeIdInPairs($wherePairs);
 
         $query = $this->getDb()->generateSelectWhereQuery(
             $this->getTable(),
@@ -348,9 +356,11 @@ abstract class AbstractTable implements TableInterface
      * @return void
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function deleteById(int|string $id) : void
     {
+        $id = $this->normalizeId($id);
         $escapedValue = $this->getDb()->escapeValue($id);
         $tableName = $this->getEscapedQualifiedTableName();
         $query = "DELETE FROM {$tableName} WHERE {$this->getEscapedIdColumnName()} = {$escapedValue}";
@@ -369,9 +379,12 @@ abstract class AbstractTable implements TableInterface
      * @return void
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function deleteByIds(array $ids) : void
     {
+        $ids = $this->normalizeIds($ids);
+
         // an empty IN() is invalid SQL, and there is nothing to delete anyway.
         if (count($ids) > 0)
         {
@@ -397,6 +410,7 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty, rather than deleting every row.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function deleteWhereAnd(array $wherePairs) : void
     {
@@ -425,6 +439,7 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty, rather than deleting every row.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function deleteWhereOr(array $wherePairs) : void
     {
@@ -585,6 +600,7 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function load(string|int $id, CacheMode $cacheMode = CacheMode::USE_CACHE) : AbstractRecord
     {
@@ -617,9 +633,11 @@ abstract class AbstractTable implements TableInterface
      * @psalm-return array<string|int, T>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function loadIds(array $ids, CacheMode $cacheMode = CacheMode::USE_CACHE) : array
     {
+        $ids = $this->normalizeIds($ids);
         $loadedObjects = [];
         $idsToFetch = [];
 
@@ -747,6 +765,7 @@ abstract class AbstractTable implements TableInterface
      * @return array<AbstractRecord>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function loadAfterId(string|int|null $afterId, int $numElements, CacheMode $cacheMode) : array
     {
@@ -754,6 +773,7 @@ abstract class AbstractTable implements TableInterface
 
         if ($afterId !== null)
         {
+            $afterId = $this->normalizeId($afterId);
             $whereClause = " WHERE {$this->getEscapedIdColumnName()} > {$this->getDb()->escapeValue($afterId)}";
         }
 
@@ -784,13 +804,15 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the query failed.
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException - if there is no row with the ID.
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function updateById(int|string $id, array $row) : AbstractRecord
     {
         # This logic must not ever be changed to load the record and then call update on that
         # because it's update method will call this method and you will end up with a loop.
         $this->assertKnownColumns($row);
-        $row = $this->removeVirtualFields($row);
+        $id = $this->normalizeId($id);
+        $row = $this->normalizeIdInPairs($this->removeVirtualFields($row));
         $idColumnName = $this->getIdColumnName();
 
         if (count($row) > 0)
@@ -843,6 +865,7 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws ExceptionMissingRequiredData - if $ids is empty, rather than deleting every row.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function deleteIdsNotIn(array $ids) : void
     {
@@ -854,6 +877,7 @@ abstract class AbstractTable implements TableInterface
             );
         }
 
+        $ids = $this->normalizeIds($ids);
         $escapedIds = $this->getDb()->escapeValues($ids);
 
         $query =
@@ -937,9 +961,11 @@ abstract class AbstractTable implements TableInterface
      * @return AbstractRecord[]
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      */
     public function loadIdsNotIn(array $ids, CacheMode $cacheMode) : array
     {
+        $ids = $this->normalizeIds($ids);
         $tableName = $this->getEscapedQualifiedTableName();
 
         if (count($ids) > 0)
@@ -978,6 +1004,24 @@ abstract class AbstractTable implements TableInterface
     public function getEscapedIdColumnName() : string
     {
         return $this->getDb()->escapeIdentifier($this->getIdColumnName());
+    }
+
+
+    /**
+     * Check that a value can be one of this table's IDs, and return it in the form the database stores it, so it
+     * matches the cache and the IDs of loaded records. Every method that takes an ID calls this before any query runs.
+     * You can also call it yourself, e.g. to check an ID from a URL. By default, every ID is accepted as it is. A table
+     * whose IDs have a format overrides this, as AbstractUuidTable does for UUIDs.
+     *
+     * @param int|string $id - the ID to check.
+     *
+     * @return int|string - the ID, in its standard form.
+     *
+     * @throws ExceptionInvalidId - if the value can't be one of this table's IDs.
+     */
+    public function normalizeId(int|string $id) : int|string
+    {
+        return $id;
     }
 
 
@@ -1076,7 +1120,7 @@ abstract class AbstractTable implements TableInterface
     private function prepareRowForInsert(array $row) : array
     {
         $this->assertKnownColumns($row);
-        $row = $this->removeVirtualFields($row);
+        $row = $this->normalizeIdInPairs($this->removeVirtualFields($row));
         $idColumnName = $this->getIdColumnName();
 
         // prefer generating the ID in code whenever possible.
@@ -1267,6 +1311,7 @@ abstract class AbstractTable implements TableInterface
     private function deleteWhere(array $wherePairs, Conjunction $conjunction) : void
     {
         $this->assertKnownColumns($wherePairs);
+        $wherePairs = $this->normalizeIdInPairs($wherePairs);
         $query = $this->getDb()->generateDeleteWhereQuery($this->getTable(), $wherePairs, $conjunction);
         $result = $this->getDb()->query($query . " RETURNING {$this->getEscapedIdColumnName()}");
         $idColumnName = $this->getIdColumnName();
@@ -1275,6 +1320,58 @@ abstract class AbstractTable implements TableInterface
         {
             $this->forgetDeletedRow($deletedRow[$idColumnName]);
         }
+    }
+
+
+    /**
+     * Normalize every ID in a list (see normalizeId()).
+     *
+     * @param array<int|string> $ids - the IDs, which keep their keys.
+     *
+     * @return array<int|string> - the IDs, in their standard form.
+     *
+     * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs.
+     */
+    private function normalizeIds(array $ids) : array
+    {
+        $normalizedIds = [];
+
+        foreach ($ids as $key => $id)
+        {
+            $normalizedIds[$key] = $this->normalizeId($id);
+        }
+
+        return $normalizedIds;
+    }
+
+
+    /**
+     * Normalize the ID in a row, or in where pairs, if it has one (see normalizeId()). Its value may be a list of IDs,
+     * as where pairs allow, and a null ID (e.g. for the database to generate) is left as it is.
+     *
+     * @param array $pairs - column name/value pairs.
+     *
+     * @return array - the pairs, with the ID in its standard form.
+     *
+     * @throws ExceptionInvalidId - if the ID can't be one of this table's IDs.
+     */
+    private function normalizeIdInPairs(array $pairs) : array
+    {
+        $idColumnName = $this->getIdColumnName();
+
+        if (isset($pairs[$idColumnName]))
+        {
+            if (is_array($pairs[$idColumnName]))
+            {
+                $pairs[$idColumnName] = $this->normalizeIds($pairs[$idColumnName]);
+            }
+            else
+            {
+                $pairs[$idColumnName] = $this->normalizeId($pairs[$idColumnName]);
+            }
+        }
+
+        return $pairs;
     }
 
 

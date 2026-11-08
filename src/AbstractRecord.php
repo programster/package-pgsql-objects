@@ -101,6 +101,9 @@ abstract class AbstractRecord
      *
      * @throws ExceptionUnknownColumn - if the data has a key that is neither the ID column nor one this object has a
      * setter for, which is usually a typo.
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionInvalidId - if an ID is given, which can't be one of the
+     * table's IDs, e.g. it isn't a UUID.
      */
     public static function createNewFromArray(array $data) : static
     {
@@ -109,7 +112,12 @@ abstract class AbstractRecord
         $idColumnName = $tableHandler->getIdColumnName();
 
         // this is the only place a new object gets an ID generated, apart from cloning.
-        if (!isset($data[$idColumnName]))
+        if (isset($data[$idColumnName]))
+        {
+            // a given ID must be valid for the table, e.g. a UUID, and is kept in the form the database stores it.
+            $data[$idColumnName] = $tableHandler->normalizeId($data[$idColumnName]);
+        }
+        else
         {
             if ($tableHandler->canCodeGenerateId())
             {
@@ -179,6 +187,9 @@ abstract class AbstractRecord
      *
      * @throws ExceptionUnknownColumn - if a key is neither the ID column nor one this object has a setter for, which
      * is usually a typo.
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionInvalidId - if a new ID is given, which can't be one of
+     * the table's IDs, e.g. it isn't a UUID.
      */
     public function update(array $data) : void
     {
@@ -192,6 +203,12 @@ abstract class AbstractRecord
         $tableHandler = $this->getTableHandler();
         $idColumnName = $tableHandler->getIdColumnName();
         $setters = $this->getSetFunctions();
+
+        // check a new ID before anything is changed, so that an invalid one leaves the object as it was.
+        if (isset($data[$idColumnName]))
+        {
+            $data[$idColumnName] = $tableHandler->normalizeId($data[$idColumnName]);
+        }
 
         foreach ($data as $name => $value)
         {

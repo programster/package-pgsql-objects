@@ -18,14 +18,21 @@ class TestQueryErrorsThrow
     public function run() : void
     {
         $table = UserTable::getInstance();
+        $user = $table->insert(['name' => 'valid', 'email' => 'valid@example.com']);
+        $measurementTable = MeasurementTable::getInstance();
 
         $failingCalls = [
-            'loadWhereOr' => function () use ($table) : void {
-                $table->loadWhereOr(['id' => 'not-a-uuid'], CacheMode::USE_CACHE);
+            // reading is a double precision column, which can't hold this. (An invalid UUID would be caught before the
+            // query runs, as an ExceptionInvalidId, so it no longer makes a query fail.)
+            'loadWhereOr' => function () use ($measurementTable) : void {
+                $measurementTable->loadWhereOr(['reading' => 'not-a-number'], CacheMode::USE_CACHE);
             },
             // a negative OFFSET is an error.
             'loadRange'   => function () use ($table) : void { $table->loadRange(-1, 1, CacheMode::USE_CACHE); },
-            'updateById'  => function () use ($table) : void { $table->updateById('not-a-uuid', ['name' => 'x']); },
+            // name is NOT NULL.
+            'updateById'  => function () use ($table, $user) : void {
+                $table->updateById($user->getId(), ['name' => null]);
+            },
         ];
 
         // No error handler is needed to suppress pg_query()'s warning, as pgsql-lib 3.0 stops it reaching the

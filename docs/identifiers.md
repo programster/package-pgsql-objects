@@ -18,6 +18,8 @@ CREATE TABLE "user" (
 - [Why UUIDs are better](#why-uuids-are-better)
 - [The costs, honestly](#the-costs-honestly)
 - [Generating UUIDs yourself](#generating-uuids-yourself)
+- [Choosing the version](#choosing-the-version)
+- [IDs that aren't valid](#ids-that-arent-valid)
 - [Where new rows' IDs come from](#where-new-rows-ids-come-from)
 - [Tables whose IDs the database generates](#tables-whose-ids-the-database-generates)
 - [Changing an ID](#changing-an-id)
@@ -114,7 +116,8 @@ roughly by when they were made, which is handy for `loadAfterId()` and
 - **Version 7 includes when it was made:** anyone with a UUID can tell when 
   its row was created, to the millisecond. That's rarely a secret, as most 
   tables have a `created_at` anyway, but if it is for one of yours, use a fully 
-  random version 4 UUID for that table instead, by overriding `generateId()`.
+  random version 4 UUID for that table instead (see 
+  [Choosing the version](#choosing-the-version)).
 
 For almost every table, the benefits far outweigh these.
 
@@ -136,6 +139,113 @@ $id = UserTable::getInstance()->generateId();
 On PostgreSQL 18 or newer, the database can make them too, with `uuidv7()`, 
 e.g. for rows inserted by SQL of your own. `gen_random_uuid()` makes version 
 4 ones, on any supported version.
+
+
+## Choosing the version
+
+`AbstractUuidTable` generates version 7 UUIDs, unless a table's 
+`getUuidVersion()` says otherwise. It returns a `UuidVersion`, with two cases:
+
+| `UuidVersion` | Use it for |
+|---|---|
+| `V7` | Almost every table. The default. Time-ordered, so quick to insert into the index. |
+| `V4` | A table where even the time each row was created must stay private. Fully random, so new rows go all over the index, which makes inserts into a large table slower. |
+
+```php
+use Programster\PgsqlObjects\UuidVersion;
+
+class PatientTable extends AbstractUuidTable
+{
+    public function getUuidVersion() : UuidVersion
+    {
+        return UuidVersion::V4;
+    }
+
+    // ...
+}
+```
+
+Whichever version a table generates, it loads, updates and deletes rows with 
+IDs of **any** version, so a table that already holds v1 or v4 IDs works as it 
+is, and new rows get the version you choose.
+
+### If you absolutely need version 1
+
+PostgreSQL's `uuid` type accepts every version, so a column only needs a 
+particular one if it has been deliberately restricted, e.g. with 
+`CHECK (uuid_extract_version("id") = 1)`. That's rare, and if you have one, 
+consider dropping the restriction, so the column can take v7 UUIDs too. If you 
+can't, override the table's `generateId()`:
+
+```php
+use Ramsey\Uuid\Provider\Node\RandomNodeProvider;
+use Ramsey\Uuid\Uuid;
+
+class LegacyDeviceTable extends AbstractUuidTable
+{
+    // version 1, for a column restricted to it, with a random node rather than this machine's MAC address.
+    public function generateId() : string
+    {
+        return Uuid::uuid1((new RandomNodeProvider())->getNode())->toString();
+    }
+
+    // ...
+}
+```
+
+Why version 1 isn't as good as version 7:
+
+- **It doesn't sort by time.** A v1 UUID starts with the *lowest* bits of its 
+  timestamp, which wrap round about every 7 minutes, so new rows go all over 
+  the index, as with v4, and inserts into a large table are slower. v7 starts 
+  with the time, so new rows go at the end.
+- **It can give away the machine that made it.** By default, a v1 UUID ends 
+  with the network (MAC) address of the server that generated it. The example 
+  above avoids that with a random node, which you should always do.
+- **It's an older design.** RFC 9562, the current UUID standard, recommends v7 
+  for new systems, and v6 (a reordered v1) only where v1 compatibility matters.
+
+The other versions don't make sense for new rows' IDs: v3 and v5 are hashes of 
+a name, so the same name always gives the same UUID, v2 can only make a few 
+IDs a minute, and v8 has no standard layout to generate. That's why 
+`UuidVersion` only has `V7` and `V4`.
+
+
+## IDs that aren't valid
+
+On a UUID table, an ID that isn't a UUID, e.g. from a mistyped URL, is caught 
+before any query runs: every method that takes an ID throws an 
+`ExceptionInvalidId`. So your application can tell a malformed ID from one 
+that's well formed but has no row, which throws `ExceptionNoSuchIdException`:
+
+```php
+use Programster\PgsqlObjects\Exceptions\ExceptionInvalidId;
+use Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException;
+
+try
+{
+    $user = UserTable::getInstance()->load($_GET['id']);
+}
+catch (ExceptionInvalidId $exception)
+{
+    // not a UUID at all, e.g. respond with a 400.
+}
+catch (ExceptionNoSuchIdException $exception)
+{
+    // a UUID, but there's no user with it, e.g. respond with a 404.
+}
+```
+
+UUIDs are accepted in either case, and turned into lower case, as PostgreSQL 
+returns them, so an upper case UUID still finds its record in the 
+[cache](cache.md), and `loadIds()` keys its records by the lower case one. Only 
+the standard form is accepted: 32 hex digits in groups of 8, 4, 4, 4 and 12, 
+separated by hyphens.
+
+To check an ID yourself, without loading anything, call the table's 
+`normalizeId()`, which returns it in its standard form, or throws 
+`ExceptionInvalidId`. Tables whose IDs aren't UUIDs accept every ID as it is, 
+unless they override `normalizeId()` themselves.
 
 
 ## Where new rows' IDs come from

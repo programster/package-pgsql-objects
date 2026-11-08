@@ -73,11 +73,13 @@ Your table class fills in the abstract ones.
 | `getVirtualFields()` | The columns the database always generates. Abstract. |
 | `getFieldsToKeepAsString()` | The columns not to convert to PHP types. None unless overridden. |
 | `getIdColumnName()` | The ID column's name. `id` unless overridden. |
-| `generateId()` | A new ID ([Identifiers](identifiers.md)). `AbstractUuidTable` generates v7 UUIDs. |
+| `generateId()` | A new ID ([Identifiers](identifiers.md)). `AbstractUuidTable` generates UUIDs of the version `getUuidVersion()` returns. |
+| `getUuidVersion()` | `AbstractUuidTable` only: the `UuidVersion` its new IDs are made with, `V7` unless overridden ([Choosing the version](identifiers.md#choosing-the-version)). |
 | `canCodeGenerateId()` | Whether `generateId()` can generate IDs. |
 | `canDatabaseGenerateId()` | Whether the database generates IDs. |
 | `getEscapedQualifiedTableName()` | The escaped, schema-qualified name, e.g. `"public"."user"`, for your own queries. |
 | `getEscapedIdColumnName()` | The escaped ID column name. |
+| `normalizeId($id)` | Checks an ID, and returns it in its standard form, e.g. a lower case UUID, or throws `ExceptionInvalidId` ([Identifiers](identifiers.md#ids-that-arent-valid)). |
 | `getTable()` | The table as a pgsql-lib `Table`, with its schema. |
 
 ### For your own table methods ([Writing your own queries](custom-queries.md))
@@ -148,4 +150,5 @@ shouldn't need them.
 |---|---|
 | `CacheMode` | `USE_CACHE`, `UPDATE_CACHE`, `IGNORE_CACHE` ([The cache](cache.md)). |
 | `DeferConfig` | `NOT_DEFERRABLE`, `INITIALLY_IMMEDIATE`, `INITIALLY_DEFERRED` ([Which setting to use](transactions.md#which-setting-to-use)). |
+| `UuidVersion` | `V7`, `V4` ([Choosing the version](identifiers.md#choosing-the-version)). |
 | `TransactionChangeType` | `SAVE`, `DELETE`. Used inside `Transaction`, so you don't need it. |

@@ -32,6 +32,7 @@ All in the `Programster\PgsqlObjects\Exceptions` namespace.
 | Exception | Thrown when |
 |---|---|
 | `ExceptionNoSuchIdException` | `load()` or `updateById()` is given an ID that has no row. |
+| `ExceptionInvalidId` | An ID can't be one of the table's IDs, e.g. it isn't a UUID, for a UUID table. Thrown by every method that takes an ID, before any query runs, so you can tell it from `ExceptionNoSuchIdException` (see [Identifiers](identifiers.md#ids-that-arent-valid)). |
 | `ExceptionUnknownColumn` | A column name isn't one of the table's, or the record class has no setter for it. This is usually a typo. Thrown by `createNewFromArray()`, `createFromDatabaseRow()`, a record's `update()`, `insert()`, `batchInsert()`, `updateById()`, the `...Where...()` filters and `loadRange()`'s order by column, before any query runs. |
 | `ExceptionMissingRequiredData` | Something needed is missing, or would act on every row: a new record or row without a value for a required column (see [Tables and records](tables.md#required-columns-nulls-and-defaults)), a row with no ID and nothing to generate one, an empty filter for `loadWhereAnd()`, `loadWhereOr()`, `deleteWhereAnd()` or `deleteWhereOr()`, an empty list for `deleteIdsNotIn()` or `batchInsert()`, or caching an object that hasn't been saved. |
 | `ExceptionObjectDeleted` | Saving or updating an object that has been deleted, including in `batchSave()` or a [Transaction](transactions.md). Clone it to save it as a new row. |

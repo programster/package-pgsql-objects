@@ -116,6 +116,19 @@ interface TableInterface
 
 
     /**
+     * Check that a value can be one of this table's IDs, and return it in the form the database stores it, so it
+     * matches the cache and the IDs of loaded records. Every method that takes an ID calls this before any query runs.
+     *
+     * @param int|string $id - the ID to check.
+     *
+     * @return int|string - the ID, in its standard form.
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionInvalidId - if the value can't be one of this table's IDs.
+     */
+    public function normalizeId(int|string $id) : int|string;
+
+
+    /**
      * Get a connection to the database.
      * @return PgSqlConnection
      */

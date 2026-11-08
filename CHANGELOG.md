@@ -65,12 +65,18 @@ The record's own `delete()` and `update($data)` are unchanged.
 - A class that implements `TableInterface` directly, rather than extending `AbstractTable`,
   must also implement the new `getSchemaName()`, `getEscapedQualifiedTableName()`,
   `getTable()`, `batchInsert()`, `enableCache()`, `disableCache()`, `isCacheEnabled()`,
-  `emptyCache()` and `cacheObject()`, as well as `loadIds()`, `loadIdsNotIn()`,
-  `loadWhereAnd()`, `loadWhereOr()`, `deleteByIds()`, `deleteIdsNotIn()`,
+  `emptyCache()`, `cacheObject()` and `normalizeId()`, as well as `loadIds()`,
+  `loadIdsNotIn()`, `loadWhereAnd()`, `loadWhereOr()`, `deleteByIds()`, `deleteIdsNotIn()`,
   `deleteWhereAnd()`, `deleteWhereOr()` and `batchSave()`, which `AbstractTable` already
   had.
 
 **Behaviour**
+- On a UUID table (one that extends `AbstractUuidTable`), an ID that isn't a UUID now
+  throws `ExceptionInvalidId` before any query runs, from every method that takes an ID,
+  instead of failing as an `ExceptionQueryError` from PostgreSQL. Code that caught the
+  query error for this needs to catch `ExceptionInvalidId` instead. Valid UUIDs in upper
+  case are now turned into lower case, as PostgreSQL returns them, so they match the
+  cache, and `loadIds()` keys its records by the lower case UUID.
 - A new object that was never given a value for a column that allows null and has a
   default (one listed in both `getFieldsThatAllowNull()` and `getFieldsThatHaveDefaults()`)
   now gets the column's default when it's inserted, rather than `NULL`. To store `NULL`,
@@ -159,6 +165,12 @@ The record's own `delete()` and `update($data)` are unchanged.
   be caught together. pgsql-lib's exceptions, such as `ExceptionQueryError`, still extend
   pgsql-lib's own `AbstractException`.
 - `ExceptionObjectDeleted`, `ExceptionTableNotFound` and `ExceptionUnknownColumn`.
+- `AbstractUuidTable::getUuidVersion()` and the `UuidVersion` enum, to choose the version of
+  UUID a table generates for new rows: `V7`, the default, or `V4`, for a table where even
+  the time each row was created must stay private.
+- `ExceptionInvalidId`, and the table's `normalizeId()`, which checks an ID and returns it
+  in its standard form, e.g. to check an ID from a URL. `AbstractUuidTable` only accepts
+  UUIDs, and other tables accept every ID unless they override it.
 - The `CacheMode` enum, with `USE_CACHE`, `UPDATE_CACHE` and `IGNORE_CACHE`, which every
   load takes to say how it uses the cache.
 - `enableCache()`, `disableCache()` and `isCacheEnabled()`, to switch a table's cache on
