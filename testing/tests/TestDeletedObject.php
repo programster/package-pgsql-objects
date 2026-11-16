@@ -30,7 +30,7 @@ class TestDeletedObject
             'update'       => function () use ($user) : void { $user->update(['name' => 'renamed']); },
             'getSaveQuery' => function () use ($user) : void { $user->getSaveQuery(); },
             'markSaved'    => function () use ($user) : void { $user->markSaved(); },
-            'batchSave'    => function () use ($table, $user) : void { $table->batchSave([$user]); },
+            'batchSave'    => function () use ($table, $user) : void { $table->batchSave($user); },
         ];
 
         foreach ($calls as $methodName => $call)

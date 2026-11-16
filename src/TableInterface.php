@@ -373,16 +373,20 @@ interface TableInterface
      * New objects without IDs, as the database generates them, need PostgreSQL 17 or newer. Every object takes on its
      * row from the database afterwards, including column defaults and generated columns.
      *
-     * @param array<AbstractRecord> $objects - the objects to save.
+     * @param AbstractRecord ...$objects - the objects to save, which must be this table's records. Saving none does
+     * nothing.
      *
      * @return void
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionWrongTable - if an object isn't one of this table's
+     * records.
      *
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted - if an object has been deleted.
      *
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionUnsupportedDatabaseVersion - if an object has no ID, and
      * the database is older than PostgreSQL 17.
      */
-    public function batchSave(array $objects) : void;
+    public function batchSave(AbstractRecord ...$objects) : void;
 
 
     /**

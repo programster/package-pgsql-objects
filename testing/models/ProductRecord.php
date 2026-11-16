@@ -32,4 +32,8 @@ class ProductRecord extends AbstractRecord
 
     # Accessors
     public function getName() : ?string { return $this->m_name; }
+
+
+    # Setters
+    public function setName(string $name) : void { $this->m_name = $name; }
 }

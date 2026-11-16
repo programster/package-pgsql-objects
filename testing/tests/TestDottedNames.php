@@ -32,7 +32,7 @@ class TestDottedNames
         $this->assertReading($loaded, 3.5, "the record's update()");
 
         $newRecord = DottedNameRecord::createFromArray(['reading' => 4.5]);
-        $table->batchSave([$newRecord]);
+        $table->batchSave($newRecord);
         $inserted = $table->load(RecordIds::get($newRecord), CacheMode::UPDATE_CACHE);
         $this->assertReading($inserted, 4.5, "batchSave() inserting");
 
@@ -40,7 +40,7 @@ class TestDottedNames
         $existingRecord = $table->load(RecordIds::get($newRecord), CacheMode::UPDATE_CACHE);
         $setReading = function (float $reading) : void { $this->m_reading = $reading; };
         $setReading->call($existingRecord, 5.5);
-        $table->batchSave([$existingRecord]);
+        $table->batchSave($existingRecord);
         $updated = $table->load(RecordIds::get($newRecord), CacheMode::UPDATE_CACHE);
         $this->assertReading($updated, 5.5, "batchSave() updating");
 

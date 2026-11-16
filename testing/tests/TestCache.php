@@ -174,7 +174,7 @@ class TestCache
 
         // and the objects given to batchSave().
         $batchUser = UserRecord::createFromArray(['name' => 'batch', 'email' => 'batch@gmail.com']);
-        $table->batchSave([$batchUser]);
+        $table->batchSave($batchUser);
         $this->assertCached($batchUser, "batchSave()");
     }
 

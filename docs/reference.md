@@ -35,7 +35,7 @@ Every public method, in one place, with a link to where it's explained.
 | `insert($row)` | Inserts a row from an array, and returns its object. |
 | `batchInsert($rows)` | Inserts many rows from arrays in one query, and returns their objects. |
 | `updateById($id, $row)` | Updates a row by ID from an array, and returns its object. |
-| `batchSave($objects)` | Saves many objects of this table in one query. |
+| `batchSave(...$objects)` | Saves many objects of this table in one query. |
 
 ### Deleting ([Deleting](deleting.md))
 

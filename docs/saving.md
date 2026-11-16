@@ -46,7 +46,11 @@ it to save it as a new row.
 Change each object with its setters, which only change the object in memory, 
 then pass them all to the table's `batchSave()`, which saves them in a single 
 query. The query runs as one transaction, so either every object is saved, or 
-none are.
+none are. Pass the objects as separate arguments, e.g. 
+`batchSave($book, $pen)`, or spread an array of them with `...`, as below. PHP 
+then rejects anything that isn't a record where it's passed, and the table 
+rejects another table's records (with `ExceptionWrongTable`), before anything 
+is saved.
 
 ```php
 $productTable = ProductTable::getInstance();
@@ -57,7 +61,7 @@ foreach ($products as $product)
     $product->setPrice($product->getPrice() * 2);
 }
 
-$productTable->batchSave($products);
+$productTable->batchSave(...$products);
 ```
 
 So that you can do this, give your record classes setters that only set the 

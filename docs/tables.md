@@ -209,7 +209,7 @@ $withOwnValue = UserRecord::createFromArray([
     'created_at' => '2024-01-01 00:00:00+00',
 ]);
 
-$userTable->batchSave([$withDefault, $withOwnValue]); // created_at is NOW() for Ada, and 2024 for Grace.
+$userTable->batchSave($withDefault, $withOwnValue); // created_at is NOW() for Ada, and 2024 for Grace.
 ```
 
 This only works for the columns listed in the table's 

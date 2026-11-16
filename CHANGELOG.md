@@ -34,6 +34,7 @@ Each of these needs a change to code that uses 4.x.
 | `load($id, $useCache)` and `loadIds($ids, $useCache)` | `load($id, $cacheMode)` and `loadIds($ids, $cacheMode)`, with a `CacheMode` instead of a bool, defaulting to `CacheMode::USE_CACHE`. Replace `false` with `CacheMode::UPDATE_CACHE` |
 | `loadAll()`, `loadWhereAnd($wherePairs)`, `loadWhereOr($wherePairs)`, `loadAfterId($afterId, $numElements)` and `loadIdsNotIn($ids)` | The same, with a required `CacheMode` added as the last parameter. See below. |
 | `loadRange($offset, $numElements, $orderByColumn)` | `loadRange($offset, $numElements, $cacheMode, $orderByColumn)`, with the required `CacheMode` before the optional `$orderByColumn` |
+| `batchSave($objects)` | `batchSave(...$objects)`, taking the objects as separate arguments, e.g. `batchSave($a, $b)`, so PHP rejects anything that isn't a record where it's passed. Spread an array of them with `...`, e.g. `batchSave(...$objects)`, including one keyed by ID, as `loadIds()` returns. |
 | `Constraint::create*($tableName, ...)` | `Constraint::create*($table, ...)`, and `$referencedTableName` is now `$referencedTable` |
 
 The record's own `delete()` and `update($data)` are unchanged.
@@ -144,9 +145,12 @@ The record's own `delete()` and `update($data)` are unchanged.
 - An ID that isn't an int or a string, e.g. a float or an array, in a row, where pairs,
   `createFromArray()`, `createFromDatabaseRow()` or a record's `update()`, throws
   `ExceptionInvalidId` before any query runs, instead of a `TypeError`.
-- A table's `cacheObject()` throws the new `ExceptionWrongTable` for a record that isn't
-  one of its own (an instance of its `getObjectClassName()`), whether or not its cache is
-  enabled, e.g. when a record's `getTableHandler()` returns the wrong table.
+- A table's `cacheObject()` and `batchSave()`, and a `Transaction`, throw the new
+  `ExceptionWrongTable` for a record that isn't one of the table's own (an instance of
+  its `getObjectClassName()`), e.g. when a record's `getTableHandler()` returns the wrong
+  table. `cacheObject()` throws whether or not the cache is enabled, and `batchSave()`
+  and `Transaction` before anything is saved, where `batchSave()` used to save another
+  table's records.
 
 ### Added
 - `batchInsert($rows)`, which inserts many rows in a single query and returns the objects

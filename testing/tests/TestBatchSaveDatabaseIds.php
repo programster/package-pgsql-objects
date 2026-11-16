@@ -46,7 +46,7 @@ class TestBatchSaveDatabaseIds
         $existing->setTitle('existing renamed');
         $first = TicketRecord::createFromArray(['title' => 'first']);
         $second = TicketRecord::createFromArray(['title' => 'second', 'status' => 'closed']);
-        $table->batchSave([$first, $existing, $second]);
+        $table->batchSave($first, $existing, $second);
 
         // each new object has its own ID, from the row with its own values, and took on the status default.
         foreach (['first' => [$first, 'open'], 'second' => [$second, 'closed']] as $title => [$ticket, $status])
@@ -94,7 +94,7 @@ class TestBatchSaveDatabaseIds
 
         try
         {
-            $table->batchSave([$existing, $new]);
+            $table->batchSave($existing, $new);
         }
         catch (ExceptionUnsupportedDatabaseVersion)
         {
@@ -119,7 +119,7 @@ class TestBatchSaveDatabaseIds
         }
 
         // without the new object, the batch only has objects with IDs, which every version supports.
-        $table->batchSave([$existing]);
+        $table->batchSave($existing);
 
         if ($table->load(RecordIds::get($existing), CacheMode::IGNORE_CACHE)->getTitle() !== 'changed')
         {
@@ -139,7 +139,7 @@ class TestBatchSaveDatabaseIds
 
         try
         {
-            $table->batchSave([$new, $deleted]);
+            $table->batchSave($new, $deleted);
         }
         catch (ExceptionObjectDeleted)
         {
@@ -166,7 +166,7 @@ class TestBatchSaveDatabaseIds
 
         try
         {
-            $table->batchSave([$existing, $invalid]);
+            $table->batchSave($existing, $invalid);
         }
         catch (ExceptionQueryError)
         {

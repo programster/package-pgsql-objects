@@ -175,7 +175,7 @@ class TestNaturalKey
         $grace = $table->load('grace@example.com');
         $grace->setName('Grace Hopper');
         $alan = SubscriberRecord::createFromArray(['email' => 'alan@example.com', 'name' => 'Alan']);
-        $table->batchSave([$grace, $alan]);
+        $table->batchSave($grace, $alan);
 
         if ($table->load('alan@example.com', CacheMode::IGNORE_CACHE)->getName() !== 'Alan')
         {

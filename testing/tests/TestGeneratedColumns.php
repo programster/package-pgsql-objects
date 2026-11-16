@@ -110,7 +110,7 @@ class TestGeneratedColumns
         $existing->setQuantity(2);
         $new = InvoiceRecord::createFromArray(['quantity' => 3, 'unit_price_pence' => 5]);
 
-        $table->batchSave([$existing, $new]);
+        $table->batchSave($existing, $new);
 
         $loaded = $table->load(RecordIds::get($existing), CacheMode::UPDATE_CACHE);
         $this->assertTotal($loaded, 10, "batchSave() of an existing object");

@@ -133,7 +133,7 @@ class TestColumnDefaults
     {
         $this->resetTable($table);
         $objects = $this->createObjects($recordClass);
-        $table->batchSave(array_values($objects));
+        $table->batchSave(...array_values($objects));
         $this->assertDatabaseHasEveryCase("batchSave() with {$kind}", $table);
         $this->assertObjectsTookOnTheirRows("batchSave() with {$kind}", $table, $objects);
     }

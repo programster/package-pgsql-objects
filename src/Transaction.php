@@ -123,6 +123,9 @@ final class Transaction
      *
      * @throws ExceptionObjectDeleted - if an object being saved has been deleted since it was added.
      *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionWrongTable - if an object being saved isn't one of its
+     * table's records, e.g. as its getTableHandler() returns the wrong table.
+     *
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionUnsupportedDatabaseVersion - if an object being saved has
      * no ID, as the database generates it, and the database is older than PostgreSQL 17 (see batchSave()).
      *

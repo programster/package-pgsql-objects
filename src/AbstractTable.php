@@ -372,15 +372,7 @@ abstract class AbstractTable implements TableInterface
      */
     public function cacheObject(AbstractRecord $object) : void
     {
-        $objectClassName = $this->getObjectClassName();
-
-        if (!($object instanceof $objectClassName))
-        {
-            throw new ExceptionWrongTable(
-                "Can't cache this " . get_class($object) . " in " . static::class . ", as its records are" .
-                " {$objectClassName}s. Check the record's getTableHandler() returns its own table."
-            );
-        }
+        $object = $this->assertOwnRecord($object);
 
         if ($this->m_isCacheEnabled)
         {
@@ -985,9 +977,13 @@ abstract class AbstractTable implements TableInterface
      * filled in, such as column defaults and generated columns (see getVirtualFields()), as each insert and update
      * returns its row.
      *
-     * @param array<AbstractRecord> $objects - the objects to save.
+     * @param AbstractRecord ...$objects - the objects to save, which must be this table's records. Saving none does
+     * nothing.
      *
      * @return void
+     *
+     * @throws ExceptionWrongTable - if an object isn't one of this table's records (see getObjectClassName()). This is
+     * checked before anything is saved.
      *
      * @throws ExceptionObjectDeleted - if an object has been deleted. This is checked before anything is saved.
      *
@@ -997,8 +993,11 @@ abstract class AbstractTable implements TableInterface
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the query failed, in which case none of the
      * objects are saved.
      */
-    public function batchSave(array $objects) : void
+    public function batchSave(AbstractRecord ...$objects) : void
     {
+        // named arguments would key the objects by name, but the statements need them as a list.
+        $objects = array_values($objects);
+
         if (count($objects) > 0)
         {
             $statements = $this->generateBatchSaveStatements($objects);
@@ -1516,15 +1515,44 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
+     * Check that an object is one of this table's records, an instance of getObjectClassName(), so that it isn't
+     * saved through, or cached in, the wrong table.
+     *
+     * @param AbstractRecord $object - the object to check.
+     *
+     * @return T - the object.
+     *
+     * @throws ExceptionWrongTable - if it isn't one of this table's records, e.g. as its getTableHandler() returns the
+     * wrong table.
+     */
+    private function assertOwnRecord(AbstractRecord $object) : AbstractRecord
+    {
+        $objectClassName = $this->getObjectClassName();
+
+        if (!($object instanceof $objectClassName))
+        {
+            throw new ExceptionWrongTable(
+                "This " . get_class($object) . " isn't one of " . static::class . "'s records, which are" .
+                " {$objectClassName}s. Check the record's getTableHandler() returns its own table."
+            );
+        }
+
+        return $object;
+    }
+
+
+    /**
      * Generate the SQL statements that save the objects for batchSave() (and Transaction), without running them or
      * changing the objects: SET CONSTRAINTS ALL DEFERRED, the update or insert of each object that has an ID, which
      * returns its row, and then one insert of the objects without IDs, which returns theirs (see
      * generateBatchInsertObjectsQuery()). Every object is checked first, so if one is rejected, nothing has been sent
      * to the database. Pass every statement's result, in order, to takeOnBatchSavedObjects().
      *
-     * @param array<AbstractRecord> $objects - the objects to save, of this table. Must not be empty.
+     * @param list<AbstractRecord> $objects - the objects to save, of this table. Must not be empty.
      *
      * @return array<string> - the statements, in order, each a single SQL statement without a trailing semicolon.
+     *
+     * @throws ExceptionWrongTable - if an object isn't one of this table's records.
      *
      * @throws ExceptionObjectDeleted - if an object has been deleted.
      *
@@ -1538,6 +1566,8 @@ abstract class AbstractTable implements TableInterface
 
         foreach ($objects as $object)
         {
+            $this->assertOwnRecord($object);
+
             if ($object->isDeleted())
             {
                 $className = get_class($object);
