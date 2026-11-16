@@ -64,7 +64,7 @@ class TestDeletedObject
 
         $clone = clone $user;
         $clone->save();
-        $loaded = $table->load($clone->getId(), CacheMode::UPDATE_CACHE);
+        $loaded = $table->load(RecordIds::get($clone), CacheMode::UPDATE_CACHE);
 
         if ($loaded->getName() !== 'deleted' || $clone->getId() === $user->getId())
         {

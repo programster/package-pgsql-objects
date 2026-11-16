@@ -141,6 +141,12 @@ The record's own `delete()` and `update($data)` are unchanged.
 - The package's own exceptions now extend its new `AbstractException`, and the checks
   above throw the package's `ExceptionMissingRequiredData` rather than pgsql-lib's
   `ExceptionNoData`.
+- An ID that isn't an int or a string, e.g. a float or an array, in a row, where pairs,
+  `createFromArray()`, `createFromDatabaseRow()` or a record's `update()`, throws
+  `ExceptionInvalidId` before any query runs, instead of a `TypeError`.
+- A table's `cacheObject()` throws the new `ExceptionWrongTable` for a record that isn't
+  one of its own (an instance of its `getObjectClassName()`), whether or not its cache is
+  enabled, e.g. when a record's `getTableHandler()` returns the wrong table.
 
 ### Added
 - `batchInsert($rows)`, which inserts many rows in a single query and returns the objects
@@ -234,9 +240,14 @@ The record's own `delete()` and `update($data)` are unchanged.
 - The tests run on GitHub Actions, on Linux (PHP 8.2 to 8.5), macOS, Windows and WSL,
   against PostgreSQL 14 to 18 (16 in WSL), with a badge for each platform at the top of
   the README.
-- PHPStan (a development dependency) checks `src/` and `testing/` at level 5, set in
-  `phpstan.neon.dist`, and `testing/run-all-versions.sh` runs it after the tests.
-  Applications using this package aren't affected.
+- PHPStan (a development dependency) checks `src/` and `testing/` at level 10, the
+  highest, set in `phpstan.neon.dist`, and `testing/run-all-versions.sh` runs it after
+  the tests. Applications using this package aren't affected.
+- The docblocks give the types of every array the package takes and returns, e.g. rows
+  and where pairs as `array<string, mixed>`, and the column info as a `FieldInfoMap`
+  shape. The loads, `insert()`, `batchInsert()` and `updateById()` are marked
+  `@phpstan-impure`, so static analysis doesn't assume that calling one again returns
+  the same thing.
 
 ### Fixed
 - `AbstractUuidTable` didn't pass its record type on to `AbstractTable`'s generics, so
@@ -249,6 +260,9 @@ The record's own `delete()` and `update($data)` are unchanged.
   own record class, as `load()` and `loadIds()` already were.
 - `AbstractRecord` declared a generic type that it never used, so static analysis asked
   for it wherever a record was type hinted.
+- An insert that the database skipped, e.g. as a `BEFORE INSERT` trigger returned
+  `NULL`, failed with a `TypeError` from `insert()` or a record's `save()`. It now throws
+  the new `ExceptionRowNotInserted`.
 - `deleteIdsNotIn()` left the deleted objects in the cache, so `load()` could still
   return them.
 - Saving a new object sent `NULL` for a `NOT NULL` column with a default that it had no

@@ -46,7 +46,14 @@ $tableClassNames = [];
 
 foreach ($tableFiles as $tableFile)
 {
-    $tableClassNames[] = basename($tableFile, '.php');
+    $tableClassName = basename($tableFile, '.php');
+
+    if (!is_subclass_of($tableClassName, \Programster\PgsqlObjects\AbstractTable::class))
+    {
+        throw new \RuntimeException("{$tableClassName}, in " . __DIR__ . "/models, doesn't extend AbstractTable.");
+    }
+
+    $tableClassNames[] = $tableClassName;
 }
 
 $boldGreen = "\033[1;32m";
@@ -66,6 +73,12 @@ foreach ($testFiles as $testFile)
     try
     {
         $test = new $testName();
+
+        if (!method_exists($test, 'run'))
+        {
+            throw new \RuntimeException("{$testName} has no run() method.");
+        }
+
         $test->run();
         $testResults[$testFile] = "passed";
         print "{$boldCyan}{$testName}{$reset}: {$coloredPassedMessage}" . PHP_EOL;

@@ -10,10 +10,14 @@ declare(strict_types = 1);
 namespace Programster\PgsqlObjects;
 
 
+use Programster\PgsqlObjects\Exceptions\ExceptionInvalidId;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
 use Programster\PgsqlObjects\Exceptions\ExceptionUnknownColumn;
 
+/**
+ * @phpstan-import-type FieldInfoMap from AbstractTable
+ */
 abstract class AbstractRecord
 {
     // the identifier, e.g. a UUID string or a SERIAL int. Null until the database generates it, for tables whose IDs
@@ -30,6 +34,7 @@ abstract class AbstractRecord
     // the columns this object has been given a value for, even null, e.g. as keys of createFromArray() or update(),
     // or from its row in the database, as column name => true. A new object leaves a column that has a database default
     // out of its insert while its value is null, unless it was given that null on purpose (see getDatabaseArrayForm()).
+    /** @var array<int|string, true> */
     protected array $m_providedColumns = [];
 
 
@@ -50,10 +55,11 @@ abstract class AbstractRecord
      * WARNING - do not use this method to create new objects that don't exist in the database, instead, if you
      * wish to do that, call createFromArray() instead.
      *
-     * @param array $row - the row, which must include the ID column, as a row in the database always has an ID.
+     * @param array<int|string, mixed> $row - the row, which must include the ID column, as a row in the database always
+     * has an ID.
      *
-     * @param ?array $fieldInfoMap - optional array of field info, from the table's getFieldInfoMap() (in the same form
-     * as pg_meta_data() returns), used to convert the values to the right PHP types.
+     * @param FieldInfoMap|null $fieldInfoMap - optional array of field info, from the table's getFieldInfoMap() (in the
+     * same form as pg_meta_data() returns), used to convert the values to the right PHP types.
      *
      * @return static
      *
@@ -89,7 +95,7 @@ abstract class AbstractRecord
      * otherwise the object has no ID until it is saved and the database generates one.
      * WARNING - this does NOT automatically save to the database. You will need to call ->save() or do something else.
      *
-     * @param array $data - the data in the form that it would be if retrieved from the database.
+     * @param array<string, mixed> $data - the data in the form that it would be if retrieved from the database.
      *
      * @return static - the newly created object.
      *
@@ -112,7 +118,7 @@ abstract class AbstractRecord
         if (isset($data[$idColumnName]))
         {
             // a given ID must be valid for the table, e.g. a UUID, and is kept in the form the database stores it.
-            $data[$idColumnName] = $tableHandler->normalizeId($data[$idColumnName]);
+            $data[$idColumnName] = $object->normalizeGivenId($data[$idColumnName]);
         }
         else
         {
@@ -175,8 +181,8 @@ abstract class AbstractRecord
      * defaults and generated columns. Every key is checked before anything is changed, so if one isn't recognised,
      * neither the object nor the database are changed.
      *
-     * @param array $data - column name/value pairs to update. This may include the ID column, to change the object's
-     * ID (and its row's), in which case any foreign keys referencing the old ID must allow it.
+     * @param array<string, mixed> $data - column name/value pairs to update. This may include the ID column, to change
+     * the object's ID (and its row's), in which case any foreign keys referencing the old ID must allow it.
      *
      * @return void
      *
@@ -202,10 +208,7 @@ abstract class AbstractRecord
         $setters = $this->getSetFunctions();
 
         // check a new ID before anything is changed, so that an invalid one leaves the object as it was.
-        if (isset($data[$idColumnName]))
-        {
-            $data[$idColumnName] = $tableHandler->normalizeId($data[$idColumnName]);
-        }
+        $newId = isset($data[$idColumnName]) ? $this->normalizeGivenId($data[$idColumnName]) : null;
 
         foreach ($data as $name => $value)
         {
@@ -213,7 +216,7 @@ abstract class AbstractRecord
             {
                 // for a saved object, updateById() below changes the row's ID to this, as it's updated by its original
                 // ID. For an unsaved one, the row is inserted with it.
-                $this->m_id = $value;
+                $this->m_id = $newId;
             }
             else
             {
@@ -226,7 +229,8 @@ abstract class AbstractRecord
 
         if ($this->m_isPersisted)
         {
-            $updatedObject = $tableHandler->updateById($originalId, $this->getDatabaseArrayForm());
+            $savedId = $this->requireSavedId($originalId);
+            $updatedObject = $tableHandler->updateById($savedId, $this->getDatabaseArrayForm());
             $this->initializeFromArray($updatedObject->getArrayForm());
 
             // make this object the cached one for its row, rather than the copy the table built from its reply.
@@ -262,7 +266,7 @@ abstract class AbstractRecord
         // columns.
         if ($this->m_isPersisted)
         {
-            $savedObject = $this->getTableHandler()->updateById($this->m_id, $row);
+            $savedObject = $this->getTableHandler()->updateById($this->requireSavedId($this->m_id), $row);
         }
         else
         {
@@ -350,7 +354,7 @@ abstract class AbstractRecord
      * may not be suitable for returning in an API response where some things may
      * need to be filtered out (such as passwords) or formatted (such as unix timestamps).
      *
-     * @return array
+     * @return array<string, mixed>
      */
     public function getArrayForm() : array
     {
@@ -383,7 +387,7 @@ abstract class AbstractRecord
      * Fetches an array of database column name to getter closures for this object, allowing us
      * to get the value of each column.
      *
-     * @return Array<\Closure>
+     * @return array<string, \Closure> - each column's getter, by column name.
      */
     protected abstract function getAccessorFunctions() : array;
 
@@ -392,7 +396,7 @@ abstract class AbstractRecord
      * Fetches an array of database column name to setter closures for this object, allowing us
      * to set the value of each column.
      *
-     * @return Array<\Closure>
+     * @return array<string, \Closure> - each column's setter, by column name.
      */
     protected abstract function getSetFunctions() : array;
 
@@ -406,7 +410,7 @@ abstract class AbstractRecord
      * column), unless the column allows null and the object was given that null on purpose (see
      * isNullForTheDefault()). An object that has been saved sends every value, as it will be updated.
      *
-     * @return array
+     * @return array<string, mixed>
      */
     protected function getDatabaseArrayForm() : array
     {
@@ -440,11 +444,11 @@ abstract class AbstractRecord
     /**
      * Helper to the constructor. Create this object from the passed in inputs.
      *
-     * @param array $row - name value pairs of column to values. Must include the ID column, although its value may be
-     * null for a new object whose ID the database will generate. This never generates an ID itself.
+     * @param array<int|string, mixed> $row - name value pairs of column to values. Must include the ID column, although
+     * its value may be null for a new object whose ID the database will generate. This never generates an ID itself.
      *
-     * @param ?array $fieldInfoMap - optional array of field info. Should have key of name of field and a value array
-     * that contains "type". E.g. https://www.php.net/manual/en/function.pg-meta-data.php
+     * @param FieldInfoMap|null $fieldInfoMap - optional array of field info. Should have key of name of field and a
+     * value array that contains "type". E.g. https://www.php.net/manual/en/function.pg-meta-data.php
      *
      * @return void
      *
@@ -484,6 +488,14 @@ abstract class AbstractRecord
 
         $fieldsToKeepAsString = $this->getTableHandler()->getFieldsToKeepAsString();
         $id = $row[$idColumnName];
+
+        if ($id !== null && !is_int($id) && !is_string($id))
+        {
+            throw new ExceptionInvalidId(
+                "The {$idColumnName} of a row for a " . get_class($this) . " must be an int or a string, not " .
+                get_debug_type($id) . "."
+            );
+        }
 
         // convert integer IDs (e.g. SERIAL) to ints, as the database returns every value as a string.
         if (
@@ -533,7 +545,7 @@ abstract class AbstractRecord
 
                     if (in_array($fieldType, $floatFieldTypes))
                     {
-                        if ($value !== null)
+                        if (is_scalar($value))
                         {
                             $value = floatval($value);
                         }
@@ -542,7 +554,7 @@ abstract class AbstractRecord
                     }
                     else if (in_array($fieldType, $intFieldTypes))
                     {
-                        if ($value !== null)
+                        if (is_scalar($value))
                         {
                             $value = intval($value);
                         }
@@ -604,7 +616,7 @@ abstract class AbstractRecord
     /**
      * Check that every key in the data is a column this object knows: its ID column, or one it has a setter for.
      *
-     * @param array $data - column name/value pairs.
+     * @param array<int|string, mixed> $data - column name/value pairs.
      *
      * @return void
      *
@@ -625,6 +637,52 @@ abstract class AbstractRecord
                 implode(", ", $knownColumns) . "."
             );
         }
+    }
+
+
+    /**
+     * Check that a value given for this object's ID is one an ID can be, an int or a string, and return it in the form
+     * its table stores it (see the table's normalizeId()).
+     *
+     * @param mixed $id - the value given for the ID column, e.g. a key of createFromArray()'s data.
+     *
+     * @return int|string - the ID, in its table's standard form.
+     *
+     * @throws ExceptionInvalidId - if it isn't an int or a string, or can't be one of the table's IDs.
+     */
+    private function normalizeGivenId(mixed $id) : int|string
+    {
+        $tableHandler = $this->getTableHandler();
+
+        if (!is_int($id) && !is_string($id))
+        {
+            throw new ExceptionInvalidId(
+                "The {$tableHandler->getIdColumnName()} given for a " . get_class($this) . " must be an int or a" .
+                " string, not " . get_debug_type($id) . "."
+            );
+        }
+
+        return $tableHandler->normalizeId($id);
+    }
+
+
+    /**
+     * Get the ID of an object that has been saved, which always has one, as its row does.
+     *
+     * @param int|string|null $id - the ID, e.g. this object's ID before an update() changed it.
+     *
+     * @return int|string - the ID.
+     *
+     * @throws \LogicException - if it's null, which would be a bug in this package, as a saved object always has an ID.
+     */
+    private function requireSavedId(int|string|null $id) : int|string
+    {
+        if ($id === null)
+        {
+            throw new \LogicException("This " . get_class($this) . " has been saved, but has no ID.");
+        }
+
+        return $id;
     }
 
 

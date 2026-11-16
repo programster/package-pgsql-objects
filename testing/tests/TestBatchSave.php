@@ -29,14 +29,15 @@ class TestBatchSave
         $table = ProductTable::getInstance();
         $existing = $table->insert(['name' => 'existing']);
         $existing->update(['name' => 'renamed']); // saves straight away, so change it again for the batch below.
-        $existingInBatch = $table->load($existing->getId());
+        $existingInBatch = $table->load(RecordIds::get($existing));
         $newProduct = ProductRecord::createFromArray(['name' => 'new']);
 
         $existingInBatch->update(['name' => 'batch renamed']);
         $table->batchSave([$existingInBatch, $newProduct]);
 
         $getName = function (ProductRecord $product) : ?string { return $product->getName(); };
-        $savedProducts = $table->loadIds([$existing->getId(), $newProduct->getId()], CacheMode::UPDATE_CACHE);
+        $savedIds = [RecordIds::get($existing), RecordIds::get($newProduct)];
+        $savedProducts = $table->loadIds($savedIds, CacheMode::UPDATE_CACHE);
         $names = array_map($getName, $savedProducts);
         sort($names);
 

@@ -54,6 +54,8 @@ class TestColumnDefaults
 
     /**
      * Each object saved on its own gets its defaults, both in the database and on the object.
+     * @param AbstractTable<covariant AbstractNoteRecord> $table
+     * @param class-string<AbstractNoteRecord> $recordClass
      */
     private function testSave(string $kind, AbstractTable $table, string $recordClass) : void
     {
@@ -72,6 +74,10 @@ class TestColumnDefaults
     /**
      * update() on a new object inserts it: a column given null in update() keeps it, while one never given gets its
      * default.
+     *
+     * @param AbstractTable<covariant AbstractNoteRecord> $table
+     *
+     * @param class-string<AbstractNoteRecord> $recordClass
      */
     private function testUpdateUnsaved(string $kind, AbstractTable $table, string $recordClass) : void
     {
@@ -97,17 +103,18 @@ class TestColumnDefaults
     /**
      * A clone of a row with a null in a column that has a default copies the null, as the row's values were given.
      * @param AbstractTable<covariant AbstractNoteRecord> $table
+     * @param class-string<AbstractNoteRecord> $recordClass
      */
     private function testCloneKeepsNull(string $kind, AbstractTable $table, string $recordClass) : void
     {
         $this->resetTable($table);
         $original = $recordClass::createFromArray(['title' => 'original', 'category' => null]);
         $original->save();
-        $loaded = $table->load($original->getId(), CacheMode::IGNORE_CACHE);
+        $loaded = $table->load(RecordIds::get($original), CacheMode::IGNORE_CACHE);
         $clone = clone $loaded;
         $clone->save();
 
-        if ($table->load($clone->getId(), CacheMode::IGNORE_CACHE)->getCategory() !== null)
+        if ($table->load(RecordIds::get($clone), CacheMode::IGNORE_CACHE)->getCategory() !== null)
         {
             throw new \Exception("A clone with {$kind} got the default instead of copying the original's null.");
         }
@@ -117,6 +124,10 @@ class TestColumnDefaults
     /**
      * Objects that differ in which columns they were given, saved in one batch, each get what they should, and take
      * on the database's values, so that updating them afterwards keeps them.
+     *
+     * @param AbstractTable<covariant AbstractNoteRecord> $table
+     *
+     * @param class-string<AbstractNoteRecord> $recordClass
      */
     private function testBatchSave(string $kind, AbstractTable $table, string $recordClass) : void
     {
@@ -130,6 +141,8 @@ class TestColumnDefaults
 
     /**
      * The same, saved in a transaction.
+     * @param AbstractTable<covariant AbstractNoteRecord> $table
+     * @param class-string<AbstractNoteRecord> $recordClass
      */
     private function testTransaction(string $kind, AbstractTable $table, string $recordClass) : void
     {
@@ -151,7 +164,7 @@ class TestColumnDefaults
     /**
      * Create a new object for each case.
      *
-     * @param string $recordClass - the record class to create them with.
+     * @param class-string<AbstractNoteRecord> $recordClass - the record class to create them with.
      *
      * @return array<string, AbstractNoteRecord> - the objects, by title.
      */
@@ -211,7 +224,7 @@ class TestColumnDefaults
         {
             $this->assertObjectHas("{$context}, on the object", $title, $object);
             $object->update(['title' => "{$title} updated"]);
-            $rowAfterUpdate = $table->load($object->getId(), CacheMode::IGNORE_CACHE);
+            $rowAfterUpdate = $table->load(RecordIds::get($object), CacheMode::IGNORE_CACHE);
             $this->assertObjectHas("{$context}, then update()", $title, $rowAfterUpdate);
         }
     }
@@ -260,6 +273,9 @@ class TestColumnDefaults
     }
 
 
+    /**
+     * @param AbstractTable<covariant AbstractNoteRecord> $table
+     */
     private function resetTable(AbstractTable $table) : void
     {
         $db = ConnectionHandler::getDb();

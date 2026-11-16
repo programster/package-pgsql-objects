@@ -63,7 +63,7 @@ class TestDeleteAllModes
 
         try
         {
-            $table->load($created->getId());
+            $table->load(RecordIds::get($created));
         }
         catch (\Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException)
         {
@@ -101,7 +101,9 @@ class TestDeleteAllModes
     {
         $result = ConnectionHandler::getDb()->query('SELECT COUNT(*) AS "count" FROM "reporting"."sample"');
 
-        if (pg_fetch_assoc($result)['count'] !== "0")
+        $countRow = pg_fetch_assoc($result);
+
+        if ($countRow === false || $countRow['count'] !== "0")
         {
             throw new \Exception("{$description} did not delete every row.");
         }

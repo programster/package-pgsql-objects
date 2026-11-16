@@ -22,7 +22,7 @@ class TestUpdateChangesIdColumn
     {
         $table = ProductTable::getInstance();
         $product = $table->insert(['name' => 'widget']);
-        $oldId = $product->getId();
+        $oldId = RecordIds::get($product);
         $newId = $table->generateId();
 
         $updatedProduct = $table->updateById($oldId, ['uuid' => $newId, 'name' => 'widget']);

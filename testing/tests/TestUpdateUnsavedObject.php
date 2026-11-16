@@ -31,14 +31,14 @@ class TestUpdateUnsavedObject
     {
         $user = UserRecord::createFromArray(['name' => 'new', 'email' => 'new@gmail.com']);
         $user->update(['name' => 'updated']);
-        $fromDatabase = UserTable::getInstance()->load($user->getId(), CacheMode::IGNORE_CACHE);
+        $fromDatabase = UserTable::getInstance()->load(RecordIds::get($user), CacheMode::IGNORE_CACHE);
 
         if ($user->isPersisted() === false || $fromDatabase->getName() !== 'updated')
         {
             throw new \Exception("update() of an unsaved object with a code-generated ID didn't insert its row.");
         }
 
-        if (UserTable::getInstance()->load($user->getId()) !== $user)
+        if (UserTable::getInstance()->load(RecordIds::get($user)) !== $user)
         {
             throw new \Exception("update() of an unsaved object didn't make it the cached object for its row.");
         }

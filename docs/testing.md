@@ -26,15 +26,18 @@ by `testing/run-all-versions.sh`, or on its own with:
 vendor/bin/phpstan
 ```
 
-Its settings are in `phpstan.neon.dist`. It runs at level 5, the highest the 
-code passes, as level 6 and up mostly ask for the value types of the arrays 
-(e.g. rows and where pairs) that the public methods take and return. It 
+Its settings are in `phpstan.neon.dist`. It runs at level 10, the highest, and 
 analyses the code as PHP 8.2 to 8.5, whichever version of PHP runs it. The 
-only errors it ignores come from the closures that reach another class's 
-protected or private members, by running in that object's scope, which PHPStan 
-can't follow, and two tests that check what PHPStan already knows: that a 
-method declared to always throw really does, and a slow test that is switched 
-off by a constant.
+only errors it ignores are ones it can't be told the answer to:
+
+- The closures that reach another class's protected or private members, by 
+  running in that object's scope, which PHPStan can't follow, so it can't find 
+  those members, or tell what they return.
+- `getInstance()`, which keeps one instance of each table class in a static 
+  property they all share, so PHPStan can't see that the one it returns is of 
+  the class it was called on.
+- Two tests that check what PHPStan already knows: that a method declared to 
+  always throw really does, and a slow test that is switched off by a constant.
 
 
 ## GitHub Actions

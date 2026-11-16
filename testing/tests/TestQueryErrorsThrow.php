@@ -31,7 +31,7 @@ class TestQueryErrorsThrow
             'loadRange'   => function () use ($table) : void { $table->loadRange(-1, 1, CacheMode::USE_CACHE); },
             // name is NOT NULL.
             'updateById'  => function () use ($table, $user) : void {
-                $table->updateById($user->getId(), ['name' => null]);
+                $table->updateById(RecordIds::get($user), ['name' => null]);
             },
         ];
 

@@ -23,11 +23,11 @@ class TestDeleteByIds
         $user2 = UserTable::getInstance()->insert(['name' => 'user2', 'email' => 'user2@gmail.com']);
         $user3 = UserTable::getInstance()->insert(['name' => 'user3', 'email' => 'user3@gmail.com']);
 
-        UserTable::getInstance()->deleteByIds([$user1->getId(), $user2->getId()]);
+        UserTable::getInstance()->deleteByIds([RecordIds::get($user1), RecordIds::get($user2)]);
 
         // ignore the cache so we see what is actually in the database.
         $remainingUsers = UserTable::getInstance()->loadIds(
-            [$user1->getId(), $user2->getId(), $user3->getId()],
+            [RecordIds::get($user1), RecordIds::get($user2), RecordIds::get($user3)],
             CacheMode::IGNORE_CACHE
         );
 
@@ -40,7 +40,7 @@ class TestDeleteByIds
 
         try
         {
-            UserTable::getInstance()->load($user1->getId());
+            UserTable::getInstance()->load(RecordIds::get($user1));
         }
         catch (\Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException)
         {

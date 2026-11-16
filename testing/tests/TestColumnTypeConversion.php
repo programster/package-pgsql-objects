@@ -23,7 +23,7 @@ class TestColumnTypeConversion
         $created = $table->insert(['reading' => 1.5, 'price' => '12.34']);
 
         // bypass the cache so the values come from the database.
-        $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
+        $loaded = $table->load(RecordIds::get($created), CacheMode::UPDATE_CACHE);
 
         if ($loaded->getReading() !== 1.5)
         {
@@ -31,9 +31,11 @@ class TestColumnTypeConversion
             throw new \Exception("double precision column was not converted to a float, got {$actual}.");
         }
 
-        if (!is_string($loaded->getPrice()) || !str_contains($loaded->getPrice(), '12.34'))
+        $price = $loaded->getPrice();
+
+        if (!is_string($price) || !str_contains($price, '12.34'))
         {
-            $actual = var_export($loaded->getPrice(), true);
+            $actual = var_export($price, true);
             throw new \Exception("money column did not keep its value, got {$actual}.");
         }
     }

@@ -62,7 +62,8 @@ class ConnectionHandler
     {
         // the server's version, e.g. "18.6 (Debian 18.6-1)". Not the client library's, which may differ.
         $version = pg_version(self::getDb()->getResource());
-        return (int)explode('.', $version['server'])[0];
+        $serverVersion = (isset($version['server']) && is_string($version['server'])) ? $version['server'] : '0';
+        return (int)explode('.', $serverVersion)[0];
     }
 
 
@@ -87,7 +88,14 @@ class ConnectionHandler
         }
         elseif (defined($name))
         {
-            $value = (string)constant($name);
+            $constant = constant($name);
+
+            if (!is_scalar($constant))
+            {
+                throw new \RuntimeException("The {$name} test setting must be a string or a number.");
+            }
+
+            $value = (string)$constant;
         }
         elseif ($default !== null)
         {

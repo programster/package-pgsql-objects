@@ -41,7 +41,7 @@ class TestLoadRange
         $firstPage[0]->update(['title' => 'updated']);
 
         $secondPage = $table->loadRange(3, 3, CacheMode::USE_CACHE);
-        $getId = function (TicketRecord $ticket) : int { return $ticket->getId(); };
+        $getId = function (TicketRecord $ticket) : int { return RecordIds::getInt($ticket); };
         $ids = array_map($getId, array_merge($firstPage, $secondPage));
 
         if ($ids !== [1, 2, 3, 4, 5, 6])
@@ -59,7 +59,7 @@ class TestLoadRange
         $tickets = array_merge($firstPage, $secondPage);
 
         $getTitle = function (TicketRecord $ticket) : ?string { return $ticket->getTitle(); };
-        $getId = function (TicketRecord $ticket) : int { return $ticket->getId(); };
+        $getId = function (TicketRecord $ticket) : int { return RecordIds::getInt($ticket); };
         $describe = function (TicketRecord $ticket) : string { return "{$ticket->getId()}:{$ticket->getTitle()}"; };
         $titles = array_map($getTitle, $tickets);
         $ids = array_map($getId, $tickets);

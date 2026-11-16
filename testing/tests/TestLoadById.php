@@ -25,7 +25,7 @@ class TestLoadById
 
         $userRecord = UserRecord::createFromArray($userDetails);
         $userRecord->save();
-        $userID = $userRecord->getId();
+        $userID = RecordIds::get($userRecord);
 
         UserTable::getInstance()->emptyCache();
 

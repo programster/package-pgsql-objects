@@ -32,7 +32,7 @@ class TestEscapedIdColumnNamePerTable
 
         // check a real query that relies on it.
         $product = ProductTable::getInstance()->insert(['name' => 'widget']);
-        ProductTable::getInstance()->deleteById($product->getId());
+        ProductTable::getInstance()->deleteById(RecordIds::get($product));
 
         if (count(ProductTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE)) !== 0)
         {

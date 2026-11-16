@@ -34,6 +34,8 @@ use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
  * AbstractTable, and every table must use the same database connection, as a transaction can only cover one. A foreign
  * key to a row whose ID the database generates (e.g. SERIAL) must already be set when the object is added, as the new
  * ID isn't known until the transaction runs. IDs generated in code, such as UUIDs, are known straight away.
+ *
+ * @phpstan-type ChangeGroup array{type: TransactionChangeType, table: TableInterface, objects: list<AbstractRecord>}
  */
 final class Transaction
 {
@@ -42,10 +44,12 @@ final class Transaction
 
     # The changes to make, in the order they were added, each as ['type' => TransactionChangeType, 'object' => the
     # object].
+    /** @var list<array{type: TransactionChangeType, object: AbstractRecord}> */
     private array $m_changes = [];
 
     # The kind of change (a TransactionChangeType) of each object added, by its spl_object_id(), to spot an object
     # added twice.
+    /** @var array<int, TransactionChangeType> */
     private array $m_changeTypesByObjectId = [];
 
     # Whether commit() has been called, after which nothing more can be added or committed.
@@ -183,8 +187,7 @@ final class Transaction
      * Group the changes that are next to each other, and are of the same kind and table, so that each group can be
      * sent as one query, while keeping the order they were added in.
      *
-     * @return array<array> - the groups, in order, each as ['type' => TransactionChangeType, 'table' => AbstractTable,
-     * 'objects' => array<AbstractRecord>].
+     * @return list<ChangeGroup> - the groups, in order.
      */
     private function groupChanges() : array
     {
@@ -203,7 +206,9 @@ final class Transaction
 
             if ($joinsLastGroup)
             {
-                $groups[$lastIndex]['objects'][] = $change['object'];
+                $lastGroup = $groups[$lastIndex];
+                $lastGroup['objects'][] = $change['object'];
+                $groups[$lastIndex] = $lastGroup;
             }
             else
             {
@@ -220,7 +225,7 @@ final class Transaction
      * anything is sent to the database. A group that only deletes objects with no rows (never saved, or already
      * deleted) needs no statements.
      *
-     * @param array<array> $groups - the groups, from groupChanges().
+     * @param list<ChangeGroup> $groups - the groups, from groupChanges().
      *
      * @return array<int, array<string>> - each group's statements, keyed by the index of the group, each a single SQL
      * statement.
@@ -368,7 +373,7 @@ final class Transaction
     /**
      * Mark the objects as saved or deleted, and update the cache, now that the transaction has been committed.
      *
-     * @param array<array> $groups - the groups, from groupChanges().
+     * @param list<ChangeGroup> $groups - the groups, from groupChanges().
      *
      * @param array<int, array<\PgSql\Result>> $results - the results of each group's statements, keyed by its group's
      * index, from runStatements().
@@ -510,9 +515,9 @@ final class Transaction
 
     /**
      * Get the table of the first object added, which extends AbstractTable, as every table added must.
-     * @return AbstractTable
+     * @return TableInterface
      */
-    private function getFirstTable() : AbstractTable
+    private function getFirstTable() : TableInterface
     {
         return $this->m_changes[0]['object']->getTableHandler();
     }

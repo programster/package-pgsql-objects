@@ -1,8 +1,6 @@
 # PHPStan settings. Run with: vendor/bin/phpstan
-# Level 5 is the highest the code passes. Level 6 and up mostly ask for the value types of the arrays (e.g. rows and
-# where pairs) that the public methods take and return, which have yet to be documented.
 parameters:
-    level: 5
+    level: 10
     phpVersion:
         min: 80200
         max: 80599
@@ -13,14 +11,12 @@ parameters:
     # database. The (?) marks it optional, as PHPStan otherwise refuses to run when an excluded path doesn't exist.
     excludePaths:
         - testing/settings.php (?)
-    # The tables' methods query the database, so calling one again can return something different, e.g. the number of
-    # rows after some were deleted. Without this, PHPStan assumes a second call returns what the first did.
-    rememberPossiblyImpureFunctionValues: false
     ignoreErrors:
         # PHP has no "friend" classes, so AbstractTable reaches a record's protected members, and Transaction reaches
         # a table's private ones, through closures run in the other object's scope (with Closure::call() or
         # Closure::bind()). PHPStan reads each closure's $this as the class it was written in, so it can't find the
-        # members, nor see that Transaction is what calls takeOnDeletedObjects(), or what its runStatements() returns.
+        # members, nor see that Transaction is what calls takeOnDeletedObjects(). It then sees what the members return
+        # as mixed, so it can't tell what the closures return either, nor what's built from them.
         -
             identifier: method.notFound
             path: src/AbstractTable.php
@@ -34,11 +30,24 @@ parameters:
             path: src/AbstractTable.php
             count: 1
         -
+            message: '#^Anonymous function should return array but returns mixed\.$#'
+            identifier: return.type
+            path: src/AbstractTable.php
+            count: 1
+        -
+            identifier: argument.type
+            path: src/AbstractTable.php
+            count: 1
+        -
             identifier: method.notFound
             path: src/Transaction.php
             count: 4
         -
             identifier: return.type
+            path: src/Transaction.php
+            count: 4
+        -
+            identifier: argument.type
             path: src/Transaction.php
             count: 1
         # The same for the tests that reach a table's or a record's protected members, to check them.
@@ -55,8 +64,20 @@ parameters:
             path: testing/tests/TestExceptions.php
             count: 1
         -
+            identifier: return.type
+            path: testing/tests/TestExceptions.php
+            count: 1
+        -
             identifier: arguments.count
             path: testing/tests/TestFieldInfoMapCache.php
+            count: 1
+        # getInstance() keeps one instance of each table class, by its name, in a static property that every table
+        # class shares. PHPStan can't type a property as holding "an instance of whichever class this is called on",
+        # so it can't see that the instance it returns is of the class it was called on.
+        -
+            message: '#^Method Programster\\PgsqlObjects\\AbstractTable::getInstance\(\) should return static#'
+            identifier: return.type
+            path: src/AbstractTable.php
             count: 1
         # TicketTable's generateId() is declared to always throw, so PHPStan knows it does, but this test checks that
         # it really does.

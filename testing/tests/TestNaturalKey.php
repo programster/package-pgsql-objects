@@ -139,7 +139,8 @@ class TestNaturalKey
             throw new \Exception("Changing a subscriber's email didn't move them to their new, lower cased email.");
         }
 
-        $movedSubscription = SubscriptionTable::getInstance()->load($subscription->getId(), CacheMode::IGNORE_CACHE);
+        $subscriptionTable = SubscriptionTable::getInstance();
+        $movedSubscription = $subscriptionTable->load(RecordIds::get($subscription), CacheMode::IGNORE_CACHE);
 
         if ($movedSubscription->getSubscriberEmail() !== 'ada@new.example')
         {

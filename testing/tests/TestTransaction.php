@@ -62,7 +62,7 @@ class TestTransaction
         $existingBook->setTitle('retitled');
 
         // the book's existing ID means this works on every version of PostgreSQL.
-        $existingBook->setAuthorId($newAuthor->getId());
+        $existingBook->setAuthorId(RecordIds::getString($newAuthor));
 
         $transaction = new Transaction();
         $transaction->save($existingAuthor);
@@ -73,7 +73,7 @@ class TestTransaction
         $transaction->commit();
 
         $authorNames = $this->getAuthorNamesInDatabase();
-        $bookInDatabase = $bookTable->load($existingBook->getId(), CacheMode::IGNORE_CACHE);
+        $bookInDatabase = $bookTable->load(RecordIds::get($existingBook), CacheMode::IGNORE_CACHE);
 
         if ($authorNames !== ['new', 'renamed'])
         {
@@ -90,7 +90,7 @@ class TestTransaction
             throw new \Exception("The transaction didn't delete the doomed book.");
         }
 
-        if (!$newAuthor->isPersisted() || $authorTable->load($newAuthor->getId()) !== $newAuthor)
+        if (!$newAuthor->isPersisted() || $authorTable->load(RecordIds::get($newAuthor)) !== $newAuthor)
         {
             throw new \Exception("The new author wasn't marked as saved and cached after the commit.");
         }
@@ -115,7 +115,7 @@ class TestTransaction
         $author = $authorTable->insert(['name' => 'original']);
         $book = $bookTable->insert(['author_id' => $author->getId(), 'title' => 'original']);
         $newAuthor = AuthorRecord::createFromArray(['name' => 'new']);
-        $book->setAuthorId($newAuthor->getId());
+        $book->setAuthorId(RecordIds::getString($newAuthor));
         $book->setTitle('moved');
 
         $wrongOrder = new Transaction();
@@ -124,7 +124,7 @@ class TestTransaction
 
         $commitWrongOrder = function () use ($wrongOrder) : void { $wrongOrder->commit(); };
         $this->assertThrows(ExceptionQueryError::class, $commitWrongOrder, "Saving a book before its author worked.");
-        $bookInDatabase = $bookTable->load($book->getId(), CacheMode::IGNORE_CACHE);
+        $bookInDatabase = $bookTable->load(RecordIds::get($book), CacheMode::IGNORE_CACHE);
 
         if ($bookInDatabase->getTitle() !== 'original' || $this->getAuthorNamesInDatabase() !== ['original'])
         {
@@ -136,7 +136,9 @@ class TestTransaction
         $rightOrder->save($book);
         $rightOrder->commit();
 
-        if ($bookTable->load($book->getId(), CacheMode::IGNORE_CACHE)->getAuthorId() !== $newAuthor->getId())
+        $loadedBook = $bookTable->load(RecordIds::get($book), CacheMode::IGNORE_CACHE);
+
+        if ($loadedBook->getAuthorId() !== RecordIds::get($newAuthor))
         {
             throw new \Exception("Saving the author before its book didn't work.");
         }
@@ -180,7 +182,7 @@ class TestTransaction
             throw new \Exception("A transaction that failed still marked the book as deleted.");
         }
 
-        if ($newAuthor->isPersisted() || count($authorTable->loadIds([$newAuthor->getId()])) !== 0)
+        if ($newAuthor->isPersisted() || count($authorTable->loadIds([RecordIds::get($newAuthor)])) !== 0)
         {
             throw new \Exception("A transaction that failed still marked the new author as saved, or cached it.");
         }
@@ -453,7 +455,7 @@ class TestTransaction
 
     /**
      * Get the names of the authors in the database, in alphabetical order.
-     * @return array<string>
+     * @return array<string|null>
      */
     private function getAuthorNamesInDatabase() : array
     {

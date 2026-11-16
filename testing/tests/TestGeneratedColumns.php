@@ -69,7 +69,7 @@ class TestGeneratedColumns
         $invoice = InvoiceRecord::createFromArray(['quantity' => 4, 'unit_price_pence' => 25]);
         $invoice->save();
         $this->assertTotal($invoice, 100, "save() of a new object");
-        $loaded = InvoiceTable::getInstance()->load($invoice->getId(), CacheMode::UPDATE_CACHE);
+        $loaded = InvoiceTable::getInstance()->load(RecordIds::get($invoice), CacheMode::UPDATE_CACHE);
         $this->assertTotal($loaded, 100, "loading a saved object");
     }
 
@@ -79,7 +79,8 @@ class TestGeneratedColumns
         $invoice = InvoiceTable::getInstance()->insert(['quantity' => 1, 'unit_price_pence' => 50]);
         $invoice->update(['quantity' => 5]);
         $this->assertTotal($invoice, 250, "the object's update()");
-        $this->assertTotal(InvoiceTable::getInstance()->load($invoice->getId()), 250, "the cache after update()");
+        $cached = InvoiceTable::getInstance()->load(RecordIds::get($invoice));
+        $this->assertTotal($cached, 250, "the cache after update()");
     }
 
 
@@ -96,9 +97,9 @@ class TestGeneratedColumns
     {
         $table = InvoiceTable::getInstance();
         $invoice = $table->insert(['quantity' => 1, 'unit_price_pence' => 10]); // now in the cache.
-        $updated = $table->updateById($invoice->getId(), ['quantity' => 6, 'total_pence' => 1]);
+        $updated = $table->updateById(RecordIds::get($invoice), ['quantity' => 6, 'total_pence' => 1]);
         $this->assertTotal($updated, 60, "updateById() of a cached object");
-        $this->assertTotal($table->load($invoice->getId()), 60, "the cache after updateById()");
+        $this->assertTotal($table->load(RecordIds::get($invoice)), 60, "the cache after updateById()");
     }
 
 
@@ -111,9 +112,10 @@ class TestGeneratedColumns
 
         $table->batchSave([$existing, $new]);
 
-        $loaded = $table->load($existing->getId(), CacheMode::UPDATE_CACHE);
+        $loaded = $table->load(RecordIds::get($existing), CacheMode::UPDATE_CACHE);
         $this->assertTotal($loaded, 10, "batchSave() of an existing object");
-        $this->assertTotal($table->load($new->getId(), CacheMode::UPDATE_CACHE), 15, "batchSave() of a new object");
+        $inserted = $table->load(RecordIds::get($new), CacheMode::UPDATE_CACHE);
+        $this->assertTotal($inserted, 15, "batchSave() of a new object");
     }
 
 

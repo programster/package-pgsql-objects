@@ -38,7 +38,7 @@ readonly class Constraint
      *
      * @param string $constraintName - the name for the constraint.
      *
-     * @param array $columnNames - the names of the columns that make up the primary key.
+     * @param array<string> $columnNames - the names of the columns that make up the primary key.
      *
      * @param DeferConfig $deferConfig - whether the constraint can be deferred to the end of a transaction.
      *
@@ -79,7 +79,7 @@ readonly class Constraint
      *
      * @param string $constraintName - the name for the constraint.
      *
-     * @param array $columnNames - the names of the columns whose combined values must be unique.
+     * @param array<string> $columnNames - the names of the columns whose combined values must be unique.
      *
      * @param DeferConfig $deferConfig - whether the constraint can be deferred to the end of a transaction.
      *

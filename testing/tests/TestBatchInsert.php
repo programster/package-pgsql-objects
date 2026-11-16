@@ -145,13 +145,9 @@ class TestBatchInsert
 
     /**
      * Check that batchInsert() on the ticket table throws the expected exception for the rows, without inserting any.
-     *
      * @param string $description - a description of the rows, for the failure message.
-     *
      * @param class-string<\Throwable> $exceptionClass - the exception it should throw.
-     *
-     * @param array $rows - the rows to insert.
-     *
+     * @param array<array<string, mixed>> $rows - the rows to insert.
      * @return void
      */
     private function testRejected(string $description, string $exceptionClass, array $rows) : void
@@ -188,12 +184,10 @@ class TestBatchInsert
 
     /**
      * Index the objects by the value one of their getters returns, as batchInsert() doesn't promise an order.
-     *
-     * @param array $objects - the objects.
-     *
+     * @template R of \Programster\PgsqlObjects\AbstractRecord
+     * @param array<R> $objects - the objects.
      * @param string $getterName - the name of the getter, e.g. getTitle.
-     *
-     * @return array - the objects, indexed by the getter's value.
+     * @return array<R> - the objects, indexed by the getter's value.
      */
     private function indexByName(array $objects, string $getterName) : array
     {
@@ -201,7 +195,15 @@ class TestBatchInsert
 
         foreach ($objects as $object)
         {
-            $indexed[$object->$getterName()] = $object;
+            $name = $object->$getterName();
+
+            if (!is_string($name))
+            {
+                $actual = var_export($name, true);
+                throw new \Exception("{$getterName}() returned {$actual}, not a name to index by.");
+            }
+
+            $indexed[$name] = $object;
         }
 
         return $indexed;

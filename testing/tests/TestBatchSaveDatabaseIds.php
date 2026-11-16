@@ -72,7 +72,7 @@ class TestBatchSaveDatabaseIds
             throw new \Exception("batchSave() gave two new tickets the same ID.");
         }
 
-        if ($table->load($existing->getId(), CacheMode::IGNORE_CACHE)->getTitle() !== 'existing renamed')
+        if ($table->load(RecordIds::get($existing), CacheMode::IGNORE_CACHE)->getTitle() !== 'existing renamed')
         {
             throw new \Exception("batchSave() didn't update the existing ticket alongside the new ones.");
         }
@@ -106,7 +106,7 @@ class TestBatchSaveDatabaseIds
             throw new \Exception("batchSave() didn't reject an object without an ID on an older PostgreSQL.");
         }
 
-        $existingInDatabase = $table->load($existing->getId(), CacheMode::IGNORE_CACHE);
+        $existingInDatabase = $table->load(RecordIds::get($existing), CacheMode::IGNORE_CACHE);
 
         if ($existingInDatabase->getTitle() !== 'unchanged')
         {
@@ -121,7 +121,7 @@ class TestBatchSaveDatabaseIds
         // without the new object, the batch only has objects with IDs, which every version supports.
         $table->batchSave([$existing]);
 
-        if ($table->load($existing->getId(), CacheMode::IGNORE_CACHE)->getTitle() !== 'changed')
+        if ($table->load(RecordIds::get($existing), CacheMode::IGNORE_CACHE)->getTitle() !== 'changed')
         {
             throw new \Exception("batchSave() didn't save a batch of objects with IDs on an older PostgreSQL.");
         }
@@ -173,7 +173,7 @@ class TestBatchSaveDatabaseIds
             $threw = true;
         }
 
-        $existingInDatabase = $table->load($existing->getId(), CacheMode::IGNORE_CACHE);
+        $existingInDatabase = $table->load(RecordIds::get($existing), CacheMode::IGNORE_CACHE);
 
         if ($threw === false || $existingInDatabase->getTitle() !== 'unchanged')
         {

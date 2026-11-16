@@ -119,7 +119,7 @@ class TestDatabaseGeneratedId
 
         // a second save must update the existing row, not silently update nothing.
         $ticket->update(['title' => 'renamed']);
-        $reloaded = TicketTable::getInstance()->load($ticket->getId(), CacheMode::UPDATE_CACHE);
+        $reloaded = TicketTable::getInstance()->load(RecordIds::get($ticket), CacheMode::UPDATE_CACHE);
 
         if ($reloaded->getTitle() !== 'renamed')
         {

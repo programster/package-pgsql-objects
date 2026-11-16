@@ -23,7 +23,7 @@ class TestUpdateObjectId
     {
         $table = UserTable::getInstance();
         $user = $table->insert(['name' => 'before', 'email' => 'before@gmail.com']);
-        $oldId = $user->getId();
+        $oldId = RecordIds::getString($user);
         $newId = $table->generateId();
 
         $user->update(['id' => $newId, 'name' => 'after']);

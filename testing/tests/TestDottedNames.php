@@ -21,26 +21,28 @@ class TestDottedNames
     {
         $table = DottedNameTable::getInstance();
         $created = $table->insert(['reading' => 1.5]);
-        $this->assertReading($table->load($created->getId(), CacheMode::UPDATE_CACHE), 1.5, "insert()");
+        $this->assertReading($table->load(RecordIds::get($created), CacheMode::UPDATE_CACHE), 1.5, "insert()");
 
-        $table->updateById($created->getId(), ['reading' => 2.5]);
-        $this->assertReading($table->load($created->getId(), CacheMode::UPDATE_CACHE), 2.5, "updateById()");
+        $table->updateById(RecordIds::get($created), ['reading' => 2.5]);
+        $this->assertReading($table->load(RecordIds::get($created), CacheMode::UPDATE_CACHE), 2.5, "updateById()");
 
-        $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
+        $loaded = $table->load(RecordIds::get($created), CacheMode::UPDATE_CACHE);
         $loaded->update(['reading' => 3.5]);
-        $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
+        $loaded = $table->load(RecordIds::get($created), CacheMode::UPDATE_CACHE);
         $this->assertReading($loaded, 3.5, "the record's update()");
 
         $newRecord = DottedNameRecord::createFromArray(['reading' => 4.5]);
         $table->batchSave([$newRecord]);
-        $this->assertReading($table->load($newRecord->getId(), CacheMode::UPDATE_CACHE), 4.5, "batchSave() inserting");
+        $inserted = $table->load(RecordIds::get($newRecord), CacheMode::UPDATE_CACHE);
+        $this->assertReading($inserted, 4.5, "batchSave() inserting");
 
         // batch saving an existing object uses its update query, rather than its insert query.
-        $existingRecord = $table->load($newRecord->getId(), CacheMode::UPDATE_CACHE);
+        $existingRecord = $table->load(RecordIds::get($newRecord), CacheMode::UPDATE_CACHE);
         $setReading = function (float $reading) : void { $this->m_reading = $reading; };
         $setReading->call($existingRecord, 5.5);
         $table->batchSave([$existingRecord]);
-        $this->assertReading($table->load($newRecord->getId(), CacheMode::UPDATE_CACHE), 5.5, "batchSave() updating");
+        $updated = $table->load(RecordIds::get($newRecord), CacheMode::UPDATE_CACHE);
+        $this->assertReading($updated, 5.5, "batchSave() updating");
 
         $matches = $table->loadWhereOr(['reading' => [3.5, 5.5]], CacheMode::USE_CACHE);
 
@@ -49,7 +51,7 @@ class TestDottedNames
             throw new \Exception("loadWhereOr() did not load both rows, got " . count($matches) . ".");
         }
 
-        $table->deleteByIds([$created->getId()]);
+        $table->deleteByIds([RecordIds::get($created)]);
         $table->deleteAll();
 
         if (count($table->loadAll(CacheMode::UPDATE_CACHE)) !== 0)

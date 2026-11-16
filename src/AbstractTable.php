@@ -17,22 +17,39 @@ use Programster\PgsqlObjects\Exceptions\ExceptionInvalidId;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 use Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException;
 use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
+use Programster\PgsqlObjects\Exceptions\ExceptionRowNotInserted;
 use Programster\PgsqlObjects\Exceptions\ExceptionTableNotFound;
 use Programster\PgsqlObjects\Exceptions\ExceptionUnknownColumn;
 use Programster\PgsqlObjects\Exceptions\ExceptionUnsupportedDatabaseVersion;
+use Programster\PgsqlObjects\Exceptions\ExceptionWrongTable;
 
 
 /**
  * @template T of \Programster\PgsqlObjects\AbstractRecord
+ *
  * @phpstan-consistent-constructor
+ *
+ * @phpstan-type FieldInfo array{
+ *     num: int,
+ *     type: string,
+ *     len: int,
+ *     'not null': bool,
+ *     'has default': bool,
+ *     'array dims': int,
+ *     'is enum': bool,
+ * }
+ *
+ * @phpstan-type FieldInfoMap array<string, FieldInfo>
  */
 abstract class AbstractTable implements TableInterface
 {
     # Array of all the child instances that get created.
+    /** @var array<class-string, AbstractTable<covariant AbstractRecord>> */
     protected static array $s_instances = [];
 
 
     # The one object for each row that has been loaded, inserted or saved while the cache is enabled, indexed by ID.
+    /** @var array<int|string, T> */
     protected array $m_objectCache = [];
 
 
@@ -41,6 +58,7 @@ abstract class AbstractTable implements TableInterface
 
 
     # Cache of this table's column info, fetched the first time it's needed (see getFieldInfoMap()). Null until then.
+    /** @var FieldInfoMap|null */
     protected ?array $m_fieldInfoMap = null;
 
 
@@ -66,7 +84,7 @@ abstract class AbstractTable implements TableInterface
      */
     public static function getInstance() : static
     {
-        $className = get_called_class();
+        $className = static::class;
 
         if (!isset(self::$s_instances[$className]))
         {
@@ -83,16 +101,21 @@ abstract class AbstractTable implements TableInterface
      * returns, so it includes any values the database generated, such as a SERIAL ID, column defaults, or generated
      * columns.
      *
-     * @param array $row - name value pairs to insert. Any values for the fields listed in getVirtualFields() are
-     * ignored, as the database generates them.
+     * @param array<string, mixed> $row - name value pairs to insert. Any values for the fields listed in
+     * getVirtualFields() are ignored, as the database generates them.
      *
      * @return T - the object for the inserted row.
      *
      * @throws ExceptionMissingRequiredData - if no ID was provided, and neither the code nor the database can
      * generate one.
      *
+     * @throws ExceptionRowNotInserted - if the database didn't insert the row, e.g. as a BEFORE INSERT trigger skipped
+     * it.
+     *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function insert(array $row) : AbstractRecord
     {
@@ -115,6 +138,14 @@ abstract class AbstractTable implements TableInterface
 
         $result = $this->getDb()->query($query . " RETURNING *");
         $createdRow = pg_fetch_assoc($result);
+
+        if ($createdRow === false)
+        {
+            throw new ExceptionRowNotInserted(
+                "The database didn't insert the {$this->getObjectClassName()}'s row, e.g. as a trigger skipped it."
+            );
+        }
+
         return $this->hydrateRow($createdRow, CacheMode::UPDATE_CACHE);
     }
 
@@ -130,8 +161,8 @@ abstract class AbstractTable implements TableInterface
      * WARNING - the returned objects are not necessarily in the same order as $rows, as PostgreSQL doesn't guarantee
      * the order it returns inserted rows in. Use their values (e.g. a unique column) to tell them apart if needed.
      *
-     * @param array<array> $rows - the rows to insert, as name value pairs. Any values for the fields listed in
-     * getVirtualFields() are ignored, as the database generates them. Must not be empty.
+     * @param array<array<string, mixed>> $rows - the rows to insert, as name value pairs. Any values for the fields
+     * listed in getVirtualFields() are ignored, as the database generates them. Must not be empty.
      *
      * @return array<T> - the objects for the inserted rows.
      *
@@ -145,6 +176,8 @@ abstract class AbstractTable implements TableInterface
      * rows are inserted.
      *
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function batchInsert(array $rows) : array
     {
@@ -188,9 +221,9 @@ abstract class AbstractTable implements TableInterface
     /**
      * Load objects from the table that have ALL of the attributes specified in the provided wherePairs parameter.
      *
-     * @param array $wherePairs - column-name/value pairs that the object must have in order to be fetched. The value
-     * in a pair may be an array, to load any objects that have any one of those values, e.g. id => [1,2,3] would load
-     * objects that have ID 1, 2 or 3. Must not be empty. Use loadAll() to load every row.
+     * @param array<string, mixed> $wherePairs - column-name/value pairs that the object must have in order to be
+     * fetched. The value in a pair may be an array, to load any objects that have any one of those values, e.g. id =>
+     * [1,2,3] would load objects that have ID 1, 2 or 3. Must not be empty. Use loadAll() to load every row.
      *
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled: USE_CACHE returns rows that are already
      * cached as the cached objects, as they are, and caches the rest. UPDATE_CACHE updates the cached objects with the
@@ -204,6 +237,8 @@ abstract class AbstractTable implements TableInterface
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadWhereAnd(array $wherePairs, CacheMode $cacheMode) : array
     {
@@ -232,9 +267,9 @@ abstract class AbstractTable implements TableInterface
     /**
      * Load objects from the table that meet ANY of the attributes specified in the provided wherePairs parameter.
      *
-     * @param array $wherePairs - column-name/value pairs that the object must have at least one of in order to be
-     * fetched. The value in a pair may be an array, to load any objects that have any one of those values, e.g.
-     * id => [1,2,3] would load objects that have ID 1, 2 or 3. Must not be empty. Use loadAll() to load every row.
+     * @param array<string, mixed> $wherePairs - column-name/value pairs that the object must have at least one of in
+     * order to be fetched. The value in a pair may be an array, to load any objects that have any one of those values,
+     * e.g. id => [1,2,3] would load objects that have ID 1, 2 or 3. Must not be empty. Use loadAll() to load every row.
      *
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled: USE_CACHE returns rows that are already
      * cached as the cached objects, as they are, and caches the rest. UPDATE_CACHE updates the cached objects with the
@@ -248,6 +283,8 @@ abstract class AbstractTable implements TableInterface
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadWhereOr(array $wherePairs, CacheMode $cacheMode) : array
     {
@@ -329,9 +366,22 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws ExceptionMissingRequiredData - if the object hasn't been saved to the database, as there is then no row
      * for it to be the cached object of.
+     *
+     * @throws ExceptionWrongTable - if the object isn't one of this table's records (see getObjectClassName()), e.g. as
+     * its getTableHandler() returns the wrong table.
      */
     public function cacheObject(AbstractRecord $object) : void
     {
+        $objectClassName = $this->getObjectClassName();
+
+        if (!($object instanceof $objectClassName))
+        {
+            throw new ExceptionWrongTable(
+                "Can't cache this " . get_class($object) . " in " . static::class . ", as its records are" .
+                " {$objectClassName}s. Check the record's getTableHandler() returns its own table."
+            );
+        }
+
         if ($this->m_isCacheEnabled)
         {
             if ($object->getId() === null || $object->isPersisted() === false)
@@ -404,8 +454,8 @@ abstract class AbstractTable implements TableInterface
      * single query. The cached objects of the deleted rows are marked as deleted (so their save() and update() throw
      * ExceptionObjectDeleted) and removed from the cache. Objects of the rows that remain are left in the cache.
      *
-     * @param array $wherePairs - column-name/value pairs that the rows must all have in order to be deleted.
-     * Must not be empty. Use deleteAll() to delete every row.
+     * @param array<string, mixed> $wherePairs - column-name/value pairs that the rows must all have in order to be
+     * deleted. Must not be empty. Use deleteAll() to delete every row.
      *
      * @return void
      *
@@ -432,9 +482,9 @@ abstract class AbstractTable implements TableInterface
      * single query. The cached objects of the deleted rows are marked as deleted (so their save() and update() throw
      * ExceptionObjectDeleted) and removed from the cache. Objects of the rows that remain are left in the cache.
      *
-     * @param array $wherePairs - column-name/value pairs that the row must have at least one of in order to be
-     * deleted. The value in a pair may be an array, to delete any rows that have any one of those values, e.g.
-     * id => [1,2,3] would delete rows that have ID 1, 2 or 3. Must not be empty. Use deleteAll() to delete every row.
+     * @param array<string, mixed> $wherePairs - column-name/value pairs that the row must have at least one of in order
+     * to be deleted. The value in a pair may be an array, to delete any rows that have any one of those values, e.g. id
+     * => [1,2,3] would delete rows that have ID 1, 2 or 3. Must not be empty. Use deleteAll() to delete every row.
      *
      * @return void
      *
@@ -602,6 +652,8 @@ abstract class AbstractTable implements TableInterface
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function load(string|int $id, CacheMode $cacheMode = CacheMode::USE_CACHE) : AbstractRecord
     {
@@ -635,6 +687,8 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadIds(array $ids, CacheMode $cacheMode = CacheMode::USE_CACHE) : array
     {
@@ -688,6 +742,8 @@ abstract class AbstractTable implements TableInterface
      * @return array<T>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadAll(CacheMode $cacheMode) : array
     {
@@ -720,6 +776,8 @@ abstract class AbstractTable implements TableInterface
      * @return array<T>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadRange(
         int $offset,
@@ -767,6 +825,8 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadAfterId(string|int|null $afterId, int $numElements, CacheMode $cacheMode) : array
     {
@@ -798,7 +858,7 @@ abstract class AbstractTable implements TableInterface
      * @param int|string $id - the current ID of the object being updated (may not necessarily be the same as the
      * ID column in $row if changing the object's ID).
      *
-     * @param array $row - the data to update the object with. Any values for the fields listed in
+     * @param array<string, mixed> $row - the data to update the object with. Any values for the fields listed in
      * getVirtualFields() are ignored, as the database generates them.
      *
      * @return T
@@ -806,6 +866,8 @@ abstract class AbstractTable implements TableInterface
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the query failed.
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException - if there is no row with the ID.
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function updateById(int|string $id, array $row) : AbstractRecord
     {
@@ -834,12 +896,14 @@ abstract class AbstractTable implements TableInterface
             }
 
             # If the ID changed, move the cached object to its new ID, so that it's refreshed below rather than
-            # replaced. The IDs are compared as strings, as the database returns integer IDs as strings.
-            $isIdChanging = (isset($row[$idColumnName]) && (string)$row[$idColumnName] !== (string)$id);
+            # replaced. The IDs are compared as strings, as the database returns integer IDs as strings. The new ID
+            # has been checked by normalizeIdInPairs() above, so it's an int or a string.
+            $newId = $row[$idColumnName] ?? null;
+            $isIdChanging = ((is_int($newId) || is_string($newId)) && (string)$newId !== (string)$id);
 
             if ($isIdChanging && isset($this->m_objectCache[$id]))
             {
-                $this->m_objectCache[$row[$idColumnName]] = $this->m_objectCache[$id];
+                $this->m_objectCache[$newId] = $this->m_objectCache[$id];
                 unset($this->m_objectCache[$id]);
             }
 
@@ -859,8 +923,8 @@ abstract class AbstractTable implements TableInterface
      * Delete rows from this table whose IDs are not in the provided list. The cached objects of the deleted rows are
      * marked as deleted (so their save() and update() throw ExceptionObjectDeleted) and removed from the cache.
      *
-     * @param array $ids - a list of the only IDs we wish to keep. Must not be empty, as that would delete every row.
-     * Use deleteAll() to delete every row.
+     * @param array<int|string> $ids - a list of the only IDs we wish to keep. Must not be empty, as that would delete
+     * every row. Use deleteAll() to delete every row.
      *
      * @return void
      *
@@ -950,7 +1014,7 @@ abstract class AbstractTable implements TableInterface
     /**
      * Load objects whose IDs were not provided.
      *
-     * @param array $ids - the IDs of the rows not to load. If empty, every row is loaded.
+     * @param array<int|string> $ids - the IDs of the rows not to load. If empty, every row is loaded.
      *
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled: USE_CACHE returns rows that are already
      * cached as the cached objects, as they are, and caches the rest. UPDATE_CACHE updates the cached objects with the
@@ -963,6 +1027,8 @@ abstract class AbstractTable implements TableInterface
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadIdsNotIn(array $ids, CacheMode $cacheMode) : array
     {
@@ -1053,20 +1119,14 @@ abstract class AbstractTable implements TableInterface
      * Return a closure that hydrates a row of data into this table's record, by calling the record's
      * createFromDatabaseRow() method.
      *
-     * @return \Closure - the closure takes the data row (and optional field info map from getFieldInfoMap()) and
-     * returns the created object, e.g. $object = $rowHydrator($row, $fieldInfoMap);
+     * @return \Closure(array<int|string, mixed>, FieldInfoMap|null=): T - the closure takes the data row (and optional
+     * field info map from getFieldInfoMap()) and returns the created object, e.g.
+     * $object = $rowHydrator($row, $fieldInfoMap);
      */
     protected function getRowHydrator() : \Closure
     {
         $objectClassName = $this->getObjectClassName();
-
-        $rowHydrator = function (
-            array $row,
-            ?array $fieldInfoMap = null
-        ) use ($objectClassName) : AbstractRecord {
-            return $objectClassName::createFromDatabaseRow($row, $fieldInfoMap);
-        };
-
+        $rowHydrator = $objectClassName::createFromDatabaseRow(...);
         return $rowHydrator;
     }
 
@@ -1076,7 +1136,7 @@ abstract class AbstractTable implements TableInterface
      * It is fetched from the database the first time it's needed, then kept for the life of this table object, as
      * the columns don't change while the application is running (migrations are run before the tables are used).
      *
-     * @return array<string, array> - the column info, indexed by column name. Each column has the keys num, type,
+     * @return FieldInfoMap - the column info, indexed by column name. Each column has the keys num, type,
      * len, not null, has default, array dims and is enum.
      *
      * @throws ExceptionTableNotFound - if the table doesn't exist, or has no columns.
@@ -1097,9 +1157,9 @@ abstract class AbstractTable implements TableInterface
      * Remove the virtual fields (PostgreSQL generated columns) from a row, so the row can be sent in an insert or
      * update.
      *
-     * @param array $row - name value pairs of column to values.
+     * @param array<string, mixed> $row - name value pairs of column to values.
      *
-     * @return array - the row without the virtual fields.
+     * @return array<string, mixed> - the row without the virtual fields.
      */
     protected function removeVirtualFields(array $row) : array
     {
@@ -1111,9 +1171,9 @@ abstract class AbstractTable implements TableInterface
      * Get a row ready to be inserted, for insert() and batchInsert(): remove the virtual fields, and if the row has no
      * ID, generate one in code if this table can do so, otherwise leave the ID out for the database to generate.
      *
-     * @param array $row - name value pairs of column to values.
+     * @param array<string, mixed> $row - name value pairs of column to values.
      *
-     * @return array - the row to insert.
+     * @return array<string, mixed> - the row to insert.
      *
      * @throws ExceptionMissingRequiredData - if the row has no ID, and neither the code nor the database can
      * generate one.
@@ -1155,7 +1215,7 @@ abstract class AbstractTable implements TableInterface
      * table whose schema name contains a dot. Here the table is looked up by its escaped, schema-qualified name, so
      * any characters work, and it is always the same table that the queries use.
      *
-     * @return array<string, array> - the column info, indexed by column name.
+     * @return FieldInfoMap - the column info, indexed by column name.
      *
      * @throws ExceptionTableNotFound - if the table doesn't exist, or has no columns.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
@@ -1183,7 +1243,7 @@ abstract class AbstractTable implements TableInterface
         {
             $fieldInfoMap[$column['attname']] = [
                 'num' => (int)$column['attnum'],
-                'type' => $column['typname'],
+                'type' => (string)$column['typname'],
                 'len' => (int)$column['attlen'],
                 'not null' => ($column['attnotnull'] === 't'),
                 'has default' => ($column['atthasdef'] === 't'),
@@ -1206,7 +1266,7 @@ abstract class AbstractTable implements TableInterface
      * any query is run, rather than a less clear error from PostgreSQL. This uses the kept column info, so it doesn't
      * need a query after the first time.
      *
-     * @param array $columnValues - column name/value pairs, e.g. a row or where pairs.
+     * @param array<string, mixed> $columnValues - column name/value pairs, e.g. a row or where pairs.
      *
      * @return void
      *
@@ -1237,11 +1297,11 @@ abstract class AbstractTable implements TableInterface
      * is cached gives its cached object (updated with the row's values in place for UPDATE_CACHE, or as it is for
      * USE_CACHE), and a row that isn't is given a new object, which is cached.
      *
-     * @param array $row - a whole row of this table, as returned by the database.
+     * @param array<int|string, mixed> $row - a whole row of this table, as returned by the database.
      *
      * @param CacheMode $cacheMode - how to use the cache.
      *
-     * @return AbstractRecord - the object for the row.
+     * @return T - the object for the row.
      */
     private function hydrateRow(array $row, CacheMode $cacheMode) : AbstractRecord
     {
@@ -1278,9 +1338,9 @@ abstract class AbstractTable implements TableInterface
      *
      * @param AbstractRecord $object - the object to refresh.
      *
-     * @param array $row - the row from the database.
+     * @param array<int|string, mixed> $row - the row from the database.
      *
-     * @param array $fieldInfoMap - the column info, from getFieldInfoMap().
+     * @param FieldInfoMap $fieldInfoMap - the column info, from getFieldInfoMap().
      *
      * @return void
      */
@@ -1300,7 +1360,7 @@ abstract class AbstractTable implements TableInterface
      * Delete the rows that match the where pairs, in a single query, and forget the deleted rows' cached objects (see
      * forgetDeletedRow()). The query returns the deleted rows' IDs, so that only those objects are forgotten.
      *
-     * @param array $wherePairs - column-name/value pairs, which the caller has checked aren't empty.
+     * @param array<string, mixed> $wherePairs - column-name/value pairs, which the caller has checked aren't empty.
      *
      * @param Conjunction $conjunction - whether a row must match ALL of the pairs, or ANY of them.
      *
@@ -1319,7 +1379,13 @@ abstract class AbstractTable implements TableInterface
 
         while (($deletedRow = pg_fetch_assoc($result)) !== false)
         {
-            $this->forgetDeletedRow($deletedRow[$idColumnName]);
+            $deletedId = $deletedRow[$idColumnName];
+
+            // the ID column can't be null, but if it were, the row couldn't have been cached anyway.
+            if ($deletedId !== null)
+            {
+                $this->forgetDeletedRow($deletedId);
+            }
         }
     }
 
@@ -1347,14 +1413,39 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
+     * Check that a value given as an ID, e.g. in a row or where pairs, is one an ID can be, an int or a string, and
+     * return it in its standard form (see normalizeId()).
+     *
+     * @param mixed $id - the value given as an ID.
+     *
+     * @return int|string - the ID, in its standard form.
+     *
+     * @throws ExceptionInvalidId - if it isn't an int or a string, or can't be one of this table's IDs.
+     */
+    private function normalizeGivenId(mixed $id) : int|string
+    {
+        if (!is_int($id) && !is_string($id))
+        {
+            throw new ExceptionInvalidId(
+                "An {$this->getIdColumnName()} for " . static::class . " must be an int or a string, not " .
+                get_debug_type($id) . "."
+            );
+        }
+
+        return $this->normalizeId($id);
+    }
+
+
+    /**
      * Normalize the ID in a row, or in where pairs, if it has one (see normalizeId()). Its value may be a list of IDs,
      * as where pairs allow, and a null ID (e.g. for the database to generate) is left as it is.
      *
-     * @param array $pairs - column name/value pairs.
+     * @param array<string, mixed> $pairs - column name/value pairs.
      *
-     * @return array - the pairs, with the ID in its standard form.
+     * @return array<string, mixed> - the pairs, with the ID in its standard form.
      *
-     * @throws ExceptionInvalidId - if the ID can't be one of this table's IDs.
+     * @throws ExceptionInvalidId - if the ID isn't an int or a string (or a list of them), or can't be one of this
+     * table's IDs.
      */
     private function normalizeIdInPairs(array $pairs) : array
     {
@@ -1362,13 +1453,22 @@ abstract class AbstractTable implements TableInterface
 
         if (isset($pairs[$idColumnName]))
         {
-            if (is_array($pairs[$idColumnName]))
+            $value = $pairs[$idColumnName];
+
+            if (is_array($value))
             {
-                $pairs[$idColumnName] = $this->normalizeIds($pairs[$idColumnName]);
+                $normalizedIds = [];
+
+                foreach ($value as $key => $id)
+                {
+                    $normalizedIds[$key] = $this->normalizeGivenId($id);
+                }
+
+                $pairs[$idColumnName] = $normalizedIds;
             }
             else
             {
-                $pairs[$idColumnName] = $this->normalizeId($pairs[$idColumnName]);
+                $pairs[$idColumnName] = $this->normalizeGivenId($value);
             }
         }
 
@@ -1751,6 +1851,7 @@ abstract class AbstractTable implements TableInterface
             {
                 $hasFailed = true;
                 $errorMessage = pg_result_error($result);
+                $errorMessage = ($errorMessage !== false) ? $errorMessage : "PostgreSQL gave no error message.";
             }
             else
             {
@@ -1779,7 +1880,7 @@ abstract class AbstractTable implements TableInterface
     {
         // the server's version, e.g. "18.6 (Debian 18.6-1)". Not the client library's, which may differ.
         $version = pg_version($this->getDb()->getResource());
-        $serverVersion = isset($version['server']) ? $version['server'] : 'unknown';
+        $serverVersion = (isset($version['server']) && is_string($version['server'])) ? $version['server'] : 'unknown';
         $majorVersion = (int)explode('.', $serverVersion)[0];
 
         if ($majorVersion < 17)
@@ -1796,7 +1897,7 @@ abstract class AbstractTable implements TableInterface
     /**
      * Encode the rows as JSON, keeping every float exact, regardless of the serialize_precision setting.
      *
-     * @param array $rows - the rows to encode.
+     * @param array<mixed> $rows - the rows to encode.
      *
      * @return string - the JSON.
      *

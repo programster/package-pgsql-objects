@@ -71,6 +71,8 @@ class TestFieldInfoMapCache
 
     /**
      * Call the table's protected getFieldInfoMap(), from within the table's scope.
+     * @param AbstractTable<covariant \Programster\PgsqlObjects\AbstractRecord> $table
+     * @return array<string, array<string, mixed>>
      */
     private function getFieldInfoMap(AbstractTable $table) : array
     {
@@ -81,6 +83,7 @@ class TestFieldInfoMapCache
 
     /**
      * Create a new table object for the test table, rather than using a singleton, so each starts with no kept copy.
+     * @return AbstractTable<\Programster\PgsqlObjects\AbstractRecord>
      */
     private function createTable() : AbstractTable
     {

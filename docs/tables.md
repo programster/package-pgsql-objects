@@ -42,6 +42,9 @@ CREATE TABLE "user" (
 use Programster\PgsqlLib\PgSqlConnection;
 use Programster\PgsqlObjects\AbstractUuidTable;
 
+/**
+ * @extends AbstractUuidTable<UserRecord>
+ */
 class UserTable extends AbstractUuidTable
 {
     // the connection to use. Getting started has an example ConnectionHandler.
@@ -84,6 +87,10 @@ class UserTable extends AbstractUuidTable
     }
 }
 ```
+
+The `@extends` line is optional, and only for static analysis (e.g. PHPStan or 
+your IDE): it tells them the table's records are `UserRecord`s, so its loads 
+are seen as returning `UserRecord`s, rather than just `AbstractRecord`s.
 
 A table whose IDs aren't UUIDs extends `AbstractTable`, and also says how its 
 IDs are generated, with `generateId()`, `canCodeGenerateId()` and 

@@ -38,8 +38,8 @@ class TestCache
     {
         $table = UserTable::getInstance();
         $user = $table->insert(['name' => 'original', 'email' => 'disabled@gmail.com']);
-        $this->changeNameBehindTheCache($user->getId(), 'changed');
-        $loaded = $table->load($user->getId());
+        $this->changeNameBehindTheCache(RecordIds::getString($user), 'changed');
+        $loaded = $table->load(RecordIds::get($user));
 
         if ($table->isCacheEnabled() || $loaded === $user || $loaded->getName() !== 'changed')
         {
@@ -53,8 +53,8 @@ class TestCache
         $table = $this->createCachedTableWithUsers();
         $users = $table->loadAll(CacheMode::USE_CACHE);
         $first = $users[0];
-        $this->changeNameBehindTheCache($first->getId(), 'changed');
-        $loaded = $table->load($first->getId());
+        $this->changeNameBehindTheCache(RecordIds::getString($first), 'changed');
+        $loaded = $table->load(RecordIds::get($first));
 
         if ($loaded !== $first || $loaded->getName() === 'changed')
         {
@@ -67,10 +67,10 @@ class TestCache
     {
         $table = $this->createCachedTableWithUsers();
         $user = $table->loadAll(CacheMode::USE_CACHE)[0];
-        $this->changeNameBehindTheCache($user->getId(), 'changed');
+        $this->changeNameBehindTheCache(RecordIds::getString($user), 'changed');
 
         // IGNORE_CACHE gives a new object with the database's values, and leaves the cached one alone.
-        $ignored = $this->findObject($table->loadAll(CacheMode::IGNORE_CACHE), $user->getId());
+        $ignored = $this->findObject($table->loadAll(CacheMode::IGNORE_CACHE), RecordIds::getString($user));
 
         if ($ignored === $user || $ignored->getName() !== 'changed' || $user->getName() === 'changed')
         {
@@ -78,7 +78,7 @@ class TestCache
         }
 
         // USE_CACHE gives the cached object as it is.
-        $used = $this->findObject($table->loadAll(CacheMode::USE_CACHE), $user->getId());
+        $used = $this->findObject($table->loadAll(CacheMode::USE_CACHE), RecordIds::getString($user));
 
         if ($used !== $user || $user->getName() === 'changed')
         {
@@ -86,7 +86,7 @@ class TestCache
         }
 
         // UPDATE_CACHE updates the cached object's values, in place.
-        $updated = $this->findObject($table->loadAll(CacheMode::UPDATE_CACHE), $user->getId());
+        $updated = $this->findObject($table->loadAll(CacheMode::UPDATE_CACHE), RecordIds::getString($user));
 
         if ($updated !== $user || $user->getName() !== 'changed')
         {
@@ -99,7 +99,7 @@ class TestCache
     {
         $table = $this->createCachedTableWithUsers();
         $user = $table->loadAll(CacheMode::USE_CACHE)[0];
-        $this->changeNameBehindTheCache($user->getId(), 'changed');
+        $this->changeNameBehindTheCache(RecordIds::getString($user), 'changed');
         $matches = $table->loadWhereAnd(['id' => $user->getId()], CacheMode::USE_CACHE);
 
         if (count($matches) !== 1 || $matches[0] !== $user || $user->getName() === 'changed')
@@ -113,7 +113,7 @@ class TestCache
     {
         $table = $this->createCachedTableWithUsers();
         $user = $table->loadAll(CacheMode::USE_CACHE)[0];
-        $id = $user->getId();
+        $id = RecordIds::getString($user);
         $this->changeNameBehindTheCache($id, 'changed');
 
         // load() defaults to USE_CACHE, which returns the cached object without a query.
@@ -142,15 +142,15 @@ class TestCache
         $ignored = $table->loadAll(CacheMode::IGNORE_CACHE)[0];
 
         // if IGNORE_CACHE had added it, USE_CACHE would give back the same object.
-        if ($table->load($ignored->getId()) === $ignored)
+        if ($table->load(RecordIds::get($ignored)) === $ignored)
         {
             throw new \Exception("loadAll() with IGNORE_CACHE added its objects to the cache.");
         }
 
         // whereas USE_CACHE adds a row it had to fetch, so loading it again gives the same object.
-        $fetched = $table->load($ignored->getId());
+        $fetched = $table->load(RecordIds::get($ignored));
 
-        if ($table->load($ignored->getId()) !== $fetched)
+        if ($table->load(RecordIds::get($ignored)) !== $fetched)
         {
             throw new \Exception("load() with USE_CACHE didn't add the row it fetched to the cache.");
         }
@@ -183,7 +183,7 @@ class TestCache
     {
         $table = $this->createCachedTableWithUsers();
         $user = $table->loadAll(CacheMode::USE_CACHE)[0];
-        $updated = $table->updateById($user->getId(), ['name' => 'by the table']);
+        $updated = $table->updateById(RecordIds::get($user), ['name' => 'by the table']);
 
         if ($updated !== $user || $user->getName() !== 'by the table')
         {
@@ -220,7 +220,7 @@ class TestCache
         $user = $table->loadAll(CacheMode::USE_CACHE)[0];
         $table->disableCache();
 
-        if ($table->isCacheEnabled() || $table->load($user->getId()) === $user)
+        if ($table->isCacheEnabled() || $table->load(RecordIds::get($user)) === $user)
         {
             throw new \Exception("disableCache() didn't disable and empty the cache.");
         }
@@ -249,7 +249,7 @@ class TestCache
      */
     private function assertCached(UserRecord $user, string $afterWhat) : void
     {
-        if (UserTable::getInstance()->load($user->getId()) !== $user)
+        if (UserTable::getInstance()->load(RecordIds::get($user)) !== $user)
         {
             throw new \Exception("After {$afterWhat}, the cache didn't hold the object that was saved.");
         }
@@ -258,6 +258,7 @@ class TestCache
 
     /**
      * Find the object with the given ID in a list of them, as loadAll() doesn't promise an order.
+     * @param array<UserRecord> $users
      */
     private function findObject(array $users, string $id) : UserRecord
     {

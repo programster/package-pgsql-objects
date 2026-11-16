@@ -136,7 +136,9 @@ class TestConstraint
                 'SELECT COUNT(*) AS "count" FROM "pg_catalog"."pg_constraint"' .
                 " WHERE \"conrelid\" = to_regclass({$db->escapeValue("public.{$decoyTableName}")})";
 
-            if (pg_fetch_assoc($db->query($countQuery))['count'] !== "0")
+            $countRow = pg_fetch_assoc($db->query($countQuery));
+
+            if ($countRow === false || $countRow['count'] !== "0")
             {
                 throw new \Exception("A constraint was created on public.{$decoyTableName}, not the schema's table.");
             }

@@ -1,9 +1,9 @@
 <?php
 
 /*
- * Test that a UUID table rejects an ID that isn't a UUID with ExceptionInvalidId, before any query runs, from every
- * method that takes an ID, and that a valid UUID in upper case is treated as the same ID as the lower case one
- * PostgreSQL returns, including in the cache, and as the keys of loadIds().
+ * Test that a UUID table rejects an ID that isn't a UUID (or isn't an int or a string at all) with ExceptionInvalidId,
+ * before any query runs, from every method that takes an ID, and that a valid UUID in upper case is treated as the same
+ * ID as the lower case one PostgreSQL returns, including in the cache, and as the keys of loadIds().
  */
 
 use Programster\PgsqlObjects\CacheMode;
@@ -41,7 +41,7 @@ class TestInvalidIds
             'load()'               => function () use ($table, $bad) : void { $table->load($bad); },
             'load() with an int'   => function () use ($table) : void { $table->load(42); },
             'loadIds()'            => function () use ($table, $user, $bad) : void {
-                $table->loadIds([$user->getId(), $bad]);
+                $table->loadIds([RecordIds::get($user), $bad]);
             },
             'loadIdsNotIn()'       => function () use ($table, $bad) : void {
                 $table->loadIdsNotIn([$bad], CacheMode::IGNORE_CACHE);
@@ -57,7 +57,7 @@ class TestInvalidIds
             },
             'deleteById()'         => function () use ($table, $bad) : void { $table->deleteById($bad); },
             'deleteByIds()'        => function () use ($table, $user, $bad) : void {
-                $table->deleteByIds([$user->getId(), $bad]);
+                $table->deleteByIds([RecordIds::get($user), $bad]);
             },
             'deleteIdsNotIn()'     => function () use ($table, $bad) : void { $table->deleteIdsNotIn([$bad]); },
             'deleteWhereOr()'      => function () use ($table, $bad) : void { $table->deleteWhereOr(['id' => $bad]); },
@@ -65,7 +65,7 @@ class TestInvalidIds
                 $table->updateById($bad, ['name' => 'x']);
             },
             'updateById() new ID'  => function () use ($table, $user, $bad) : void {
-                $table->updateById($user->getId(), ['id' => $bad]);
+                $table->updateById(RecordIds::get($user), ['id' => $bad]);
             },
             'insert()'             => function () use ($table, $row, $bad) : void {
                 $table->insert(['id' => $bad, ...$row]);
@@ -77,6 +77,19 @@ class TestInvalidIds
                 UserRecord::createFromArray(['id' => $bad, ...$row]);
             },
             'a record\'s update()' => function () use ($user, $bad) : void { $user->update(['id' => $bad]); },
+
+            // IDs that aren't an int or a string at all.
+            'insert() float'       => function () use ($table, $row) : void { $table->insert(['id' => 1.5, ...$row]); },
+            'loadWhereOr() float'  => function () use ($table) : void {
+                $table->loadWhereOr(['id' => [1.5]], CacheMode::IGNORE_CACHE);
+            },
+            'createFromArray() array' => function () use ($row) : void {
+                UserRecord::createFromArray(['id' => ['x'], ...$row]);
+            },
+            'update() bool'        => function () use ($user) : void { $user->update(['id' => true]); },
+            'createFromDatabaseRow() float' => function () use ($row) : void {
+                UserRecord::createFromDatabaseRow(['id' => 1.5, ...$row]);
+            },
         ];
 
         foreach ($calls as $methodName => $call)
@@ -114,7 +127,7 @@ class TestInvalidIds
     {
         $table = UserTable::getInstance();
         $user = $table->insert(['name' => 'upper', 'email' => 'upper@example.com']);
-        $upperCaseId = strtoupper($user->getId());
+        $upperCaseId = strtoupper(RecordIds::getString($user));
 
         if ($table->load($upperCaseId) !== $user)
         {

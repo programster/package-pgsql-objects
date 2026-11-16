@@ -48,10 +48,11 @@ class TestDeleteIdsNotIn
 
         // loadAll() above put both objects in the cache, so the deleted one must be removed from it, or load() would
         // still return it.
-        $deletedId = $deleted->getId();
-        $table->deleteIdsNotIn([$kept->getId()]);
+        $deletedId = RecordIds::getString($deleted);
+        $table->deleteIdsNotIn([RecordIds::get($kept)]);
         $this->assertNotLoadable($table, $deletedId);
-        $table->load($kept->getId()); // throws if the kept object was wrongly removed and is no longer in the table.
+        // throws if the kept object was wrongly removed and is no longer in the table.
+        $table->load(RecordIds::get($kept));
         $remaining = $table->loadAll(CacheMode::UPDATE_CACHE);
 
         if (count($remaining) !== 1 || $remaining[0]->getId() !== $kept->getId())

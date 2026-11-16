@@ -26,7 +26,7 @@ class TestNonPublicSchema
         $created = $table->insert(['reading' => 1.5]);
 
         // bypass the cache so the values come from the database.
-        $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
+        $loaded = $table->load(RecordIds::get($created), CacheMode::UPDATE_CACHE);
 
         // the decoy's reading column is text, so its column info would have left the value as the string "1.5".
         if ($loaded->getReading() !== 1.5)
@@ -50,10 +50,12 @@ class TestNonPublicSchema
             throw new \Exception("loadWhereAnd() did not load only the row from the reporting schema's table.");
         }
 
-        $table->deleteByIds([$created->getId()]);
+        $table->deleteByIds([RecordIds::get($created)]);
         $remaining = $db->query('SELECT COUNT(*) AS "count" FROM "reporting"."sample"');
 
-        if (pg_fetch_assoc($remaining)['count'] !== "0")
+        $countRow = pg_fetch_assoc($remaining);
+
+        if ($countRow === false || $countRow['count'] !== "0")
         {
             throw new \Exception("deleteByIds() did not delete the row from the reporting schema's table.");
         }

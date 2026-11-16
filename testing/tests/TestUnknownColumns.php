@@ -23,7 +23,7 @@ class TestUnknownColumns
     {
         $table = UserTable::getInstance();
         $user = $table->insert(['name' => 'original', 'email' => 'original@gmail.com']);
-        $userId = $user->getId();
+        $userId = RecordIds::get($user);
 
         $typoRow = ['name' => 'typo', 'emial' => 'typo@gmail.com'];
 

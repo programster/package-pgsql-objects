@@ -21,10 +21,10 @@ class TestCacheDeletes
     {
         $deleteOne = [
             'deleteById()' => function (UserTable $table, UserRecord $one) : void {
-                $table->deleteById($one->getId());
+                $table->deleteById(RecordIds::get($one));
             },
             'deleteByIds()' => function (UserTable $table, UserRecord $one) : void {
-                $table->deleteByIds([$one->getId()]);
+                $table->deleteByIds([RecordIds::get($one)]);
             },
             'deleteWhereAnd()' => function (UserTable $table, UserRecord $one) : void {
                 $table->deleteWhereAnd(['name' => 'one', 'email' => 'one@gmail.com']);
@@ -43,7 +43,7 @@ class TestCacheDeletes
         }
 
         [$table, $one, $two, $three] = $this->createCachedUsers();
-        $table->deleteIdsNotIn([$two->getId(), $three->getId()]);
+        $table->deleteIdsNotIn([RecordIds::get($two), RecordIds::get($three)]);
         $this->assertForgotten("deleteIdsNotIn()", $one);
         $this->assertStillCached("deleteIdsNotIn()", [$two, $three]);
 
@@ -60,7 +60,8 @@ class TestCacheDeletes
     /**
      * Start a case with the cache enabled, and three users in the table, whose objects are cached.
      *
-     * @return array - the table, then the users called one, two and three.
+     * @return array{UserTable, UserRecord, UserRecord, UserRecord} - the table, then the users called one, two and
+     * three.
      */
     private function createCachedUsers() : array
     {
@@ -96,7 +97,7 @@ class TestCacheDeletes
 
         try
         {
-            UserTable::getInstance()->load($user->getId());
+            UserTable::getInstance()->load(RecordIds::get($user));
         }
         catch (ExceptionNoSuchIdException)
         {
@@ -123,12 +124,13 @@ class TestCacheDeletes
 
     /**
      * Check that loading the remaining users gives back the same objects, from the cache.
+     * @param array<UserRecord> $users
      */
     private function assertStillCached(string $methodName, array $users) : void
     {
         foreach ($users as $user)
         {
-            if (UserTable::getInstance()->load($user->getId(), CacheMode::USE_CACHE) !== $user)
+            if (UserTable::getInstance()->load(RecordIds::get($user), CacheMode::USE_CACHE) !== $user)
             {
                 throw new \Exception("After {$methodName}, a remaining user's object was no longer the cached one.");
             }

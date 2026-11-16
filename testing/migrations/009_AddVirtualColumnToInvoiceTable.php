@@ -12,7 +12,9 @@ class AddVirtualColumnToInvoiceTable implements \Programster\PgsqlMigrations\Mig
     public function up(\PgSql\Connection $dbConn) : void
     {
         // the server's version, e.g. "18.6 (Debian 18.6-1)". Not the client library's, which may differ.
-        $majorVersion = (int)explode('.', pg_version($dbConn)['server'])[0];
+        $version = pg_version($dbConn);
+        $serverVersion = (isset($version['server']) && is_string($version['server'])) ? $version['server'] : '0';
+        $majorVersion = (int)explode('.', $serverVersion)[0];
         $storage = ($majorVersion >= 18) ? 'VIRTUAL' : 'STORED';
 
         $query =

@@ -184,8 +184,8 @@ interface TableInterface
      * Delete the rows that have ALL of the given column/value pairs. The deleted rows' cached objects are marked as
      * deleted and removed from the cache.
      *
-     * @param array $wherePairs - the column/value pairs a row must all have to be deleted. Must not be empty. Use
-     * deleteAll() to delete every row.
+     * @param array<string, mixed> $wherePairs - the column/value pairs a row must all have to be deleted. Must not be
+     * empty. Use deleteAll() to delete every row.
      *
      * @return void
      *
@@ -198,9 +198,9 @@ interface TableInterface
      * Delete the rows that have ANY of the given column/value pairs. The deleted rows' cached objects are marked as
      * deleted and removed from the cache.
      *
-     * @param array $wherePairs - the column/value pairs a row must have at least one of to be deleted. A value may be
-     * an array, to match any of those values, e.g. id => [1, 2, 3]. Must not be empty. Use deleteAll() to delete every
-     * row.
+     * @param array<string, mixed> $wherePairs - the column/value pairs a row must have at least one of to be deleted. A
+     * value may be an array, to match any of those values, e.g. id => [1, 2, 3]. Must not be empty. Use deleteAll() to
+     * delete every row.
      *
      * @return void
      *
@@ -216,6 +216,8 @@ interface TableInterface
      * that you choose each time.
      *
      * @return array<AbstractRecord>
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadAll(CacheMode $cacheMode) : array;
 
@@ -229,6 +231,8 @@ interface TableInterface
      * USE_CACHE, which returns the cached object without a query if the row is cached.
      *
      * @return AbstractRecord - the loaded object.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function load(string|int $id, CacheMode $cacheMode = CacheMode::USE_CACHE) : AbstractRecord;
 
@@ -245,6 +249,8 @@ interface TableInterface
      * @param string|null $orderByColumn - optionally the name of the column to order by. Defaults to the ID column.
      *
      * @return array<AbstractRecord>
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadRange(
         int $offset,
@@ -265,6 +271,8 @@ interface TableInterface
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
      *
      * @return array<AbstractRecord>
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadAfterId(string|int|null $afterId, int $numElements, CacheMode $cacheMode) : array;
 
@@ -279,6 +287,8 @@ interface TableInterface
      * USE_CACHE.
      *
      * @return array<int|string, AbstractRecord> - the loaded objects, indexed by their IDs.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadIds(array $ids, CacheMode $cacheMode = CacheMode::USE_CACHE) : array;
 
@@ -291,6 +301,8 @@ interface TableInterface
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
      *
      * @return array<AbstractRecord>
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadIdsNotIn(array $ids, CacheMode $cacheMode) : array;
 
@@ -299,14 +311,16 @@ interface TableInterface
      * Load the objects whose rows have ALL of the given column/value pairs. The query always runs, as the cache is
      * never searched by anything but ID.
      *
-     * @param array $wherePairs - the column/value pairs a row must all have to be loaded. A value may be an array, to
-     * match any of those values, e.g. id => [1, 2, 3]. Must not be empty. Use loadAll() to load every row.
+     * @param array<string, mixed> $wherePairs - the column/value pairs a row must all have to be loaded. A value may be
+     * an array, to match any of those values, e.g. id => [1, 2, 3]. Must not be empty. Use loadAll() to load every row.
      *
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
      *
      * @return array<AbstractRecord>
      *
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if $wherePairs is empty.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadWhereAnd(array $wherePairs, CacheMode $cacheMode) : array;
 
@@ -315,23 +329,26 @@ interface TableInterface
      * Load the objects whose rows have ANY of the given column/value pairs. The query always runs, as the cache is
      * never searched by anything but ID.
      *
-     * @param array $wherePairs - the column/value pairs a row must have at least one of to be loaded. A value may be
-     * an array, to match any of those values, e.g. id => [1, 2, 3]. Must not be empty. Use loadAll() to load every
-     * row.
+     * @param array<string, mixed> $wherePairs - the column/value pairs a row must have at least one of to be loaded. A
+     * value may be an array, to match any of those values, e.g. id => [1, 2, 3]. Must not be empty. Use loadAll() to
+     * load every row.
      *
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
      *
      * @return array<AbstractRecord>
      *
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if $wherePairs is empty.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function loadWhereOr(array $wherePairs, CacheMode $cacheMode) : array;
 
 
     /**
      * Insert a new row into the table, and return the object for it.
-     * @param array $row - the column/value pairs to insert.
+     * @param array<string, mixed> $row - the column/value pairs to insert.
      * @return AbstractRecord - the object for the inserted row, including any values the database generated.
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function insert(array $row) : AbstractRecord;
 
@@ -340,9 +357,11 @@ interface TableInterface
      * Insert many rows into the table in a single query, and return the objects for them, including any values the
      * database generated, such as their IDs. The objects are not necessarily in the same order as $rows.
      *
-     * @param array<array> $rows - the rows to insert, as column/value pairs. Must not be empty.
+     * @param array<array<string, mixed>> $rows - the rows to insert, as column/value pairs. Must not be empty.
      *
      * @return array<AbstractRecord> - the objects for the inserted rows.
+     *
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function batchInsert(array $rows) : array;
 
@@ -369,8 +388,9 @@ interface TableInterface
     /**
      * Update a specified row with inputs
      * @param int|string $id - the current ID of the row being updated.
-     * @param array $row - the column/value pairs to update the row with.
+     * @param array<string, mixed> $row - the column/value pairs to update the row with.
      * @return AbstractRecord - the updated model object.
+     * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
     public function updateById(int|string $id, array $row) : AbstractRecord;
 

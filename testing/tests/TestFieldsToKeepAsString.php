@@ -25,7 +25,7 @@ class TestFieldsToKeepAsString
         $created = $table->insert(['exact_amount' => $amount, 'approximate_amount' => $amount]);
 
         // bypass the cache so the values come from the database.
-        $loaded = $table->load($created->getId(), CacheMode::UPDATE_CACHE);
+        $loaded = $table->load(RecordIds::get($created), CacheMode::UPDATE_CACHE);
 
         if ($loaded->getExactAmount() !== $amount)
         {
