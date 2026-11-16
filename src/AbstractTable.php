@@ -85,7 +85,7 @@ abstract class AbstractTable implements TableInterface
      * @param array $row - name value pairs to insert. Any values for the fields listed in getVirtualFields() are
      * ignored, as the database generates them.
      *
-     * @return AbstractRecord - the object for the inserted row.
+     * @return T - the object for the inserted row.
      *
      * @throws ExceptionMissingRequiredData - if no ID was provided, and neither the code nor the database can
      * generate one.
@@ -132,7 +132,7 @@ abstract class AbstractTable implements TableInterface
      * @param array<array> $rows - the rows to insert, as name value pairs. Any values for the fields listed in
      * getVirtualFields() are ignored, as the database generates them. Must not be empty.
      *
-     * @return array<AbstractRecord> - the objects for the inserted rows.
+     * @return array<T> - the objects for the inserted rows.
      *
      * @throws ExceptionMissingRequiredData - if $rows is empty, if a row has no ID and neither the code nor the
      * database can generate one, or if no row has any columns at all. This is checked before anything is inserted.
@@ -198,7 +198,7 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
-     * @return array<AbstractRecord>
+     * @return array<T>
      *
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
@@ -242,7 +242,7 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
-     * @return array<AbstractRecord>
+     * @return array<T>
      *
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
@@ -684,7 +684,7 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
-     * @return array<AbstractRecord>
+     * @return array<T>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
@@ -716,7 +716,7 @@ abstract class AbstractTable implements TableInterface
      *
      * @param string|null $orderByColumn - optionally the name of the column to order by. Defaults to the ID column.
      *
-     * @return array<AbstractRecord>
+     * @return array<T>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      */
@@ -762,7 +762,7 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
-     * @return array<AbstractRecord>
+     * @return array<T>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
@@ -800,7 +800,7 @@ abstract class AbstractTable implements TableInterface
      * @param array $row - the data to update the object with. Any values for the fields listed in
      * getVirtualFields() are ignored, as the database generates them.
      *
-     * @return AbstractRecord
+     * @return T
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the query failed.
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException - if there is no row with the ID.
@@ -958,7 +958,7 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
-     * @return AbstractRecord[]
+     * @return array<T>
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.

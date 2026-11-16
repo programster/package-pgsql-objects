@@ -12,6 +12,10 @@ namespace Programster\PgsqlObjects;
 use Programster\PgsqlObjects\Exceptions\ExceptionInvalidId;
 use Ramsey\Uuid\Uuid;
 
+/**
+ * @template T of \Programster\PgsqlObjects\AbstractRecord
+ * @extends AbstractTable<T>
+ */
 abstract class AbstractUuidTable extends AbstractTable
 {
     /**

@@ -235,6 +235,14 @@ The record's own `delete()` and `update($data)` are unchanged.
   the README.
 
 ### Fixed
+- `AbstractUuidTable` didn't pass its record type on to `AbstractTable`'s generics, so
+  static analysis (e.g. PHPStan) saw a UUID table's loads as returning `AbstractRecord`
+  rather than its own record class. Declare a UUID table with
+  `@extends AbstractUuidTable<YourRecord>`.
+- `insert()`, `batchInsert()`, `updateById()` and the loads that return many rows
+  (`loadAll()`, `loadWhereAnd()`, `loadWhereOr()`, `loadRange()`, `loadAfterId()` and
+  `loadIdsNotIn()`) were documented as returning `AbstractRecord`, rather than the table's
+  own record class, as `load()` and `loadIds()` already were.
 - `deleteIdsNotIn()` left the deleted objects in the cache, so `load()` could still
   return them.
 - Saving a new object sent `NULL` for a `NOT NULL` column with a default that it had no
