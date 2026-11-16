@@ -4,6 +4,7 @@ use Programster\PgsqlLib\PgSqlConnection;
 
 /**
  * A table whose IDs are UUIDs generated in code, with a DEFERRABLE foreign key to AuthorTable.
+ * @extends \Programster\PgsqlObjects\AbstractUuidTable<ReviewRecord>
  */
 class ReviewTable extends Programster\PgsqlObjects\AbstractUuidTable
 {

@@ -4,6 +4,7 @@ use Programster\PgsqlLib\PgSqlConnection;
 
 /**
  * A table in the reporting schema, which has a decoy table with the same name in the public schema.
+ * @extends \Programster\PgsqlObjects\AbstractUuidTable<SampleRecord>
  */
 class SampleTable extends Programster\PgsqlObjects\AbstractUuidTable
 {

@@ -4,6 +4,7 @@ use Programster\PgsqlLib\PgSqlConnection;
 
 /**
  * A table whose rows reference a subscriber by their email address, to test changing a natural key.
+ * @extends \Programster\PgsqlObjects\AbstractUuidTable<SubscriptionRecord>
  */
 class SubscriptionTable extends Programster\PgsqlObjects\AbstractUuidTable
 {

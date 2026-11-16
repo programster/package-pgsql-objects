@@ -4,6 +4,7 @@ use Programster\PgsqlLib\PgSqlConnection;
 
 /**
  * A table whose IDs are UUIDs generated in code.
+ * @extends \Programster\PgsqlObjects\AbstractUuidTable<UserRecord>
  */
 class UserTable extends Programster\PgsqlObjects\AbstractUuidTable
 {

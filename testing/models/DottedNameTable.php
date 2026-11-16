@@ -4,6 +4,7 @@ use Programster\PgsqlLib\PgSqlConnection;
 
 /**
  * A table with a dot in its name, in a schema with a dot in its name.
+ * @extends \Programster\PgsqlObjects\AbstractUuidTable<DottedNameRecord>
  */
 class DottedNameTable extends Programster\PgsqlObjects\AbstractUuidTable
 {

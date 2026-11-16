@@ -2,6 +2,9 @@
 
 use Programster\PgsqlLib\PgSqlConnection;
 
+/**
+ * @extends \Programster\PgsqlObjects\AbstractUuidTable<InvoiceRecord>
+ */
 class InvoiceTable extends Programster\PgsqlObjects\AbstractUuidTable
 {
     public function getDb() : PgSqlConnection

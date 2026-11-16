@@ -233,6 +233,9 @@ The record's own `delete()` and `update($data)` are unchanged.
 - The tests run on GitHub Actions, on Linux (PHP 8.2 to 8.5), macOS, Windows and WSL,
   against PostgreSQL 14 to 18 (16 in WSL), with a badge for each platform at the top of
   the README.
+- PHPStan (a development dependency) checks `src/` and `testing/` at level 5, set in
+  `phpstan.neon.dist`, and `testing/run-all-versions.sh` runs it after the tests.
+  Applications using this package aren't affected.
 
 ### Fixed
 - `AbstractUuidTable` didn't pass its record type on to `AbstractTable`'s generics, so
@@ -243,6 +246,8 @@ The record's own `delete()` and `update($data)` are unchanged.
   (`loadAll()`, `loadWhereAnd()`, `loadWhereOr()`, `loadRange()`, `loadAfterId()` and
   `loadIdsNotIn()`) were documented as returning `AbstractRecord`, rather than the table's
   own record class, as `load()` and `loadIds()` already were.
+- `AbstractRecord` declared a generic type that it never used, so static analysis asked
+  for it wherever a record was type hinted.
 - `deleteIdsNotIn()` left the deleted objects in the cache, so `load()` could still
   return them.
 - Saving a new object sent `NULL` for a `NOT NULL` column with a default that it had no

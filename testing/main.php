@@ -49,16 +49,17 @@ foreach ($tableFiles as $tableFile)
     $tableClassNames[] = basename($tableFile, '.php');
 }
 
+$boldGreen = "\033[1;32m";
+$boldRed = "\033[1;31m";
+$reset = "\033[0m";
+$boldCyan = "\033[1;36m";
+$coloredPassedMessage = "{$boldGreen}PASSED{$reset}";
+$coloredFailedMessage = "{$boldRed}FAILED{$reset}";
+
 foreach ($testFiles as $testFile)
 {
     $baseName = basename($testFile);
     $testName = str_replace(".php", "", $baseName);
-    $boldGreen = "\033[1;32m";
-    $boldRed = "\033[1;31m";
-    $reset = "\033[0m";
-    $boldCyan = "\033[1;36m";
-    $coloredPassedMessage = "{$boldGreen}PASSED{$reset}";
-    $coloredFailedMessage = "{$boldRed}FAILED{$reset}";
 
     ob_start();
 

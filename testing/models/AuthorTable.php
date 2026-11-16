@@ -4,6 +4,7 @@ use Programster\PgsqlLib\PgSqlConnection;
 
 /**
  * A table whose IDs are UUIDs generated in code, which BookTable's rows have a foreign key to.
+ * @extends \Programster\PgsqlObjects\AbstractUuidTable<AuthorRecord>
  */
 class AuthorTable extends Programster\PgsqlObjects\AbstractUuidTable
 {

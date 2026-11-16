@@ -6,6 +6,7 @@
  */
 
 use Programster\PgsqlObjects\UuidVersion;
+use Ramsey\Uuid\Rfc4122\FieldsInterface as Rfc4122Fields;
 use Ramsey\Uuid\Uuid;
 
 class TestUuidVersions
@@ -63,7 +64,9 @@ class TestUuidVersions
         for ($i = 0; $i < 20; $i++)
         {
             $id = $table->generateId();
-            $version = Uuid::fromString($id)->getFields()->getVersion();
+            // only an RFC 4122 UUID has a version, so anything else fails the check below.
+            $fields = Uuid::fromString($id)->getFields();
+            $version = ($fields instanceof Rfc4122Fields) ? $fields->getVersion() : null;
 
             if ($version !== $expectedVersion || $id !== strtolower($id))
             {

@@ -2,6 +2,9 @@
 
 use Programster\PgsqlLib\PgSqlConnection;
 
+/**
+ * @extends \Programster\PgsqlObjects\AbstractUuidTable<MeasurementRecord>
+ */
 class MeasurementTable extends Programster\PgsqlObjects\AbstractUuidTable
 {
     public function getDb() : PgSqlConnection

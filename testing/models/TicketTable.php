@@ -3,6 +3,9 @@
 use Programster\PgsqlLib\PgSqlConnection;
 use Programster\PgsqlObjects\Exceptions\ExceptionIdGeneratedInDatabase;
 
+/**
+ * @extends \Programster\PgsqlObjects\AbstractTable<TicketRecord>
+ */
 class TicketTable extends Programster\PgsqlObjects\AbstractTable
 {
     public function getDb() : PgSqlConnection

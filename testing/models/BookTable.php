@@ -5,6 +5,7 @@ use Programster\PgsqlObjects\Exceptions\ExceptionIdGeneratedInDatabase;
 
 /**
  * A table whose IDs the database generates (SERIAL), with a foreign key to AuthorTable.
+ * @extends \Programster\PgsqlObjects\AbstractTable<BookRecord>
  */
 class BookTable extends Programster\PgsqlObjects\AbstractTable
 {

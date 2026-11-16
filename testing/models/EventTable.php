@@ -5,6 +5,8 @@ use Programster\PgsqlLib\PgSqlConnection;
 /**
  * A UUID table whose database can also generate the ID. It inherits canCodeGenerateId() returning true from
  * AbstractUuidTable, so the ID should still be generated in code.
+ *
+ * @extends \Programster\PgsqlObjects\AbstractUuidTable<EventRecord>
  */
 class EventTable extends Programster\PgsqlObjects\AbstractUuidTable
 {

@@ -7,6 +7,7 @@
  */
 
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
+use Ramsey\Uuid\Rfc4122\FieldsInterface as Rfc4122Fields;
 use Ramsey\Uuid\Uuid;
 
 class TestIdGenerationPreference
@@ -37,7 +38,9 @@ class TestIdGenerationPreference
 
         foreach (['insert()' => $created, 'save()' => $saved, 'clone' => $cloned] as $source => $event)
         {
-            $version = Uuid::fromString($event->getId())->getFields()->getVersion();
+            // only an RFC 4122 UUID has a version, so anything else fails the check below.
+            $fields = Uuid::fromString($event->getId())->getFields();
+            $version = ($fields instanceof Rfc4122Fields) ? $fields->getVersion() : null;
 
             if ($version !== 7)
             {

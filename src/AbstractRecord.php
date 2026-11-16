@@ -14,9 +14,6 @@ use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
 use Programster\PgsqlObjects\Exceptions\ExceptionUnknownColumn;
 
-/**
- * @template T of \Programster\PgsqlObjects\AbstractRecord
- */
 abstract class AbstractRecord
 {
     // the identifier, e.g. a UUID string or a SERIAL int. Null until the database generates it, for tables whose IDs

@@ -4,6 +4,7 @@ use Programster\PgsqlLib\PgSqlConnection;
 
 /**
  * The note table whose IDs are UUIDs generated in code (see AbstractNoteRecord).
+ * @extends \Programster\PgsqlObjects\AbstractUuidTable<NoteUuidRecord>
  */
 class NoteUuidTable extends Programster\PgsqlObjects\AbstractUuidTable
 {

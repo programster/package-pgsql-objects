@@ -21,7 +21,8 @@
     },
     "require-dev" : {
         "programster/pgsql-migrations": "^1.1",
-        "programster/autoloader": "^1.0.3"
+        "programster/autoloader": "^1.0.3",
+        "phpstan/phpstan": "^2.1"
     },
     "autoload": {
         "psr-4": {

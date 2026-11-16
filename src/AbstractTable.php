@@ -24,6 +24,7 @@ use Programster\PgsqlObjects\Exceptions\ExceptionUnsupportedDatabaseVersion;
 
 /**
  * @template T of \Programster\PgsqlObjects\AbstractRecord
+ * @phpstan-consistent-constructor
  */
 abstract class AbstractTable implements TableInterface
 {

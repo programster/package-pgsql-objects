@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Runs the test suite against every supported major version of PostgreSQL, each in its own throwaway docker
-# container, which keeps its data in memory and is removed afterwards.
+# container, which keeps its data in memory and is removed afterwards, and then runs PHPStan (see phpstan.neon.dist).
 # Usage: testing/run-all-versions.sh [version ...], e.g. testing/run-all-versions.sh 16 17. Defaults to all of them.
-# Exits non-zero if any version's tests fail.
+# Exits non-zero if any version's tests fail, or PHPStan finds any errors.
 
 set -u
 
@@ -99,9 +99,29 @@ for VERSION in "${VERSIONS[@]}"; do
     echo
 done
 
-if [ "${#FAILED_VERSIONS[@]}" -gt 0 ]; then
-    echo "Failed on PostgreSQL: ${FAILED_VERSIONS[*]}"
-    exit 1
+echo "=== PHPStan ==="
+PHPSTAN_FAILED=0
+
+if ! php "${TESTING_DIR}/../vendor/bin/phpstan" analyse --configuration="${TESTING_DIR}/../phpstan.neon.dist" \
+    --no-progress --memory-limit=1G
+then
+    PHPSTAN_FAILED=1
 fi
 
-echo "Passed on PostgreSQL: ${VERSIONS[*]}"
+echo
+
+if [ "${#FAILED_VERSIONS[@]}" -gt 0 ]; then
+    echo "Failed on PostgreSQL: ${FAILED_VERSIONS[*]}"
+else
+    echo "Passed on PostgreSQL: ${VERSIONS[*]}"
+fi
+
+if [ "${PHPSTAN_FAILED}" -eq 1 ]; then
+    echo "PHPStan: FAILED"
+else
+    echo "PHPStan: passed"
+fi
+
+if [ "${#FAILED_VERSIONS[@]}" -gt 0 ] || [ "${PHPSTAN_FAILED}" -eq 1 ]; then
+    exit 1
+fi

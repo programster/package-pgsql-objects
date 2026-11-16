@@ -96,6 +96,7 @@ class TestColumnDefaults
 
     /**
      * A clone of a row with a null in a column that has a default copies the null, as the row's values were given.
+     * @param AbstractTable<covariant AbstractNoteRecord> $table
      */
     private function testCloneKeepsNull(string $kind, AbstractTable $table, string $recordClass) : void
     {
@@ -172,7 +173,7 @@ class TestColumnDefaults
      *
      * @param string $context - what was being tested, for the failure message.
      *
-     * @param AbstractTable $table
+     * @param AbstractTable<covariant AbstractNoteRecord> $table
      *
      * @return void
      */
@@ -198,7 +199,7 @@ class TestColumnDefaults
      *
      * @param string $context - what was being tested, for the failure message.
      *
-     * @param AbstractTable $table
+     * @param AbstractTable<covariant AbstractNoteRecord> $table
      *
      * @param array<string, AbstractNoteRecord> $objects - the saved objects, by title.
      *
@@ -242,7 +243,7 @@ class TestColumnDefaults
     /**
      * Load every row of the table, indexed by title.
      *
-     * @param AbstractTable $table
+     * @param AbstractTable<covariant AbstractNoteRecord> $table
      *
      * @return array<string, AbstractNoteRecord>
      */

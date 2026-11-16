@@ -8,6 +8,8 @@ use Programster\PgsqlObjects\Exceptions\ExceptionInvalidId;
 /**
  * A table whose identifier is a natural key: the subscriber's email address, which must always be given, as neither the
  * code nor the database can make one up.
+ *
+ * @extends AbstractTable<SubscriberRecord>
  */
 class SubscriberTable extends AbstractTable
 {

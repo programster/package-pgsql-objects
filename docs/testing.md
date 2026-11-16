@@ -13,7 +13,28 @@ testing/run-all-versions.sh
 
 Or pass the versions to test, e.g. `testing/run-all-versions.sh 16 18`. It 
 needs docker and bash (on Windows, Git Bash or WSL), and uses ports 5454 to 
-5458 (5440 plus the version).
+5458 (5440 plus the version). It then runs PHPStan (see below), and fails if 
+either the tests or PHPStan do.
+
+
+## PHPStan
+
+PHPStan checks the code in `src/` and `testing/` without running it. It's run 
+by `testing/run-all-versions.sh`, or on its own with:
+
+```bash
+vendor/bin/phpstan
+```
+
+Its settings are in `phpstan.neon.dist`. It runs at level 5, the highest the 
+code passes, as level 6 and up mostly ask for the value types of the arrays 
+(e.g. rows and where pairs) that the public methods take and return. It 
+analyses the code as PHP 8.2 to 8.5, whichever version of PHP runs it. The 
+only errors it ignores come from the closures that reach another class's 
+protected or private members, by running in that object's scope, which PHPStan 
+can't follow, and two tests that check what PHPStan already knows: that a 
+method declared to always throw really does, and a slow test that is switched 
+off by a constant.
 
 
 ## GitHub Actions
@@ -24,7 +45,7 @@ requests into either. The badges at the top of the [README](../README.md) show
 the latest results on `main`:
 
 - **Linux** (`.github/workflows/tests.yml`): runs `testing/run-all-versions.sh` 
-  on PHP 8.2, 8.3, 8.4 and 8.5.
+  (the tests, then PHPStan) on PHP 8.2, 8.3, 8.4 and 8.5.
 - **macOS and Windows** (`tests-macos.yml` and `tests-windows.yml`, which share 
   `tests-native.yml`): GitHub's runners for these can't run the Linux 
   PostgreSQL images, so each supported version of PostgreSQL is installed on 

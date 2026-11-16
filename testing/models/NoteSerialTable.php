@@ -5,6 +5,7 @@ use Programster\PgsqlObjects\Exceptions\ExceptionIdGeneratedInDatabase;
 
 /**
  * The note table whose IDs the database generates (SERIAL) (see AbstractNoteRecord).
+ * @extends \Programster\PgsqlObjects\AbstractTable<NoteSerialRecord>
  */
 class NoteSerialTable extends Programster\PgsqlObjects\AbstractTable
 {
