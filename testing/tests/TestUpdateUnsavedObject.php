@@ -29,7 +29,7 @@ class TestUpdateUnsavedObject
 
     private function testCodeGeneratedId() : void
     {
-        $user = UserRecord::createNewFromArray(['name' => 'new', 'email' => 'new@gmail.com']);
+        $user = UserRecord::createFromArray(['name' => 'new', 'email' => 'new@gmail.com']);
         $user->update(['name' => 'updated']);
         $fromDatabase = UserTable::getInstance()->load($user->getId(), CacheMode::IGNORE_CACHE);
 
@@ -47,7 +47,7 @@ class TestUpdateUnsavedObject
 
     private function testDatabaseGeneratedId() : void
     {
-        $ticket = TicketRecord::createNewFromArray(['title' => 'new']);
+        $ticket = TicketRecord::createFromArray(['title' => 'new']);
         $ticket->update(['title' => 'updated']);
 
         // the database generates the ID and the status default, which the object should take on.
@@ -69,7 +69,7 @@ class TestUpdateUnsavedObject
     {
         $table = UserTable::getInstance();
         $newId = $table->generateId();
-        $user = UserRecord::createNewFromArray(['name' => 'with id', 'email' => 'with-id@gmail.com']);
+        $user = UserRecord::createFromArray(['name' => 'with id', 'email' => 'with-id@gmail.com']);
         $user->update(['id' => $newId]);
 
         if ($user->getId() !== $newId || $table->load($newId, CacheMode::IGNORE_CACHE)->getName() !== 'with id')

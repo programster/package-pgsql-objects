@@ -100,7 +100,7 @@ These are protected, so they can only be used from within the table class.
 
 | Method | Does |
 |---|---|
-| `YourRecord::createNewFromArray($data)` | Creates a new, unsaved object, generating its ID if the table can ([Saving](saving.md)). |
+| `YourRecord::createFromArray($data)` | Creates a new, unsaved object, generating its ID if the table can ([Saving](saving.md)). |
 | `YourRecord::createFromDatabaseRow($row, $fieldInfoMap = null)` | Creates the record for a row that's already in the database. |
 | `save()` | Saves the object: updates its row, or inserts it if it's new. |
 | `update($data)` | Changes some of its values, and saves straight away. |

@@ -118,7 +118,7 @@ are UUIDs or `AbstractTable` otherwise, and a record class extending
 $userTable = UserTable::getInstance();
 
 // create and save a new row.
-$user = UserRecord::createNewFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
+$user = UserRecord::createFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
 $user->save();
 
 // load a row whose ID you know, e.g. from a form submission, change it, and save the change straight away.

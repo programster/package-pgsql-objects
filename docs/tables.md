@@ -169,7 +169,7 @@ can be changed and then saved together (see [Saving](saving.md)).
 
 ## Required columns, nulls and defaults
 
-When you create a new object with `createNewFromArray()`, every column with a 
+When you create a new object with `createFromArray()`, every column with a 
 setter must be given a value, unless it's listed in the table's:
 
 - `getFieldsThatAllowNull()`, as it can be null,
@@ -187,7 +187,7 @@ can each give a value for a column or leave it to the default:
 - A column the object was **never given**, e.g. `created_at` here, isn't sent, 
   so the database fills in its default.
 - A column given a value is sent as it is.
-- A column given `null` on purpose, as a key of `createNewFromArray()` or 
+- A column given `null` on purpose, as a key of `createFromArray()` or 
   `update()`, is sent as `NULL` if it allows null, e.g. 
   `['nickname' => null]` stores `NULL`, even if `nickname` had a default.
 - A `NOT NULL` column that's `null` always gets its default, as `NULL` could 
@@ -195,8 +195,8 @@ can each give a value for a column or leave it to the default:
 
 ```php
 $userTable = UserTable::getInstance();
-$withDefault = UserRecord::createNewFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
-$withOwnValue = UserRecord::createNewFromArray([
+$withDefault = UserRecord::createFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
+$withOwnValue = UserRecord::createFromArray([
     'name' => 'Grace',
     'email' => 'grace@example.com',
     'created_at' => '2024-01-01 00:00:00+00',
@@ -209,7 +209,7 @@ This only works for the columns listed in the table's
 `getFieldsThatHaveDefaults()`, so list every column that has one. The package 
 can't see your own public setters, so a column set to `null` through one of 
 them counts as never given, and gets its default: to store `NULL` in a column 
-that has a default, pass it to `createNewFromArray()` or `update()`.
+that has a default, pass it to `createFromArray()` or `update()`.
 
 Once an object has been saved, it sends every value, as it's updated rather 
 than inserted. However it was saved, with `save()`, `update()`, `batchSave()` 

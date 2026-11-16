@@ -18,7 +18,7 @@ For deleting, see [Deleting](deleting.md).
 Call an object's `update()` with the new values, e.g. from a form. It always 
 saves the object to the database straight away: it updates the row if the 
 object has been saved before, or inserts it if it hasn't (e.g. a new object 
-from `createNewFromArray()`). Every key is checked first, so a typo throws an 
+from `createFromArray()`). Every key is checked first, so a typo throws an 
 `ExceptionUnknownColumn` without changing anything.
 
 ```php
@@ -29,7 +29,7 @@ $user->update(['name' => $_POST['name'], 'email' => $_POST['email']]);
 `save()` does the same with the values the object already has:
 
 ```php
-$user = UserRecord::createNewFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
+$user = UserRecord::createFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
 $user->save(); // inserts it, as it has never been saved.
 ```
 

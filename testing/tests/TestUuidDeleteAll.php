@@ -23,7 +23,7 @@ class TestUuidDeleteAll
             'name' => 'user1',
         ];
 
-        $userRecord = UserRecord::createNewFromArray($userDetails);
+        $userRecord = UserRecord::createFromArray($userDetails);
         $userRecord->save();
 
         $userDetails2 = [
@@ -31,7 +31,7 @@ class TestUuidDeleteAll
             'name' => 'user2',
         ];
 
-        $userRecord2 = UserRecord::createNewFromArray($userDetails2);
+        $userRecord2 = UserRecord::createFromArray($userDetails2);
         $userRecord2->save();
         $loadedUserRecords = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);
 

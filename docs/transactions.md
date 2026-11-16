@@ -4,8 +4,8 @@ A `Transaction` saves and deletes objects of any of your tables together, in
 one database transaction: either every change is made, or none are.
 
 ```php
-$author = AuthorRecord::createNewFromArray(['name' => 'Ursula']);
-$book = BookRecord::createNewFromArray(['author_id' => $author->getId(), 'title' => 'Earthsea']);
+$author = AuthorRecord::createFromArray(['name' => 'Ursula']);
+$book = BookRecord::createFromArray(['author_id' => $author->getId(), 'title' => 'Earthsea']);
 
 $transaction = new Transaction();
 $transaction->save($author);
@@ -76,8 +76,8 @@ one. A book saved before its new author fails, even if the author is saved a
 moment later in the same transaction:
 
 ```php
-$author = AuthorRecord::createNewFromArray(['name' => 'Ursula']);
-$book = BookRecord::createNewFromArray(['author_id' => $author->getId(), 'title' => 'Earthsea']);
+$author = AuthorRecord::createFromArray(['name' => 'Ursula']);
+$book = BookRecord::createFromArray(['author_id' => $author->getId(), 'title' => 'Earthsea']);
 
 $transaction = new Transaction();
 $transaction->save($book);   // fails here, with a normal foreign key: the author doesn't exist yet.

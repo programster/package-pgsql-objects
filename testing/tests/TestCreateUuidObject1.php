@@ -24,7 +24,7 @@ class TestCreateUuidObject1
             'name' => 'user1',
         ];
 
-        $userRecord = UserRecord::createNewFromArray($userDetails);
+        $userRecord = UserRecord::createFromArray($userDetails);
 
         if ($userRecord->getId() === "" || $userRecord->getId() === null)
         {

@@ -28,8 +28,8 @@ class TestUnknownColumns
         $typoRow = ['name' => 'typo', 'emial' => 'typo@gmail.com'];
 
         $calls = [
-            'createNewFromArray()'    => function () use ($typoRow) : void {
-                UserRecord::createNewFromArray($typoRow);
+            'createFromArray()'    => function () use ($typoRow) : void {
+                UserRecord::createFromArray($typoRow);
             },
             'createFromDatabaseRow()' => function () use ($userId) : void {
                 UserRecord::createFromDatabaseRow(['id' => $userId, 'name' => 'a', 'email' => 'a', 'extra' => 1]);

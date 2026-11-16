@@ -30,7 +30,7 @@ class TestBatchSave
         $existing = $table->insert(['name' => 'existing']);
         $existing->update(['name' => 'renamed']); // saves straight away, so change it again for the batch below.
         $existingInBatch = $table->load($existing->getId());
-        $newProduct = ProductRecord::createNewFromArray(['name' => 'new']);
+        $newProduct = ProductRecord::createFromArray(['name' => 'new']);
 
         $existingInBatch->update(['name' => 'batch renamed']);
         $table->batchSave([$existingInBatch, $newProduct]);

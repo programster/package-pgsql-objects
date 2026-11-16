@@ -22,7 +22,7 @@ class TestDeleteUser
             'name' => 'user1',
         ];
 
-        $userRecord = UserRecord::createNewFromArray($userDetails);
+        $userRecord = UserRecord::createFromArray($userDetails);
         $userRecord->save();
 
 

@@ -53,8 +53,8 @@ ID doesn't exist until the database inserts the row, so related rows have to
 be saved one after another, waiting for each new ID.
 
 ```php
-$user = UserRecord::createNewFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
-$project = ProjectRecord::createNewFromArray(['user_id' => $user->getId(), 'name' => 'Engine']);
+$user = UserRecord::createFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
+$project = ProjectRecord::createFromArray(['user_id' => $user->getId(), 'name' => 'Engine']);
 
 // both saved together, in one transaction, and one round trip to the database.
 $transaction = new Transaction();
@@ -254,7 +254,7 @@ unless they override `normalizeId()` themselves.
 Each table's ID column is called `id` by default, but you can override your 
 table's `getIdColumnName()` to use another name, such as `uuid`.
 
-IDs are only ever generated for new rows: by `createNewFromArray()`, by the 
+IDs are only ever generated for new rows: by `createFromArray()`, by the 
 table's `insert()` and `batchInsert()`, and when a record is cloned. A row 
 loaded from the database always keeps its own ID. When a new row has no ID, 
 the package chooses where its ID comes from in this order:
@@ -384,7 +384,7 @@ class SubscriberRecord extends AbstractRecord
 Then it works like any other table, with the email address as the ID:
 
 ```php
-$ada = SubscriberRecord::createNewFromArray(['email' => 'Ada@Example.com', 'name' => 'Ada']);
+$ada = SubscriberRecord::createFromArray(['email' => 'Ada@Example.com', 'name' => 'Ada']);
 $ada->save();                                                // saved as ada@example.com
 
 $ada = SubscriberTable::getInstance()->load('ada@example.com');

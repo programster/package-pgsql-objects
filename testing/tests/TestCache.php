@@ -162,7 +162,7 @@ class TestCache
         $table = $this->createCachedTableWithUsers();
 
         // a new object that is saved becomes the cached object for its row.
-        $user = UserRecord::createNewFromArray(['name' => 'saved', 'email' => 'saved@gmail.com']);
+        $user = UserRecord::createFromArray(['name' => 'saved', 'email' => 'saved@gmail.com']);
         $user->save();
         $this->assertCached($user, "save() of a new object");
 
@@ -173,7 +173,7 @@ class TestCache
         $this->assertCached($user, "update() that changed the ID");
 
         // and the objects given to batchSave().
-        $batchUser = UserRecord::createNewFromArray(['name' => 'batch', 'email' => 'batch@gmail.com']);
+        $batchUser = UserRecord::createFromArray(['name' => 'batch', 'email' => 'batch@gmail.com']);
         $table->batchSave([$batchUser]);
         $this->assertCached($batchUser, "batchSave()");
     }
@@ -195,7 +195,7 @@ class TestCache
     private function testCacheObjectRejectsUnsavedObjects() : void
     {
         $table = $this->createCachedTableWithUsers();
-        $unsaved = UserRecord::createNewFromArray(['name' => 'unsaved', 'email' => 'unsaved@gmail.com']);
+        $unsaved = UserRecord::createFromArray(['name' => 'unsaved', 'email' => 'unsaved@gmail.com']);
         $threw = false;
 
         try

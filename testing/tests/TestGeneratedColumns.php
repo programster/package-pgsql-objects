@@ -66,7 +66,7 @@ class TestGeneratedColumns
 
     private function testSaveNewObject() : void
     {
-        $invoice = InvoiceRecord::createNewFromArray(['quantity' => 4, 'unit_price_pence' => 25]);
+        $invoice = InvoiceRecord::createFromArray(['quantity' => 4, 'unit_price_pence' => 25]);
         $invoice->save();
         $this->assertTotal($invoice, 100, "save() of a new object");
         $loaded = InvoiceTable::getInstance()->load($invoice->getId(), CacheMode::UPDATE_CACHE);
@@ -107,7 +107,7 @@ class TestGeneratedColumns
         $table = InvoiceTable::getInstance();
         $existing = $table->insert(['quantity' => 1, 'unit_price_pence' => 5]);
         $existing->setQuantity(2);
-        $new = InvoiceRecord::createNewFromArray(['quantity' => 3, 'unit_price_pence' => 5]);
+        $new = InvoiceRecord::createFromArray(['quantity' => 3, 'unit_price_pence' => 5]);
 
         $table->batchSave([$existing, $new]);
 

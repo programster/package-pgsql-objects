@@ -57,7 +57,7 @@ class TestTransaction
         $existingBook = $bookTable->insert(['author_id' => $existingAuthor->getId(), 'title' => 'existing']);
         $doomedAuthor = $authorTable->insert(['name' => 'doomed']);
         $doomedBook = $bookTable->insert(['author_id' => $doomedAuthor->getId(), 'title' => 'doomed']);
-        $newAuthor = AuthorRecord::createNewFromArray(['name' => 'new']);
+        $newAuthor = AuthorRecord::createFromArray(['name' => 'new']);
         $existingAuthor->setName('renamed');
         $existingBook->setTitle('retitled');
 
@@ -114,7 +114,7 @@ class TestTransaction
         $bookTable = BookTable::getInstance();
         $author = $authorTable->insert(['name' => 'original']);
         $book = $bookTable->insert(['author_id' => $author->getId(), 'title' => 'original']);
-        $newAuthor = AuthorRecord::createNewFromArray(['name' => 'new']);
+        $newAuthor = AuthorRecord::createFromArray(['name' => 'new']);
         $book->setAuthorId($newAuthor->getId());
         $book->setTitle('moved');
 
@@ -154,10 +154,10 @@ class TestTransaction
         $author = $authorTable->insert(['name' => 'original']);
         $book = $bookTable->insert(['author_id' => $author->getId(), 'title' => 'kept']);
         $author->setName('changed');
-        $newAuthor = AuthorRecord::createNewFromArray(['name' => 'new']);
+        $newAuthor = AuthorRecord::createFromArray(['name' => 'new']);
 
         // name is NOT NULL, so the database rejects this author, which must undo everything before it.
-        $invalidAuthor = AuthorRecord::createNewFromArray(['name' => null]);
+        $invalidAuthor = AuthorRecord::createFromArray(['name' => null]);
 
         $transaction = new Transaction();
         $transaction->delete($book);
@@ -195,10 +195,10 @@ class TestTransaction
     private function testNewDatabaseIdsInSeveralGroups() : void
     {
         $author = AuthorTable::getInstance()->insert(['name' => 'first']);
-        $secondAuthor = AuthorRecord::createNewFromArray(['name' => 'second']);
-        $firstBook = BookRecord::createNewFromArray(['author_id' => $author->getId(), 'title' => 'first']);
-        $secondBook = BookRecord::createNewFromArray(['author_id' => $secondAuthor->getId(), 'title' => 'second']);
-        $thirdBook = BookRecord::createNewFromArray(['author_id' => $secondAuthor->getId(), 'title' => 'third']);
+        $secondAuthor = AuthorRecord::createFromArray(['name' => 'second']);
+        $firstBook = BookRecord::createFromArray(['author_id' => $author->getId(), 'title' => 'first']);
+        $secondBook = BookRecord::createFromArray(['author_id' => $secondAuthor->getId(), 'title' => 'second']);
+        $thirdBook = BookRecord::createFromArray(['author_id' => $secondAuthor->getId(), 'title' => 'third']);
 
         // three groups: books, then an author, then books, so the two groups of books are separate inserts.
         $transaction = new Transaction();
@@ -234,7 +234,7 @@ class TestTransaction
         $db = ConnectionHandler::getDb();
         $db->query("BEGIN");
         $transaction = new Transaction();
-        $transaction->save(AuthorRecord::createNewFromArray(['name' => 'inside']));
+        $transaction->save(AuthorRecord::createFromArray(['name' => 'inside']));
         $transaction->commit();
         $namesBeforeRollback = $this->getAuthorNamesInDatabase();
         $db->query("ROLLBACK");
@@ -255,8 +255,8 @@ class TestTransaction
         $db->query("BEGIN");
         AuthorTable::getInstance()->insert(['name' => 'before']);
         $transaction = new Transaction();
-        $transaction->save(AuthorRecord::createNewFromArray(['name' => 'undone']));
-        $transaction->save(AuthorRecord::createNewFromArray(['name' => null]));
+        $transaction->save(AuthorRecord::createFromArray(['name' => 'undone']));
+        $transaction->save(AuthorRecord::createFromArray(['name' => null]));
 
         $commit = function () use ($transaction) : void { $transaction->commit(); };
         $this->assertThrows(ExceptionQueryError::class, $commit, "A failing transaction inside an open one worked.");
@@ -279,7 +279,7 @@ class TestTransaction
      */
     private function testMisuseIsRejected() : void
     {
-        $author = AuthorRecord::createNewFromArray(['name' => 'twice']);
+        $author = AuthorRecord::createFromArray(['name' => 'twice']);
 
         // a new author inserted twice would break its primary key, so this proves it's only saved once.
         $transaction = new Transaction();
@@ -289,7 +289,7 @@ class TestTransaction
 
         $deletedAuthor = AuthorTable::getInstance()->insert(['name' => 'deleted']);
         $deletedAuthor->delete();
-        $otherConnectionAuthor = OtherConnectionAuthorRecord::createNewFromArray(['name' => 'other']);
+        $otherConnectionAuthor = OtherConnectionAuthorRecord::createFromArray(['name' => 'other']);
         $unused = new Transaction();
         $unused->save($author);
 
@@ -327,8 +327,8 @@ class TestTransaction
      */
     private function testDeferrableConstraintsAreDeferred() : void
     {
-        $author = AuthorRecord::createNewFromArray(['name' => 'reviewed']);
-        $review = ReviewRecord::createNewFromArray(['author_id' => $author->getId(), 'text' => 'great']);
+        $author = AuthorRecord::createFromArray(['name' => 'reviewed']);
+        $review = ReviewRecord::createFromArray(['author_id' => $author->getId(), 'text' => 'great']);
 
         $saves = new Transaction();
         $saves->save($review); // before its author, which only works as the foreign key is deferred.
@@ -361,9 +361,9 @@ class TestTransaction
      */
     private function testDeferredConstraintFailureSavesNothing() : void
     {
-        $author = AuthorRecord::createNewFromArray(['name' => 'saved']);
-        $missingAuthor = AuthorRecord::createNewFromArray(['name' => 'never saved']);
-        $review = ReviewRecord::createNewFromArray(['author_id' => $missingAuthor->getId(), 'text' => 'orphan']);
+        $author = AuthorRecord::createFromArray(['name' => 'saved']);
+        $missingAuthor = AuthorRecord::createFromArray(['name' => 'never saved']);
+        $review = ReviewRecord::createFromArray(['author_id' => $missingAuthor->getId(), 'text' => 'orphan']);
 
         $transaction = new Transaction();
         $transaction->save($author);

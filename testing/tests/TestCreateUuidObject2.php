@@ -25,7 +25,7 @@ class TestCreateUuidObject2
             'name' => 'user1',
         ];
 
-        $userRecord = UserRecord::createNewFromArray($userDetails);
+        $userRecord = UserRecord::createFromArray($userDetails);
         $userRecord->save();
 
         $loadedUserRecords = UserTable::getInstance()->loadAll(CacheMode::UPDATE_CACHE);

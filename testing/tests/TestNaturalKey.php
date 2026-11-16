@@ -38,7 +38,7 @@ class TestNaturalKey
     private function testCreateAndLoad() : void
     {
         $table = SubscriberTable::getInstance();
-        $ada = SubscriberRecord::createNewFromArray(['email' => 'Ada@Example.com', 'name' => 'Ada']);
+        $ada = SubscriberRecord::createFromArray(['email' => 'Ada@Example.com', 'name' => 'Ada']);
         $ada->save();
 
         if ($ada->getEmail() !== 'ada@example.com' || !$ada->isPersisted())
@@ -75,17 +75,17 @@ class TestNaturalKey
         $table = SubscriberTable::getInstance();
 
         $calls = [
-            'createNewFromArray() without an email' => [
+            'createFromArray() without an email' => [
                 ExceptionMissingRequiredData::class,
-                function () : void { SubscriberRecord::createNewFromArray(['name' => 'Nobody']); },
+                function () : void { SubscriberRecord::createFromArray(['name' => 'Nobody']); },
             ],
             'insert() without an email'             => [
                 ExceptionMissingRequiredData::class,
                 function () use ($table) : void { $table->insert(['name' => 'Nobody']); },
             ],
-            'createNewFromArray() with a non-email' => [
+            'createFromArray() with a non-email' => [
                 ExceptionInvalidId::class,
-                function () : void { SubscriberRecord::createNewFromArray(['email' => 'nope', 'name' => 'x']); },
+                function () : void { SubscriberRecord::createFromArray(['email' => 'nope', 'name' => 'x']); },
             ],
             'load() with a non-email'               => [
                 ExceptionInvalidId::class,
@@ -173,7 +173,7 @@ class TestNaturalKey
         $table = SubscriberTable::getInstance();
         $grace = $table->load('grace@example.com');
         $grace->setName('Grace Hopper');
-        $alan = SubscriberRecord::createNewFromArray(['email' => 'alan@example.com', 'name' => 'Alan']);
+        $alan = SubscriberRecord::createFromArray(['email' => 'alan@example.com', 'name' => 'Alan']);
         $table->batchSave([$grace, $alan]);
 
         if ($table->load('alan@example.com', CacheMode::IGNORE_CACHE)->getName() !== 'Alan')
@@ -186,9 +186,9 @@ class TestNaturalKey
             throw new \Exception("batchSave() didn't update an existing subscriber.");
         }
 
-        $edsger = SubscriberRecord::createNewFromArray(['email' => 'edsger@example.com', 'name' => 'Edsger']);
+        $edsger = SubscriberRecord::createFromArray(['email' => 'edsger@example.com', 'name' => 'Edsger']);
         $data = ['subscriber_email' => $edsger->getEmail(), 'list' => 'news'];
-        $subscription = SubscriptionRecord::createNewFromArray($data);
+        $subscription = SubscriptionRecord::createFromArray($data);
         $saves = new Transaction();
         $saves->save($subscription);
         $saves->save($edsger);

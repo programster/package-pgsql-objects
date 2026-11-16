@@ -76,9 +76,9 @@ class TestColumnDefaults
     private function testUpdateUnsaved(string $kind, AbstractTable $table, string $recordClass) : void
     {
         $this->resetTable($table);
-        $nullOnPurpose = $recordClass::createNewFromArray(['title' => 'null in update']);
+        $nullOnPurpose = $recordClass::createFromArray(['title' => 'null in update']);
         $nullOnPurpose->update(['category' => null]);
-        $notGiven = $recordClass::createNewFromArray(['title' => 'not given']);
+        $notGiven = $recordClass::createFromArray(['title' => 'not given']);
         $notGiven->update(['status' => 'published']);
         $rows = $this->loadByTitle($table);
 
@@ -101,7 +101,7 @@ class TestColumnDefaults
     private function testCloneKeepsNull(string $kind, AbstractTable $table, string $recordClass) : void
     {
         $this->resetTable($table);
-        $original = $recordClass::createNewFromArray(['title' => 'original', 'category' => null]);
+        $original = $recordClass::createFromArray(['title' => 'original', 'category' => null]);
         $original->save();
         $loaded = $table->load($original->getId(), CacheMode::IGNORE_CACHE);
         $clone = clone $loaded;
@@ -161,7 +161,7 @@ class TestColumnDefaults
 
         foreach (self::CASES as $title => $case)
         {
-            $objects[$title] = $recordClass::createNewFromArray(['title' => $title, ...$case['given']]);
+            $objects[$title] = $recordClass::createFromArray(['title' => $title, ...$case['given']]);
         }
 
         return $objects;

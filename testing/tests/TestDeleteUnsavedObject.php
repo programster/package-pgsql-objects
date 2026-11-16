@@ -22,7 +22,7 @@ class TestDeleteUnsavedObject
     {
         $table = TicketTable::getInstance();
         $existing = $table->insert(['title' => 'existing']);
-        $unsaved = TicketRecord::createNewFromArray(['title' => 'unsaved']);
+        $unsaved = TicketRecord::createFromArray(['title' => 'unsaved']);
 
         if ($unsaved->getId() !== null)
         {

@@ -32,7 +32,7 @@ class TestIdGenerationPreference
     {
         // the database default makes v4 UUIDs, whereas the code makes v7, so the version shows where it came from.
         $created = EventTable::getInstance()->insert(['name' => 'created']);
-        $saved = EventRecord::createNewFromArray(['name' => 'saved']);
+        $saved = EventRecord::createFromArray(['name' => 'saved']);
         $saved->save();
         $cloned = clone $created;
 
@@ -62,7 +62,7 @@ class TestIdGenerationPreference
 
         $callsThatMustBeRejected = [
             'insert()'             => function () : void { TagTable::getInstance()->insert(['name' => 'no id']); },
-            'createNewFromArray()' => function () : void { TagRecord::createNewFromArray(['name' => 'no id']); },
+            'createFromArray()' => function () : void { TagRecord::createFromArray(['name' => 'no id']); },
             'clone'                => function () use ($providedTag) : void { $clone = clone $providedTag; },
         ];
 

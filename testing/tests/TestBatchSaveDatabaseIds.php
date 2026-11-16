@@ -44,8 +44,8 @@ class TestBatchSaveDatabaseIds
         $table = TicketTable::getInstance();
         $existing = $table->insert(['title' => 'existing']);
         $existing->setTitle('existing renamed');
-        $first = TicketRecord::createNewFromArray(['title' => 'first']);
-        $second = TicketRecord::createNewFromArray(['title' => 'second', 'status' => 'closed']);
+        $first = TicketRecord::createFromArray(['title' => 'first']);
+        $second = TicketRecord::createFromArray(['title' => 'second', 'status' => 'closed']);
         $table->batchSave([$first, $existing, $second]);
 
         // each new object has its own ID, from the row with its own values, and took on the status default.
@@ -88,7 +88,7 @@ class TestBatchSaveDatabaseIds
         $table = TicketTable::getInstance();
         $existing = $table->insert(['title' => 'unchanged']);
         $existing->setTitle('changed');
-        $new = TicketRecord::createNewFromArray(['title' => 'not saved']);
+        $new = TicketRecord::createFromArray(['title' => 'not saved']);
         $rowCount = count($table->loadAll(CacheMode::IGNORE_CACHE));
         $threw = false;
 
@@ -133,7 +133,7 @@ class TestBatchSaveDatabaseIds
         $table = TicketTable::getInstance();
         $deleted = $table->insert(['title' => 'deleted']);
         $deleted->delete();
-        $new = TicketRecord::createNewFromArray(['title' => 'not saved']);
+        $new = TicketRecord::createFromArray(['title' => 'not saved']);
         $rowCount = count($table->loadAll(CacheMode::IGNORE_CACHE));
         $threw = false;
 
@@ -161,7 +161,7 @@ class TestBatchSaveDatabaseIds
         $rowCount = count($table->loadAll(CacheMode::IGNORE_CACHE));
 
         // title is NOT NULL, so the database rejects this ticket, which must stop the whole batch.
-        $invalid = TicketRecord::createNewFromArray(['title' => null]);
+        $invalid = TicketRecord::createFromArray(['title' => null]);
         $threw = false;
 
         try

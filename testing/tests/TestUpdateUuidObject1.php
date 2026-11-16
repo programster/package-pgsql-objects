@@ -23,7 +23,7 @@ class TestUpdateUuidObject1
             'name' => 'user1',
         ];
 
-        $userRecord = UserRecord::createNewFromArray($userDetails);
+        $userRecord = UserRecord::createFromArray($userDetails);
         $userRecord->save();
 
 

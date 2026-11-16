@@ -27,7 +27,7 @@ abstract class AbstractRecord
     // set by delete(), after which the object can't be saved or updated, so its row can't be re-inserted by mistake.
     protected bool $m_isDeleted = false;
 
-    // the columns this object has been given a value for, even null, e.g. as keys of createNewFromArray() or update(),
+    // the columns this object has been given a value for, even null, e.g. as keys of createFromArray() or update(),
     // or from its row in the database, as column name => true. A new object leaves a column that has a database default
     // out of its insert while its value is null, unless it was given that null on purpose (see getDatabaseArrayForm()).
     protected array $m_providedColumns = [];
@@ -48,7 +48,7 @@ abstract class AbstractRecord
     /**
      * Create this object from a row in the database.
      * WARNING - do not use this method to create new objects that don't exist in the database, instead, if you
-     * wish to do that, call createNewFromArray() instead.
+     * wish to do that, call createFromArray() instead.
      *
      * @param array $row - the row, which must include the ID column, as a row in the database always has an ID.
      *
@@ -102,7 +102,7 @@ abstract class AbstractRecord
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionInvalidId - if an ID is given, which can't be one of the
      * table's IDs, e.g. it isn't a UUID.
      */
-    public static function createNewFromArray(array $data) : static
+    public static function createFromArray(array $data) : static
     {
         $object = new static();
         $tableHandler = $object->getTableHandler();
@@ -170,7 +170,7 @@ abstract class AbstractRecord
 
     /**
      * Update some of the object's values, and always save the object to the database: its row is updated if the
-     * object has been saved before, or inserted if it hasn't (e.g. a new object from createNewFromArray()), just as
+     * object has been saved before, or inserted if it hasn't (e.g. a new object from createFromArray()), just as
      * save() does. Afterwards, this object takes on the values the database returns, such as a SERIAL ID, column
      * defaults and generated columns. Every key is checked before anything is changed, so if one isn't recognised,
      * neither the object nor the database are changed.
@@ -242,7 +242,7 @@ abstract class AbstractRecord
 
     /**
      * Saves this object to the database: its row is updated if the object has been saved before, or inserted if it
-     * hasn't (e.g. a new object from createNewFromArray()). Afterwards, this object takes on the values the database
+     * hasn't (e.g. a new object from createFromArray()). Afterwards, this object takes on the values the database
      * returns, such as a SERIAL ID, column defaults and generated columns.
      *
      * @return void
@@ -679,7 +679,7 @@ abstract class AbstractRecord
      * Check whether a column should be left out of this object's insert, so that the database fills in its default:
      * the object is new, the column is listed in the table's getFieldsThatHaveDefaults(), and its value is null, and
      * either the column doesn't allow null (so NULL could never be stored there anyway), or the object was never given
-     * a value for it. A column that allows null, and was given null on purpose (e.g. as a key of createNewFromArray()
+     * a value for it. A column that allows null, and was given null on purpose (e.g. as a key of createFromArray()
      * or update()), keeps its NULL. Each object decides for itself, so objects inserted together can differ.
      *
      * @param string $columnName - the column.

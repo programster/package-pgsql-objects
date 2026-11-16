@@ -22,7 +22,7 @@ class TestCloneUser
             'name' => 'user1',
         ];
 
-        $userRecord = UserRecord::createNewFromArray($userDetails);
+        $userRecord = UserRecord::createFromArray($userDetails);
         $userRecord->save();
 
         $userClone = clone($userRecord);

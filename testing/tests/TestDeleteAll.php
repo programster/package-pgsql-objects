@@ -23,7 +23,7 @@ class TestDeleteAll
             'name' => 'user1',
         ];
 
-        $userRecord = UserRecord::createNewFromArray($userDetails);
+        $userRecord = UserRecord::createFromArray($userDetails);
         $userRecord->save();
 
         $userDetails2 = [
@@ -31,7 +31,7 @@ class TestDeleteAll
             'name' => 'user2',
         ];
 
-        $userRecord2 = UserRecord::createNewFromArray($userDetails2);
+        $userRecord2 = UserRecord::createFromArray($userDetails2);
         $userRecord2->save();
 
 

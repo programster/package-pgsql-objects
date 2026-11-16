@@ -109,7 +109,7 @@ class TestDatabaseGeneratedId
 
     private function testSave() : void
     {
-        $ticket = TicketRecord::createNewFromArray(['title' => 'saved']);
+        $ticket = TicketRecord::createFromArray(['title' => 'saved']);
         $ticket->save();
 
         if ($ticket->getId() === null)

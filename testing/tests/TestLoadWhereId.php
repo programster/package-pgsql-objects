@@ -23,7 +23,7 @@ class TestLoadWhereId
             'name' => 'user1',
         ];
 
-        $userRecord = UserRecord::createNewFromArray($userDetails);
+        $userRecord = UserRecord::createFromArray($userDetails);
         $userRecord->save();
         $userID = $userRecord->getId();
 

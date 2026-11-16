@@ -73,8 +73,8 @@ class TestInvalidIds
             'batchInsert()'        => function () use ($table, $row, $bad) : void {
                 $table->batchInsert([$row, ['id' => $bad, ...$row]]);
             },
-            'createNewFromArray()' => function () use ($row, $bad) : void {
-                UserRecord::createNewFromArray(['id' => $bad, ...$row]);
+            'createFromArray()' => function () use ($row, $bad) : void {
+                UserRecord::createFromArray(['id' => $bad, ...$row]);
             },
             'a record\'s update()' => function () use ($user, $bad) : void { $user->update(['id' => $bad]); },
         ];
@@ -128,11 +128,11 @@ class TestInvalidIds
             throw new \Exception("loadIds() didn't key its records by the lower case UUID.");
         }
 
-        $created = UserRecord::createNewFromArray(['id' => $upperCaseId, 'name' => 'x', 'email' => 'x']);
+        $created = UserRecord::createFromArray(['id' => $upperCaseId, 'name' => 'x', 'email' => 'x']);
 
         if ($created->getId() !== $user->getId())
         {
-            throw new \Exception("createNewFromArray() didn't lower case the UUID it was given.");
+            throw new \Exception("createFromArray() didn't lower case the UUID it was given.");
         }
 
         if ($table->normalizeId($upperCaseId) !== $user->getId())

@@ -25,6 +25,7 @@ Each of these needs a change to code that uses 4.x.
 |---|---|
 | `AbstractTableRowObject` | `AbstractRecord`. Change each of your record classes to `extends AbstractRecord`, and any type hints of your own. Objects of these classes are called records throughout the docs. |
 | `$table->create($row)` | `$table->insert($row)` |
+| `YourRecord::createNewFromArray($data)` | `YourRecord::createFromArray($data)` |
 | `$table->update($id, $row)` | `$table->updateById($id, $row)` |
 | `$table->delete($id)` | `$table->deleteById($id)` |
 | `$table->deleteIds($ids)` | `$table->deleteByIds($ids)` |
@@ -80,7 +81,7 @@ The record's own `delete()` and `update($data)` are unchanged.
 - A new object that was never given a value for a column that allows null and has a
   default (one listed in both `getFieldsThatAllowNull()` and `getFieldsThatHaveDefaults()`)
   now gets the column's default when it's inserted, rather than `NULL`. To store `NULL`,
-  give it on purpose, as a key of `createNewFromArray()` or `update()`, e.g.
+  give it on purpose, as a key of `createFromArray()` or `update()`, e.g.
   `['category' => null]`. A null set through your own public setter counts as never given.
 - The object cache is now disabled by default, so every load queries the database. Code
   that relied on it, e.g. calling `loadAll()` and then `load($id)` without another query,
@@ -116,7 +117,7 @@ The record's own `delete()` and `update($data)` are unchanged.
   `deleteWhereAnd([])`, `deleteWhereOr([])` and `deleteIdsNotIn([])`. Use `loadAll()` or
   `deleteAll()` when you really do mean every row.
 - An unrecognised column name now throws `ExceptionUnknownColumn`, wherever it appears:
-  - in the data given to a record's `createNewFromArray()`, `createFromDatabaseRow()`
+  - in the data given to a record's `createFromArray()`, `createFromDatabaseRow()`
     or `update()`, which previously ignored it (or only triggered a warning, in `update()`);
   - in a row or where pairs given to the table's `insert()`, `batchInsert()`,
     `updateById()` or where methods, and in `loadRange()`'s `$orderByColumn`, which
@@ -213,13 +214,13 @@ The record's own `delete()` and `update($data)` are unchanged.
 - The column info is read from PostgreSQL's system catalogs, instead of `pg_meta_data()`,
   which looked up unqualified table names in the `public` schema, and couldn't find a
   table in a schema whose name contains a dot.
-- New objects only get an ID generated when they are created (`createNewFromArray()`,
+- New objects only get an ID generated when they are created (`createFromArray()`,
   `insert()`, `batchInsert()` and cloning).
 - `delete()` on a record that has no ID yet, because the database generates it and it
   hasn't been saved, does nothing, instead of failing with a `TypeError`.
 - Calling `delete()` again on a deleted object does nothing.
 - A record's `update()` always saves the object: on an object that has never been
-  saved, e.g. a new one from `createNewFromArray()`, it inserts the row, as `save()` does.
+  saved, e.g. a new one from `createFromArray()`, it inserts the row, as `save()` does.
   It used to try to update a row that didn't exist, throwing `ExceptionNoSuchIdException`,
   or a `TypeError` if the database generates the table's IDs.
 - The test suite's development dependencies match pgsql-lib 3.0's: `programster/autoloader`

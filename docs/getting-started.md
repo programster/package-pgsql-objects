@@ -131,7 +131,7 @@ use Programster\PgsqlObjects\CacheMode;
 $userTable = UserTable::getInstance();
 
 // create a new object, which gets its ID straight away, and save it.
-$ada = UserRecord::createNewFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
+$ada = UserRecord::createFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
 $ada->save();
 
 // load a row whose ID you know, e.g. from a form submission or a URL.
