@@ -10,6 +10,7 @@ declare(strict_types = 1);
 namespace Programster\PgsqlObjects;
 
 use Programster\PgsqlLib\Conjunction;
+use Programster\PgsqlLib\Exceptions\ExceptionMismatchedRows;
 use Programster\PgsqlLib\Exceptions\ExceptionQueryError;
 use Programster\PgsqlLib\Exceptions\ExceptionUnexpectedValueType;
 use Programster\PgsqlLib\PgSqlConnection;
@@ -72,6 +73,14 @@ abstract class AbstractTable implements TableInterface
     private const BATCH_GROUP_COLUMN = '__pgsql_objects_batch_group';
 
 
+    # The most parameters PostgreSQL accepts in one query, which batchInsert() splits its rows to stay within.
+    private const MAX_QUERY_PARAMS = 65535;
+
+
+    # The savepoint batchInsert() makes, when it needs several queries and a transaction is already open.
+    private const BATCH_SAVEPOINT_NAME = 'pgsql_objects_batch_insert';
+
+
     # protected constructor so that one has to use the getInstance method.
     protected function __construct()
     {
@@ -124,23 +133,7 @@ abstract class AbstractTable implements TableInterface
     public function insert(array $row) : AbstractRecord
     {
         $row = $this->prepareRowForInsert($row);
-        $params = [];
-
-        foreach ($row as $columnName => $value)
-        {
-            if (is_scalar($value) || $value === null || $value instanceof \BackedEnum)
-            {
-                $params[] = $value;
-            }
-            else
-            {
-                $msg =
-                    "The {$columnName} column's value is a " . get_debug_type($value) . ". Only strings, ints, floats,"
-                    . " bools, null and backed enums can be inserted. Convert the value to one of those types first.";
-
-                throw new ExceptionUnexpectedValueType($value, $msg);
-            }
-        }
+        $params = self::convertRowToParams($row);
 
         if (count($row) > 0)
         {
@@ -179,7 +172,10 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Insert many rows into the table in a single query, and return the objects for them. This works whether the IDs
+     * Insert many rows into the table in a single query, and return the objects for them. The values are sent as
+     * query parameters, and as PostgreSQL allows at most 65,535 in one query, a batch that needs more (rows times
+     * columns) is inserted in as few queries as it takes, which are made all or nothing together: in a transaction,
+     * or in a savepoint if one is already open. This works whether the IDs
      * are generated in code or by the database (e.g. SERIAL), as the objects are built from the rows the database
      * returns, so they include the generated IDs, column defaults and generated columns. Each row is handled as by
      * insert(): a row without an ID gets one generated in code if the table can do so, otherwise from the database.
@@ -197,8 +193,11 @@ abstract class AbstractTable implements TableInterface
      * @throws ExceptionMissingRequiredData - if $rows is empty, if a row has no ID and neither the code nor the
      * database can generate one, or if no row has any columns at all. This is checked before anything is inserted.
      *
-     * @throws \Programster\PgsqlLib\Exceptions\ExceptionMismatchedRows - if a row leaves out a column that other rows
-     * provide, and that column has no database default.
+     * @throws ExceptionMismatchedRows - if a row leaves out a column that other rows provide, and that column has no
+     * database default. This is checked before anything is inserted.
+     *
+     * @throws ExceptionUnexpectedValueType - if a value isn't a string, int, float, bool, null or backed enum. This is
+     * checked before anything is inserted.
      *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the insert failed, in which case none of the
      * rows are inserted.
@@ -240,9 +239,77 @@ abstract class AbstractTable implements TableInterface
             $columnsWithDefaults[] = $this->getIdColumnName();
         }
 
-        $query = $this->getDb()->generateBatchInsertQuery($this->getTable(), $preparedRows, $columnsWithDefaults);
-        $result = $this->getDb()->query($query . " RETURNING *");
-        return $this->convertPgResultToObjects($result, CacheMode::UPDATE_CACHE);
+        // The columns are every one that appears in any row, sorted so that the order is consistent.
+        $columnsLookup = [];
+
+        foreach ($preparedRows as $preparedRow)
+        {
+            foreach ($preparedRow as $columnName => $value)
+            {
+                $columnsLookup[$columnName] = true;
+            }
+        }
+
+        ksort($columnsLookup);
+        $columnNames = array_map('strval', array_keys($columnsLookup));
+
+        // Check every row, and split them into chunks that each fit in one query, before anything is sent.
+        $chunks = [];
+        $chunk = [];
+        $chunkParamCount = 0;
+
+        foreach ($preparedRows as $key => $preparedRow)
+        {
+            $missingColumns = array_diff($columnNames, array_keys($preparedRow));
+            $missingColumnsWithoutDefaults = array_diff($missingColumns, $columnsWithDefaults);
+
+            if (count($missingColumnsWithoutDefaults) > 0)
+            {
+                throw new ExceptionMismatchedRows(
+                    "Row {$key} is missing the column(s) " . implode(", ", $missingColumnsWithoutDefaults)
+                    . ", which other rows provide. Either provide them in every row, or if they have default "
+                    . "values in the database, list them in getFieldsThatHaveDefaults() or getFieldsThatAllowNull()."
+                );
+            }
+
+            $rowParamCount = count(self::convertRowToParams($preparedRow));
+
+            if (count($chunk) > 0 && $chunkParamCount + $rowParamCount > self::MAX_QUERY_PARAMS)
+            {
+                $chunks[] = $chunk;
+                $chunk = [];
+                $chunkParamCount = 0;
+            }
+
+            $chunk[] = $preparedRow;
+            $chunkParamCount += $rowParamCount;
+        }
+
+        $chunks[] = $chunk;
+
+        $insertChunks = function () use ($chunks, $columnNames) : array {
+            $results = [];
+
+            foreach ($chunks as $rowsInChunk)
+            {
+                $results[] = $this->insertBatchChunk($rowsInChunk, $columnNames);
+            }
+
+            return $results;
+        };
+
+        // A batch too large for one query is inserted in several, which are made all or nothing together.
+        $results = (count($chunks) > 1) ? $this->runAllOrNothing($insertChunks) : $insertChunks();
+        $objects = [];
+
+        // The records are only built (and cached) once every chunk has been inserted, so none is cached for a row
+        // that was rolled back.
+        foreach ($results as $result)
+        {
+            $objects = [...$objects, ...$this->convertPgResultToObjects($result, CacheMode::UPDATE_CACHE)];
+        }
+
+        return $objects;
     }
 
 
@@ -883,6 +950,9 @@ abstract class AbstractTable implements TableInterface
      *
      * @return T
      *
+     * @throws ExceptionUnexpectedValueType - if a value isn't a string, int, float, bool, null or backed enum, before
+     * anything is sent.
+     *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the query failed.
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException - if there is no row with the ID.
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
@@ -900,13 +970,26 @@ abstract class AbstractTable implements TableInterface
 
         if (count($row) > 0)
         {
+            // The values are sent as parameters (pg_query_params), rather than escaped into the query, as insert()'s
+            // are, so a large value isn't copied into an escaped literal and then again into the query.
+            $params = self::convertRowToParams($row);
+            $assignments = [];
+
+            foreach (array_keys($row) as $index => $columnName)
+            {
+                $position = $index + 1;
+                $assignments[] = "{$this->getDb()->escapeIdentifier($columnName)} = \${$position}";
+            }
+
+            $params[] = $id;
+            $idPosition = count($params);
+
             $query =
-                "UPDATE {$this->getEscapedQualifiedTableName()} SET " .
-                $this->getDb()->generateQueryPairs($row) .
-                " WHERE {$this->getDb()->generateQueryPairs([$idColumnName => $id])}" .
+                "UPDATE {$this->getEscapedQualifiedTableName()} SET " . implode(", ", $assignments) .
+                " WHERE {$this->getEscapedIdColumnName()} = \${$idPosition}" .
                 " RETURNING *";
 
-            $result = $this->getDb()->query($query); // throws on failure
+            $result = $this->getDb()->query($query, $params); // throws on failure
             $updatedRow = pg_fetch_assoc($result);
 
             if ($updatedRow === false)
@@ -1232,6 +1315,145 @@ abstract class AbstractTable implements TableInterface
         }
 
         return $row;
+    }
+
+
+    /**
+     * Insert one chunk of batchInsert()'s rows, in one query, with every value sent as a parameter. A row that leaves
+     * a column out gets DEFAULT for it.
+     *
+     * @param list<array<string, mixed>> $rows - the rows, already checked by batchInsert().
+     *
+     * @param list<string> $columnNames - every column that any row in the batch has, in order.
+     *
+     * @return \PgSql\Result - the inserted rows.
+     *
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the insert failed.
+     */
+    private function insertBatchChunk(array $rows, array $columnNames) : \PgSql\Result
+    {
+        $params = [];
+        $valueSets = [];
+
+        foreach ($rows as $row)
+        {
+            $rowValues = [];
+
+            foreach ($columnNames as $columnName)
+            {
+                if (array_key_exists($columnName, $row))
+                {
+                    $params[] = self::convertValueToParam($columnName, $row[$columnName]);
+                    $rowValues[] = '$' . count($params);
+                }
+                else
+                {
+                    $rowValues[] = "DEFAULT";
+                }
+            }
+
+            $valueSets[] = "(" . implode(", ", $rowValues) . ")";
+        }
+
+        $escapedColumnNames = $this->getDb()->escapeIdentifiers($columnNames);
+
+        $query =
+            "INSERT INTO {$this->getEscapedQualifiedTableName()}" .
+            " (" . implode(",", $escapedColumnNames) . ")" .
+            " VALUES " . implode(",", $valueSets) .
+            " RETURNING *";
+
+        return $this->getDb()->query($query, $params);
+    }
+
+
+    /**
+     * Run some queries so they're all or nothing: in a transaction, or in a savepoint if a transaction is already
+     * open, so it's left as it was if one fails.
+     *
+     * @param \Closure(): list<\PgSql\Result> $work - runs the queries.
+     *
+     * @return list<\PgSql\Result> - what $work returns.
+     *
+     * @throws \Throwable - whatever $work throws, once its queries have been rolled back.
+     */
+    private function runAllOrNothing(\Closure $work) : array
+    {
+        $db = $this->getDb();
+        $savepoint = $db->escapeIdentifier(self::BATCH_SAVEPOINT_NAME);
+        $isInTransaction = (pg_transaction_status($db->getResource()) !== PGSQL_TRANSACTION_IDLE);
+        $db->query($isInTransaction ? "SAVEPOINT {$savepoint}" : "BEGIN");
+
+        try
+        {
+            $results = $work();
+            $db->query($isInTransaction ? "RELEASE SAVEPOINT {$savepoint}" : "COMMIT");
+        }
+        catch (\Throwable $exception)
+        {
+            $rollBackToSavepoint = "ROLLBACK TO SAVEPOINT {$savepoint}; RELEASE SAVEPOINT {$savepoint}";
+            $db->query($isInTransaction ? $rollBackToSavepoint : "ROLLBACK");
+            throw $exception;
+        }
+
+        return $results;
+    }
+
+
+    /**
+     * Get a row's values, in order, as the parameters for a query (see PgSqlConnection::query()), for insert() and
+     * updateById().
+     *
+     * @param array<string, mixed> $row - name value pairs of column to values.
+     *
+     * @return list<string|int|float|bool|null|\BackedEnum> - the values, in the row's order.
+     *
+     * @throws ExceptionUnexpectedValueType - if a value isn't a string, int, float, bool, null or backed enum, naming
+     * its column.
+     */
+    private static function convertRowToParams(array $row) : array
+    {
+        $params = [];
+
+        foreach ($row as $columnName => $value)
+        {
+            $params[] = self::convertValueToParam($columnName, $value);
+        }
+
+        return $params;
+    }
+
+
+    /**
+     * Check that a value can be sent as a query parameter (see PgSqlConnection::query()).
+     *
+     * @param string $columnName - the column it's for, to name in the error.
+     *
+     * @param mixed $value - the value.
+     *
+     * @return string|int|float|bool|null|\BackedEnum - the value, as it is.
+     *
+     * @throws ExceptionUnexpectedValueType - if it isn't a string, int, float, bool, null or backed enum.
+     */
+    private static function convertValueToParam(
+        string $columnName,
+        mixed $value
+    ) : string|int|float|bool|null|\BackedEnum
+    {
+        if (is_scalar($value) || $value === null || $value instanceof \BackedEnum)
+        {
+            $param = $value;
+        }
+        else
+        {
+            $msg =
+                "The {$columnName} column's value is a " . get_debug_type($value) . ". Only strings, ints, floats,"
+                . " bools, null and backed enums can be saved. Convert the value to one of those types first.";
+
+            throw new ExceptionUnexpectedValueType($value, $msg);
+        }
+
+        return $param;
     }
 
 

@@ -119,6 +119,13 @@ $products = ProductTable::getInstance()->batchInsert([
 
 An empty list throws `ExceptionMissingRequiredData`.
 
+The values are sent as query parameters, and PostgreSQL accepts at most 65,535 
+in one query (the rows times their columns, e.g. 32,767 rows of two columns). 
+A larger batch is split into as few queries as it takes, which are all or 
+nothing together: they run in a transaction, or in a savepoint if one is 
+already open, so if one fails, none of the rows are inserted, and an open 
+transaction can carry on. Every row is checked before anything is sent.
+
 
 ## Cloning
 

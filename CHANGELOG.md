@@ -207,10 +207,16 @@ The record's own `delete()` and `update($data)` are unchanged.
   still refuse empty where pairs, rather than deleting every row.
 
 ### Changed
-- `insert()` sends the row's values as query parameters (`pg_query_params`), rather than
+- `insert()`, `updateById()` (and so a record's `save()` and `update()`) and
+  `batchInsert()` send the values as query parameters (`pg_query_params`), rather than
   escaping them into the query. A large value, such as an email's content, is no longer
-  copied into an escaped literal and then again into the query, so inserting one takes
-  about a third of the memory it did. A value that can't be sent (anything but a string,
+  copied into an escaped literal and then again into the query, so saving one takes about
+  a third of the memory it did.
+- As PostgreSQL accepts at most 65,535 parameters in one query, `batchInsert()` splits a
+  batch that needs more (the rows times their columns) into as few queries as it takes.
+  They're all or nothing together: in a transaction, or in a savepoint if one is already
+  open, so a failure leaves none of the rows inserted (or cached), and an open transaction
+  usable. Every row is still checked before anything is sent. A value that can't be sent (anything but a string,
   int, float, bool, null or backed enum) is still refused before anything is sent, with an
   `ExceptionUnexpectedValueType` that now names the column.
 - Composer installs only include `src/`, `composer.json`, the README, this changelog and

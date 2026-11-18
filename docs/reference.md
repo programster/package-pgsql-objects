@@ -33,7 +33,7 @@ Every public method, in one place, with a link to where it's explained.
 | Method | Does |
 |---|---|
 | `insert($row)` | Inserts a row from an array, and returns its object. |
-| `batchInsert($rows)` | Inserts many rows from arrays in one query, and returns their objects. |
+| `batchInsert($rows)` | Inserts many rows from arrays in one query (or as few as it takes, all or nothing, past PostgreSQL's 65,535 parameters), and returns their objects. |
 | `updateById($id, $row)` | Updates a row by ID from an array, and returns its object. |
 | `batchSave(...$objects)` | Saves many objects of this table in one query. |
 
