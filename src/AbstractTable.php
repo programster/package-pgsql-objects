@@ -11,6 +11,7 @@ namespace Programster\PgsqlObjects;
 
 use Programster\PgsqlLib\Conjunction;
 use Programster\PgsqlLib\Exceptions\ExceptionQueryError;
+use Programster\PgsqlLib\Exceptions\ExceptionUnexpectedValueType;
 use Programster\PgsqlLib\PgSqlConnection;
 use Programster\PgsqlLib\Table;
 use Programster\PgsqlObjects\Exceptions\ExceptionInvalidId;
@@ -112,6 +113,9 @@ abstract class AbstractTable implements TableInterface
      * @throws ExceptionRowNotInserted - if the database didn't insert the row, e.g. as a BEFORE INSERT trigger skipped
      * it.
      *
+     * @throws ExceptionUnexpectedValueType - if a value isn't a string, int, float, bool, null or backed enum, before
+     * anything is sent.
+     *
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      *
@@ -120,23 +124,47 @@ abstract class AbstractTable implements TableInterface
     public function insert(array $row) : AbstractRecord
     {
         $row = $this->prepareRowForInsert($row);
+        $params = [];
+
+        foreach ($row as $columnName => $value)
+        {
+            if (is_scalar($value) || $value === null || $value instanceof \BackedEnum)
+            {
+                $params[] = $value;
+            }
+            else
+            {
+                $msg =
+                    "The {$columnName} column's value is a " . get_debug_type($value) . ". Only strings, ints, floats,"
+                    . " bools, null and backed enums can be inserted. Convert the value to one of those types first.";
+
+                throw new ExceptionUnexpectedValueType($value, $msg);
+            }
+        }
 
         if (count($row) > 0)
         {
             $escapedColumnNames = $this->getDb()->escapeIdentifiers(array_keys($row));
-            $escapedValues = $this->getDb()->escapeValues(array_values($row)); // null values come back as NULL
+            $placeholders = [];
 
+            for ($position = 1; $position <= count($params); $position++)
+            {
+                $placeholders[] = "\${$position}";
+            }
+
+            // The values are sent as parameters (pg_query_params), rather than escaped into the query, so a large
+            // value (e.g. an email's content) isn't copied into an escaped literal and then again into the query.
             $query =
                 "INSERT INTO {$this->getEscapedQualifiedTableName()}" .
                 " (" . implode(",", $escapedColumnNames) . ")" .
-                " VALUES (" . implode(", ", $escapedValues) . ")";
+                " VALUES (" . implode(", ", $placeholders) . ")";
         }
         else
         {
             $query = "INSERT INTO {$this->getEscapedQualifiedTableName()} DEFAULT VALUES";
         }
 
-        $result = $this->getDb()->query($query . " RETURNING *");
+        $result = $this->getDb()->query($query . " RETURNING *", $params);
         $createdRow = pg_fetch_assoc($result);
 
         if ($createdRow === false)

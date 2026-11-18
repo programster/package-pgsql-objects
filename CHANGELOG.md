@@ -14,7 +14,8 @@ before the final 5.0.0, starting with 5.0.0-alpha1. It can still change between 
 Each of these needs a change to code that uses 4.x.
 
 **Dependencies**
-- Requires `programster/pgsql-lib` 3.0. This package's `getDb()` returns pgsql-lib's
+- Requires `programster/pgsql-lib` 3.1 or later (for parameterised queries, which
+  `insert()` uses). This package's `getDb()` returns pgsql-lib's
   `PgSqlConnection`, so code that uses the connection directly is affected by pgsql-lib's
   own changes. In particular, `PgSqlConnection::create()` now requires the `$forceNew`
   argument, before `$port`.
@@ -206,6 +207,12 @@ The record's own `delete()` and `update($data)` are unchanged.
   still refuse empty where pairs, rather than deleting every row.
 
 ### Changed
+- `insert()` sends the row's values as query parameters (`pg_query_params`), rather than
+  escaping them into the query. A large value, such as an email's content, is no longer
+  copied into an escaped literal and then again into the query, so inserting one takes
+  about a third of the memory it did. A value that can't be sent (anything but a string,
+  int, float, bool, null or backed enum) is still refused before anything is sent, with an
+  `ExceptionUnexpectedValueType` that now names the column.
 - Composer installs only include `src/`, `composer.json`, the README, this changelog and
   the licence. The tests, the documentation and the GitHub workflows are still in the
   repository, but no longer downloaded into your `vendor/` folder.
