@@ -224,6 +224,9 @@ The record's own `delete()` and `update($data)` are unchanged.
   cache, so a rollback can't leave rolled back values, or rows that don't exist, in it.
 - **Since 5.0.0-alpha6:** `batchSave()` inside an open transaction uses a savepoint, so a
   failure only undoes the batch, rather than leaving the open transaction failed.
+- **Since 5.0.0-alpha7:** fixes `batchSave()` and `OrmTransaction` cutting `char(n)` values
+  to their first character. **Don't use 5.0.0-alpha7 with `char(n)` columns**, and check any
+  such values it saved.
 - `insert()`, `updateById()` (and so a record's `save()` and `update()`) and
   `batchInsert()` send the values as query parameters (`pg_query_params`), rather than
   escaping them into the query. A large value, such as an email's content, is no longer

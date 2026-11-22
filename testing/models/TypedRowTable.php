@@ -16,7 +16,7 @@ class TypedRowTable extends Programster\PgsqlObjects\AbstractUuidTable
 
     public function getFieldsThatAllowNull() : array
     {
-        return ['amount', 'flag', 'tags', 'meta', 'status', 'happened_at', 'note'];
+        return ['amount', 'flag', 'tags', 'meta', 'status', 'happened_at', 'note', 'code'];
     }
 
 

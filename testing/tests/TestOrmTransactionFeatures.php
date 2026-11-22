@@ -36,6 +36,7 @@ class TestOrmTransactionFeatures
             'testRetries',
             'testColumnTypes',
             'testValuesAreNotCutShort',
+            'testFixedLengthColumnsKeepTheirValues',
             'testDifferentColumnsAndRepeatedIds',
             'testBatchLargerThanParameterLimit',
             'testNewDatabaseIds',
@@ -275,6 +276,35 @@ class TestOrmTransactionFeatures
     }
 
 
+    /**
+     * A cast to plain "character" means char(1), which would silently cut every value to its first character.
+     * @return void
+     */
+    private function testFixedLengthColumnsKeepTheirValues() : void
+    {
+        $db = ConnectionHandler::getDb();
+        $table = TypedRowTable::getInstance();
+        $row = TypedRowRecord::createFromArray(['name' => 'Fixed', 'code' => 'abcd'] + $this->getNullColumns());
+        $table->batchSave($row);
+        $query = 'SELECT "code" FROM "typed_row" WHERE "id" = $1';
+        $this->check("an insert keeps a char(n) value", pg_fetch_result($db->query($query, [$row->getId()]), 0, 0) === 'abcd');
+
+        $row->setCode('wxyz');
+        $table->batchSave($row);
+        $this->check("an update keeps a char(n) value", pg_fetch_result($db->query($query, [$row->getId()]), 0, 0) === 'wxyz');
+
+        $transaction = new OrmTransaction($db);
+        $row->setCode('mnop');
+        $transaction->save($row);
+        $transaction->commit();
+        $this->check("a transaction keeps a char(n) value", pg_fetch_result($db->query($query, [$row->getId()]), 0, 0) === 'mnop');
+
+        $row->setCode('too long');
+        $update = function () use ($table, $row) : void { $table->batchSave($row); };
+        $this->assertThrows(ExceptionQueryError::class, $update, "A value too long for char(n) was cut short.");
+    }
+
+
     private function testDifferentColumnsAndRepeatedIds() : void
     {
         $table = AuthorTable::getInstance();
@@ -470,7 +500,7 @@ class TestOrmTransactionFeatures
      */
     private function getNullColumns() : array
     {
-        return array_fill_keys(['amount', 'flag', 'tags', 'meta', 'status', 'happened_at', 'note'], null);
+        return array_fill_keys(['amount', 'flag', 'tags', 'meta', 'status', 'happened_at', 'note', 'code'], null);
     }
 
 

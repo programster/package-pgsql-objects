@@ -20,7 +20,8 @@ class CreateTypedRowTable implements \Programster\PgsqlMigrations\MigrationInter
                 ' "meta" jsonb,' .
                 ' "status" "typed_row_status",' .
                 ' "happened_at" timestamptz,' .
-                ' "note" text' .
+                ' "note" text,' .
+                ' "code" char(4)' .
             ')';
 
         if (pg_query($dbConn, $query) === false)

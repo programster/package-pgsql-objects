@@ -1487,9 +1487,10 @@ abstract class AbstractTable implements TableInterface
         $tableNameLiteral = $db->escapeValue($escapedQualifiedTableName);
 
         // to_regclass() gives NULL rather than an error if there is no such table, so then no columns are found.
+        // format_type() is given -1 for "no length", as with NULL it names char(n) columns "character", or char(1).
         $query =
             'SELECT a."attname", a."attnum", t."typname", a."attlen", a."attnotnull", a."atthasdef", a."attndims",' .
-            ' (t."typtype" = \'e\') AS "is_enum", format_type(a."atttypid", NULL) AS "sql_type"' .
+            ' (t."typtype" = \'e\') AS "is_enum", format_type(a."atttypid", -1) AS "sql_type"' .
             ' FROM "pg_catalog"."pg_attribute" a' .
             ' JOIN "pg_catalog"."pg_type" t ON t."oid" = a."atttypid"' .
             " WHERE a.\"attrelid\" = to_regclass({$tableNameLiteral})" .

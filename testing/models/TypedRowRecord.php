@@ -13,6 +13,7 @@ class TypedRowRecord extends AbstractRecord
     private mixed $m_status = null;
     private mixed $m_happenedAt = null;
     private mixed $m_note = null;
+    private mixed $m_code = null;
 
 
     public function getTableHandler() : TableInterface
@@ -32,6 +33,7 @@ class TypedRowRecord extends AbstractRecord
             'status' => function () : mixed { return $this->m_status; },
             'happened_at' => function () : mixed { return $this->m_happenedAt; },
             'note' => function () : mixed { return $this->m_note; },
+            'code' => function () : mixed { return $this->m_code; },
         ];
     }
 
@@ -47,6 +49,7 @@ class TypedRowRecord extends AbstractRecord
             'status' => function (mixed $x) : void { $this->m_status = $x; },
             'happened_at' => function (mixed $x) : void { $this->m_happenedAt = $x; },
             'note' => function (mixed $x) : void { $this->m_note = $x; },
+            'code' => function (mixed $x) : void { $this->m_code = $x; },
         ];
     }
 
@@ -54,4 +57,5 @@ class TypedRowRecord extends AbstractRecord
     # Setters
     public function setName(string $name) : void { $this->m_name = $name; }
     public function setNote(?string $note) : void { $this->m_note = $note; }
+    public function setCode(?string $code) : void { $this->m_code = $code; }
 }
