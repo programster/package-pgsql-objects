@@ -24,7 +24,7 @@ $userTable->deleteAll();
 ```
 
 To delete objects of several tables together, along with saving others, use a 
-[Transaction](transactions.md).
+[OrmTransaction](transactions.md).
 
 
 ## Deleted objects
@@ -40,7 +40,7 @@ clone isn't deleted, and gets a new ID.
 Deleting through the table marks the deleted rows' records as deleted too, but 
 only the ones in the [cache](cache.md), as the table has no way to find any 
 others. So if the cache is off, prefer deleting an object you're holding 
-through its own `delete()`, or a [Transaction](transactions.md), which marks 
+through its own `delete()`, or an [OrmTransaction](transactions.md), which marks 
 the objects you give it.
 
 `delete()` on an object that was never saved, whose ID the database would 

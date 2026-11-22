@@ -63,7 +63,7 @@ class, where the rest of the code can find them.
 ## Writes
 
 For writes, prefer the package's own methods, such as `save()`, `batchSave()`, 
-the deletes and [Transaction](transactions.md), as they keep the objects and 
+the deletes and [OrmTransaction](transactions.md), as they keep the objects and 
 the cache in step with the database. A write of your own, e.g. an `UPDATE` 
 of many rows at once, leaves any objects you're already holding for those 
 rows, and the cached ones, with their old values. Reload them with 
@@ -73,8 +73,10 @@ were deleted, empty the table's cache with `emptyCache()`.
 
 ## Your own transactions
 
-If you open a transaction yourself, the package's queries run inside it, and 
-are only final once you commit it:
+To run your own queries together with objects, add them to an 
+[OrmTransaction](transactions.md) with `append()`. When you need to read, lock 
+and decide before writing, open a transaction yourself. The package's queries 
+then run inside it, and are only final once you commit it:
 
 ```php
 $db = ConnectionHandler::getDb();
@@ -86,7 +88,9 @@ $db->query("UPDATE ...");
 $db->query("COMMIT");
 ```
 
-A [Transaction](transactions.md) committed inside your own transaction uses a 
-savepoint, so a failure only undoes its own changes. In either case, if your 
-transaction is rolled back, the objects stay marked as saved or deleted, as 
-they were when their part succeeded, so reload anything you still need.
+`batchSave()` and an [OrmTransaction](transactions.md) use a savepoint inside 
+your transaction, so a failure only undoes their own changes. While your 
+transaction is open, anything written is left out of the 
+[cache](cache.md), so a rollback can't leave wrong data in it. The objects you're 
+holding can't be rolled back though: they keep their new values, and stay marked 
+as saved or deleted, so reload anything you still need after a rollback.

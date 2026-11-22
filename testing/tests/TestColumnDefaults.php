@@ -11,7 +11,7 @@
 
 use Programster\PgsqlObjects\AbstractTable;
 use Programster\PgsqlObjects\CacheMode;
-use Programster\PgsqlObjects\Transaction;
+use Programster\PgsqlObjects\OrmTransaction;
 
 class TestColumnDefaults
 {
@@ -147,7 +147,7 @@ class TestColumnDefaults
     private function testTransaction(string $kind, AbstractTable $table, string $recordClass) : void
     {
         $this->resetTable($table);
-        $transaction = new Transaction();
+        $transaction = new OrmTransaction(ConnectionHandler::getDb());
         $objects = $this->createObjects($recordClass);
 
         foreach ($objects as $object)

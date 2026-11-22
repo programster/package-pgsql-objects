@@ -5,7 +5,7 @@ Every public method, in one place, with a link to where it's explained.
 
 - [Table classes](#table-classes)
 - [Record classes](#record-classes)
-- [Transaction](#transaction)
+- [OrmTransaction](#ormtransaction)
 - [Constraint](#constraint)
 - [Enums](#enums)
 
@@ -35,7 +35,7 @@ Every public method, in one place, with a link to where it's explained.
 | `insert($row)` | Inserts a row from an array, and returns its object. |
 | `batchInsert($rows)` | Inserts many rows from arrays in one query (or as few as it takes, all or nothing, past PostgreSQL's 65,535 parameters), and returns their objects. |
 | `updateById($id, $row)` | Updates a row by ID from an array, and returns its object. |
-| `batchSave(...$objects)` | Saves many objects of this table in one query. |
+| `batchSave(...$objects)` | Saves many objects of this table in one transaction, combining them into as few statements as it can. |
 
 ### Deleting ([Deleting](deleting.md))
 
@@ -115,20 +115,27 @@ These are protected, so they can only be used from within the table class.
 Your record class fills in `getTableHandler()`, `getAccessorFunctions()` and 
 `getSetFunctions()` ([Tables and records](tables.md#a-record-class)).
 
-`getSaveQuery()` and `markSaved()` are public for the table's use, and you 
-shouldn't need them.
+`markSaved()` is public for the table's use, and you shouldn't need to call it. 
+`getSaveQuery()` returns the SQL that would save the object on its own, with its 
+values escaped into it. `save()`, `batchSave()` and `OrmTransaction` don't use it, 
+as they send values as parameters.
 
 
-## Transaction
+## OrmTransaction
 
 ([Transactions](transactions.md))
 
 | Method | Does |
 |---|---|
-| `new Transaction()` | Starts an empty transaction. |
-| `save($object)` | Adds an object to save. |
-| `delete($object)` | Adds an object to delete. |
-| `commit()` | Makes every change, in order, in one transaction and one round trip. |
+| `new OrmTransaction($db, $queries, $callbacks, $maxAttempts)` | Creates a transaction. Everything but `$db` is optional. |
+| `append(...$queries)` | Adds plain queries, as strings or pgsql-lib `Query` objects. |
+| `save(...$objects)` | Adds objects to save. |
+| `delete(...$objects)` | Adds objects to delete. |
+| `appendCallbacks(...$callbacks)` | Adds closures or `ClosureCollection`s to run after the commit. |
+| `execute()`, `commit()`, `run()`, `$transaction()` | Makes every change, in order, in one transaction. Returns the plain queries' results. |
+| `count()`, `hasRun()` | How many changes it holds, and whether it has run. |
+
+It extends pgsql-lib's `Transaction`, so it can be passed anywhere one is expected.
 
 
 ## Constraint
@@ -151,4 +158,3 @@ shouldn't need them.
 | `CacheMode` | `USE_CACHE`, `UPDATE_CACHE`, `IGNORE_CACHE` ([The cache](cache.md)). |
 | `DeferConfig` | `NOT_DEFERRABLE`, `INITIALLY_IMMEDIATE`, `INITIALLY_DEFERRED` ([Which setting to use](transactions.md#which-setting-to-use)). |
 | `UuidVersion` | `V7`, `V4` ([Choosing the version](identifiers.md#choosing-the-version)). |
-| `TransactionChangeType` | `SAVE`, `DELETE`. Used inside `Transaction`, so you don't need it. |

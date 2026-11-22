@@ -56,16 +56,16 @@ be saved one after another, waiting for each new ID.
 $user = UserRecord::createFromArray(['name' => 'Ada', 'email' => 'ada@example.com']);
 $project = ProjectRecord::createFromArray(['user_id' => $user->getId(), 'name' => 'Engine']);
 
-// both saved together, in one transaction, and one round trip to the database.
-$transaction = new Transaction();
+// both saved together, in one transaction.
+$transaction = new OrmTransaction($db);
 $transaction->save($user);
 $transaction->save($project);
 $transaction->commit();
 ```
 
 **Everything in this package works with them, on every version of 
-PostgreSQL.** Saving many new records at once, with `batchSave()` or a 
-[Transaction](transactions.md), works on any supported version. With IDs the 
+PostgreSQL.** Saving many new records at once, with `batchSave()` or an 
+[OrmTransaction](transactions.md), works on any supported version. With IDs the 
 database generates, it needs PostgreSQL 17 or newer, and records that 
 reference a new row can't be saved in the same transaction as it (see 
 [below](#tables-whose-ids-the-database-generates)).

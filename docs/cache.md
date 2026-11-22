@@ -31,6 +31,10 @@ or a [transaction](transactions.md) marks its cached object as deleted, so its
 `save()` and `update()` throw `ExceptionObjectDeleted`, and removes it from the 
 cache.
 
+While a transaction is open on the table's connection, a row that's written or 
+refreshed is removed from the cache rather than stored in it, as the change 
+could still be rolled back. The next load simply reads it from the database.
+
 
 ## CacheMode
 

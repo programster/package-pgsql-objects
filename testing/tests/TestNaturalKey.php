@@ -10,7 +10,7 @@ use Programster\PgsqlObjects\CacheMode;
 use Programster\PgsqlObjects\Exceptions\ExceptionInvalidId;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 use Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException;
-use Programster\PgsqlObjects\Transaction;
+use Programster\PgsqlObjects\OrmTransaction;
 
 class TestNaturalKey
 {
@@ -190,12 +190,12 @@ class TestNaturalKey
         $edsger = SubscriberRecord::createFromArray(['email' => 'edsger@example.com', 'name' => 'Edsger']);
         $data = ['subscriber_email' => $edsger->getEmail(), 'list' => 'news'];
         $subscription = SubscriptionRecord::createFromArray($data);
-        $saves = new Transaction();
+        $saves = new OrmTransaction(ConnectionHandler::getDb());
         $saves->save($subscription);
         $saves->save($edsger);
         $saves->commit();
 
-        $deletes = new Transaction();
+        $deletes = new OrmTransaction(ConnectionHandler::getDb());
         $deletes->delete($edsger);
         $deletes->delete($subscription);
         $deletes->commit();

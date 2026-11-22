@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Test Transaction: saving and deleting objects of several tables in the order they were added, in one transaction,
+ * Test OrmTransaction: saving and deleting objects of several tables in the order they were added, in one transaction,
  * that if anything fails, nothing is saved or deleted and every object is left as it was, and that it can't be misused.
  * Authors' IDs are UUIDs generated in code, and books' IDs are SERIAL, with a foreign key to their author. Reviews
  * have a DEFERRABLE foreign key to their author, to test that the transaction defers it.
@@ -9,10 +9,10 @@
 
 use Programster\PgsqlLib\Exceptions\ExceptionQueryError;
 use Programster\PgsqlObjects\CacheMode;
-use Programster\PgsqlObjects\Exceptions\ExceptionInvalidTransaction;
+use Programster\PgsqlLib\Exceptions\ExceptionInvalidTransaction;
 use Programster\PgsqlObjects\Exceptions\ExceptionObjectDeleted;
 use Programster\PgsqlObjects\Exceptions\ExceptionUnsupportedDatabaseVersion;
-use Programster\PgsqlObjects\Transaction;
+use Programster\PgsqlObjects\OrmTransaction;
 
 class TestTransaction
 {
@@ -64,7 +64,7 @@ class TestTransaction
         // the book's existing ID means this works on every version of PostgreSQL.
         $existingBook->setAuthorId(RecordIds::getString($newAuthor));
 
-        $transaction = new Transaction();
+        $transaction = new OrmTransaction(ConnectionHandler::getDb());
         $transaction->save($existingAuthor);
         $transaction->save($newAuthor);
         $transaction->save($existingBook); // after its new author, as it references it.
@@ -118,7 +118,7 @@ class TestTransaction
         $book->setAuthorId(RecordIds::getString($newAuthor));
         $book->setTitle('moved');
 
-        $wrongOrder = new Transaction();
+        $wrongOrder = new OrmTransaction(ConnectionHandler::getDb());
         $wrongOrder->save($book);
         $wrongOrder->save($newAuthor);
 
@@ -131,7 +131,7 @@ class TestTransaction
             throw new \Exception("A transaction that failed on a foreign key still saved some of its changes.");
         }
 
-        $rightOrder = new Transaction();
+        $rightOrder = new OrmTransaction(ConnectionHandler::getDb());
         $rightOrder->save($newAuthor);
         $rightOrder->save($book);
         $rightOrder->commit();
@@ -161,7 +161,7 @@ class TestTransaction
         // name is NOT NULL, so the database rejects this author, which must undo everything before it.
         $invalidAuthor = AuthorRecord::createFromArray(['name' => null]);
 
-        $transaction = new Transaction();
+        $transaction = new OrmTransaction(ConnectionHandler::getDb());
         $transaction->delete($book);
         $transaction->save($author);
         $transaction->save($newAuthor);
@@ -203,7 +203,7 @@ class TestTransaction
         $thirdBook = BookRecord::createFromArray(['author_id' => $secondAuthor->getId(), 'title' => 'third']);
 
         // three groups: books, then an author, then books, so the two groups of books are separate inserts.
-        $transaction = new Transaction();
+        $transaction = new OrmTransaction(ConnectionHandler::getDb());
         $transaction->save($firstBook);
         $transaction->save($secondAuthor);
         $transaction->save($secondBook);
@@ -235,7 +235,7 @@ class TestTransaction
     {
         $db = ConnectionHandler::getDb();
         $db->query("BEGIN");
-        $transaction = new Transaction();
+        $transaction = new OrmTransaction(ConnectionHandler::getDb());
         $transaction->save(AuthorRecord::createFromArray(['name' => 'inside']));
         $transaction->commit();
         $namesBeforeRollback = $this->getAuthorNamesInDatabase();
@@ -256,7 +256,7 @@ class TestTransaction
         $db = ConnectionHandler::getDb();
         $db->query("BEGIN");
         AuthorTable::getInstance()->insert(['name' => 'before']);
-        $transaction = new Transaction();
+        $transaction = new OrmTransaction(ConnectionHandler::getDb());
         $transaction->save(AuthorRecord::createFromArray(['name' => 'undone']));
         $transaction->save(AuthorRecord::createFromArray(['name' => null]));
 
@@ -284,7 +284,7 @@ class TestTransaction
         $author = AuthorRecord::createFromArray(['name' => 'twice']);
 
         // a new author inserted twice would break its primary key, so this proves it's only saved once.
-        $transaction = new Transaction();
+        $transaction = new OrmTransaction(ConnectionHandler::getDb());
         $transaction->save($author);
         $transaction->save($author);
         $transaction->commit();
@@ -292,7 +292,7 @@ class TestTransaction
         $deletedAuthor = AuthorTable::getInstance()->insert(['name' => 'deleted']);
         $deletedAuthor->delete();
         $otherConnectionAuthor = OtherConnectionAuthorRecord::createFromArray(['name' => 'other']);
-        $unused = new Transaction();
+        $unused = new OrmTransaction(ConnectionHandler::getDb());
         $unused->save($author);
 
         $misuses = [
@@ -310,15 +310,15 @@ class TestTransaction
 
         foreach ($misuses as $misuse => $call)
         {
-            $this->assertThrows(ExceptionInvalidTransaction::class, $call, "Transaction allowed {$misuse}.");
+            $this->assertThrows(ExceptionInvalidTransaction::class, $call, "OrmTransaction allowed {$misuse}.");
         }
 
         $saveDeleted = function () use ($unused, $deletedAuthor) : void { $unused->save($deletedAuthor); };
-        $failureMessage = "Transaction allowed saving a deleted object.";
+        $failureMessage = "OrmTransaction allowed saving a deleted object.";
         $this->assertThrows(ExceptionObjectDeleted::class, $saveDeleted, $failureMessage);
 
         // a transaction with nothing in it does nothing.
-        $empty = new Transaction();
+        $empty = new OrmTransaction(ConnectionHandler::getDb());
         $empty->commit();
     }
 
@@ -332,7 +332,7 @@ class TestTransaction
         $author = AuthorRecord::createFromArray(['name' => 'reviewed']);
         $review = ReviewRecord::createFromArray(['author_id' => $author->getId(), 'text' => 'great']);
 
-        $saves = new Transaction();
+        $saves = new OrmTransaction(ConnectionHandler::getDb());
         $saves->save($review); // before its author, which only works as the foreign key is deferred.
         $saves->save($author);
         $saves->commit();
@@ -343,7 +343,7 @@ class TestTransaction
         }
 
         // only deletes, so there's no save to defer the constraints, which the transaction must do itself.
-        $deletes = new Transaction();
+        $deletes = new OrmTransaction(ConnectionHandler::getDb());
         $deletes->delete($author); // before its review, which only works as the foreign key is deferred.
         $deletes->delete($review);
         $deletes->commit();
@@ -367,7 +367,7 @@ class TestTransaction
         $missingAuthor = AuthorRecord::createFromArray(['name' => 'never saved']);
         $review = ReviewRecord::createFromArray(['author_id' => $missingAuthor->getId(), 'text' => 'orphan']);
 
-        $transaction = new Transaction();
+        $transaction = new OrmTransaction(ConnectionHandler::getDb());
         $transaction->save($author);
         $transaction->save($review);
 

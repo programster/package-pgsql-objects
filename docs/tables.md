@@ -188,7 +188,7 @@ which one, before anything is sent to the database.
 
 **When a new object is inserted, a column with a default gets that default** 
 if the object has no value for it. Each object decides for itself, so objects 
-saved together, e.g. with `batchSave()` or a [Transaction](transactions.md), 
+saved together, e.g. with `batchSave()` or an [OrmTransaction](transactions.md), 
 can each give a value for a column or leave it to the default:
 
 - A column the object was **never given**, e.g. `created_at` here, isn't sent, 
@@ -220,7 +220,7 @@ that has a default, pass it to `createFromArray()` or `update()`.
 
 Once an object has been saved, it sends every value, as it's updated rather 
 than inserted. However it was saved, with `save()`, `update()`, `batchSave()` 
-or a [Transaction](transactions.md), it takes on the values the database 
+or an [OrmTransaction](transactions.md), it takes on the values the database 
 chose, such as the default `created_at`, so updating it later keeps them.
 
 
@@ -252,7 +252,7 @@ any value for them: generated columns (`GENERATED ALWAYS AS (...) STORED`, or
 List them in your table's `getVirtualFields()`. They then aren't required when 
 creating objects, are never sent in inserts or updates, and are read back from 
 the database after `save()`, `update()`, `insert()`, `updateById()`, 
-`batchSave()` and a [Transaction](transactions.md).
+`batchSave()` and an [OrmTransaction](transactions.md).
 
 
 ## Schemas

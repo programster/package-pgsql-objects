@@ -12,10 +12,10 @@ parameters:
     excludePaths:
         - testing/settings.php (?)
     ignoreErrors:
-        # PHP has no "friend" classes, so AbstractTable reaches a record's protected members, and Transaction reaches
+        # PHP has no "friend" classes, so AbstractTable reaches a record's protected members, and OrmTransaction reaches
         # a table's private ones, through closures run in the other object's scope (with Closure::call() or
         # Closure::bind()). PHPStan reads each closure's $this as the class it was written in, so it can't find the
-        # members, nor see that Transaction is what calls takeOnDeletedObjects(). It then sees what the members return
+        # members, nor see that OrmTransaction is what calls takeOnDeletedObjects(). It then sees what the members return
         # as mixed, so it can't tell what the closures return either, nor what's built from them.
         -
             identifier: method.notFound
@@ -36,19 +36,7 @@ parameters:
             count: 1
         -
             identifier: argument.type
-            path: src/AbstractTable.php
-            count: 1
-        -
-            identifier: method.notFound
-            path: src/Transaction.php
-            count: 4
-        -
-            identifier: return.type
-            path: src/Transaction.php
-            count: 4
-        -
-            identifier: argument.type
-            path: src/Transaction.php
+            path: src/OrmTransaction.php
             count: 1
         # The same for the tests that reach a table's or a record's protected members, to check them.
         -

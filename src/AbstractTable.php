@@ -14,7 +14,9 @@ use Programster\PgsqlLib\Exceptions\ExceptionMismatchedRows;
 use Programster\PgsqlLib\Exceptions\ExceptionQueryError;
 use Programster\PgsqlLib\Exceptions\ExceptionUnexpectedValueType;
 use Programster\PgsqlLib\PgSqlConnection;
+use Programster\PgsqlLib\Query;
 use Programster\PgsqlLib\Table;
+use Programster\PgsqlLib\Transaction;
 use Programster\PgsqlObjects\Exceptions\ExceptionInvalidId;
 use Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData;
 use Programster\PgsqlObjects\Exceptions\ExceptionNoSuchIdException;
@@ -39,6 +41,7 @@ use Programster\PgsqlObjects\Exceptions\ExceptionWrongTable;
  *     'has default': bool,
  *     'array dims': int,
  *     'is enum': bool,
+ *     'sql type': string,
  * }
  *
  * @phpstan-type FieldInfoMap array<string, FieldInfo>
@@ -64,21 +67,18 @@ abstract class AbstractTable implements TableInterface
     protected ?array $m_fieldInfoMap = null;
 
 
-    # The name batchSave() gives each new object's position in the batch, in the rows its insert returns. It's unlikely
-    # to clash with a real column.
+    # The name batchSave() gives each object's position in a batch, in the rows it returns. It's unlikely to clash with
+    # a real column.
     private const BATCH_POSITION_COLUMN = '__pgsql_objects_batch_position';
 
 
-    # The name batchSave() gives the number of each new object's group of columns, in the rows it sends to its insert.
-    private const BATCH_GROUP_COLUMN = '__pgsql_objects_batch_group';
-
-
-    # The most parameters PostgreSQL accepts in one query, which batchInsert() splits its rows to stay within.
+    # The most parameters PostgreSQL accepts in one query, which batchInsert() and batchSave() split their rows to stay
+    # within.
     private const MAX_QUERY_PARAMS = 65535;
 
 
-    # The savepoint batchInsert() makes, when it needs several queries and a transaction is already open.
-    private const BATCH_SAVEPOINT_NAME = 'pgsql_objects_batch_insert';
+    # In the error from a batch update that didn't update every row, so that it can be told from any other error.
+    private const MISSING_ROW_MARKER = 'pgsql_objects_row_missing';
 
 
     # protected constructor so that one has to use the getInstance method.
@@ -287,19 +287,18 @@ abstract class AbstractTable implements TableInterface
 
         $chunks[] = $chunk;
 
-        $insertChunks = function () use ($chunks, $columnNames) : array {
-            $results = [];
+        $queries = [];
 
-            foreach ($chunks as $rowsInChunk)
-            {
-                $results[] = $this->insertBatchChunk($rowsInChunk, $columnNames);
-            }
-
-            return $results;
-        };
+        foreach ($chunks as $rowsInChunk)
+        {
+            $queries[] = $this->generateBatchChunkQuery($rowsInChunk, $columnNames);
+        }
 
         // A batch too large for one query is inserted in several, which are made all or nothing together.
-        $results = (count($chunks) > 1) ? $this->runAllOrNothing($insertChunks) : $insertChunks();
+        $results = (count($queries) > 1)
+            ? (new Transaction($this->getDb(), $queries))->execute()->toArray()
+            : [$this->getDb()->query($queries[0]->getSql(), $queries[0]->getParams())];
+
         $objects = [];
 
         // The records are only built (and cached) once every chunk has been inserted, so none is cached for a row
@@ -478,7 +477,16 @@ abstract class AbstractTable implements TableInterface
                 );
             }
 
-            $this->m_objectCache[$object->getId()] = $object;
+            // a change in an open transaction could still be rolled back, so the cache mustn't hold on to it. The row
+            // is simply read from the database next time.
+            if ($this->getDb()->isInTransaction())
+            {
+                unset($this->m_objectCache[$object->getId()]);
+            }
+            else
+            {
+                $this->m_objectCache[$object->getId()] = $object;
+            }
         }
     }
 
@@ -684,7 +692,7 @@ abstract class AbstractTable implements TableInterface
      * GENERATED ALWAYS AS IDENTITY columns. This is unrelated to generating IDs (see generateId()), as this
      * package never generates these values itself. They don't have to be set when creating this object, and are
      * never sent to the database in inserts or updates, as PostgreSQL rejects any value for them. Their values are
-     * read back from the database after save(), update(), insert(), updateById(), batchSave() and a Transaction.
+     * read back from the database after save(), update(), insert(), updateById(), batchSave() and an OrmTransaction.
      * Return an empty array if the table has none.
      *
      * @return array<string> - array of column names.
@@ -1075,8 +1083,10 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Save many objects in one go: updating the rows of objects that have been saved before, and inserting the rest.
-     * Everything is sent to the database as a single query, which runs as one transaction, so either every object is
-     * saved, or none are. If a transaction is already open, it all runs within that.
+     * Objects with the same columns are combined into one statement, with every value sent as a parameter, so a large
+     * value isn't copied into the query, and a batch takes a handful of round trips rather than one per object. It all
+     * runs in one transaction, so either every object is saved, or none are. If a transaction is already open, it runs
+     * in a savepoint within that, so a failure only undoes this batch.
      *
      * New objects whose IDs the database generates (e.g. SERIAL), so that they have no ID yet, are inserted together
      * by a single MERGE ... RETURNING, which returns each one's row, so that it takes on its generated ID, column
@@ -1101,7 +1111,10 @@ abstract class AbstractTable implements TableInterface
      * @throws ExceptionUnsupportedDatabaseVersion - if an object has no ID, and the database is older than PostgreSQL
      * 17. This is checked before anything is saved.
      *
-     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the query failed, in which case none of the
+     * @throws ExceptionNoSuchIdException - if a row being updated no longer exists, in which case none of the objects
+     * are saved.
+     *
+     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if a query failed, in which case none of the
      * objects are saved.
      */
     public function batchSave(AbstractRecord ...$objects) : void
@@ -1111,13 +1124,46 @@ abstract class AbstractTable implements TableInterface
 
         if (count($objects) > 0)
         {
-            $statements = $this->generateBatchSaveStatements($objects);
+            $batches = $this->generateSaveBatches($objects);
+            $queries = [new Query('SET CONSTRAINTS ALL DEFERRED')];
 
-            // the statements are sent as one query, which PostgreSQL runs as a single implicit transaction, so if any
-            // fail, none are saved.
-            $results = $this->runStatements($statements);
-            $this->takeOnBatchSavedObjects($objects, $results);
+            foreach ($batches as $batch)
+            {
+                $queries[] = $batch['query'];
+            }
+
+            try
+            {
+                $results = (new Transaction($this->getDb(), $queries))->execute()->toArray();
+            }
+            catch (ExceptionQueryError $exception)
+            {
+                throw self::convertSaveError($exception);
+            }
+
+            foreach ($batches as $index => $batch)
+            {
+                $this->takeOnSavedBatch($batch['objects'], $results[$index + 1]);
+            }
         }
+    }
+
+
+    /**
+     * Turn the error from a batch update that didn't update every row into the exception for that. Any other error is
+     * returned as it is. This is for OrmTransaction, and isn't meant to be called otherwise.
+     *
+     * @param ExceptionQueryError $exception - the error.
+     *
+     * @return \Exception - what to throw.
+     *
+     * @internal
+     */
+    public static function convertSaveError(ExceptionQueryError $exception) : \Exception
+    {
+        $isMissingRow = str_contains($exception->getErrorMessage(), self::MISSING_ROW_MARKER);
+        $message = "A row being saved no longer exists, so nothing was saved. Reload the objects, and try again.";
+        return $isMissingRow ? new ExceptionNoSuchIdException($message) : $exception;
     }
 
 
@@ -1319,18 +1365,16 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Insert one chunk of batchInsert()'s rows, in one query, with every value sent as a parameter. A row that leaves
-     * a column out gets DEFAULT for it.
+     * Generate the query that inserts one chunk of batchInsert()'s rows, with every value sent as a parameter. A row
+     * that leaves a column out gets DEFAULT for it.
      *
      * @param list<array<string, mixed>> $rows - the rows, already checked by batchInsert().
      *
      * @param list<string> $columnNames - every column that any row in the batch has, in order.
      *
-     * @return \PgSql\Result - the inserted rows.
-     *
-     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if the insert failed.
+     * @return Query
      */
-    private function insertBatchChunk(array $rows, array $columnNames) : \PgSql\Result
+    private function generateBatchChunkQuery(array $rows, array $columnNames) : Query
     {
         $params = [];
         $valueSets = [];
@@ -1363,40 +1407,7 @@ abstract class AbstractTable implements TableInterface
             " VALUES " . implode(",", $valueSets) .
             " RETURNING *";
 
-        return $this->getDb()->query($query, $params);
-    }
-
-
-    /**
-     * Run some queries so they're all or nothing: in a transaction, or in a savepoint if a transaction is already
-     * open, so it's left as it was if one fails.
-     *
-     * @param \Closure(): list<\PgSql\Result> $work - runs the queries.
-     *
-     * @return list<\PgSql\Result> - what $work returns.
-     *
-     * @throws \Throwable - whatever $work throws, once its queries have been rolled back.
-     */
-    private function runAllOrNothing(\Closure $work) : array
-    {
-        $db = $this->getDb();
-        $savepoint = $db->escapeIdentifier(self::BATCH_SAVEPOINT_NAME);
-        $isInTransaction = (pg_transaction_status($db->getResource()) !== PGSQL_TRANSACTION_IDLE);
-        $db->query($isInTransaction ? "SAVEPOINT {$savepoint}" : "BEGIN");
-
-        try
-        {
-            $results = $work();
-            $db->query($isInTransaction ? "RELEASE SAVEPOINT {$savepoint}" : "COMMIT");
-        }
-        catch (\Throwable $exception)
-        {
-            $rollBackToSavepoint = "ROLLBACK TO SAVEPOINT {$savepoint}; RELEASE SAVEPOINT {$savepoint}";
-            $db->query($isInTransaction ? $rollBackToSavepoint : "ROLLBACK");
-            throw $exception;
-        }
-
-        return $results;
+        return new Query($query, $params);
     }
 
 
@@ -1478,7 +1489,7 @@ abstract class AbstractTable implements TableInterface
         // to_regclass() gives NULL rather than an error if there is no such table, so then no columns are found.
         $query =
             'SELECT a."attname", a."attnum", t."typname", a."attlen", a."attnotnull", a."atthasdef", a."attndims",' .
-            ' (t."typtype" = \'e\') AS "is_enum"' .
+            ' (t."typtype" = \'e\') AS "is_enum", format_type(a."atttypid", NULL) AS "sql_type"' .
             ' FROM "pg_catalog"."pg_attribute" a' .
             ' JOIN "pg_catalog"."pg_type" t ON t."oid" = a."atttypid"' .
             " WHERE a.\"attrelid\" = to_regclass({$tableNameLiteral})" .
@@ -1498,6 +1509,7 @@ abstract class AbstractTable implements TableInterface
                 'has default' => ($column['atthasdef'] === 't'),
                 'array dims' => (int)$column['attndims'],
                 'is enum' => ($column['is_enum'] === 't'),
+                'sql type' => (string)$column['sql_type'],
             ];
         }
 
@@ -1563,14 +1575,20 @@ abstract class AbstractTable implements TableInterface
         {
             $object = $newObject;
         }
+        elseif (isset($this->m_objectCache[$id]) && $cacheMode === CacheMode::USE_CACHE)
+        {
+            $object = $this->m_objectCache[$id];
+        }
+        elseif ($this->getDb()->isInTransaction())
+        {
+            // this row could still be rolled back, so the cache mustn't hold on to it (see cacheObject()).
+            unset($this->m_objectCache[$id]);
+            $object = $newObject;
+        }
         elseif (isset($this->m_objectCache[$id]))
         {
             $object = $this->m_objectCache[$id];
-
-            if ($cacheMode === CacheMode::UPDATE_CACHE)
-            {
-                $this->refreshObject($object, $row, $fieldInfoMap);
-            }
+            $this->refreshObject($object, $row, $fieldInfoMap);
         }
         else
         {
@@ -1792,24 +1810,24 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Generate the SQL statements that save the objects for batchSave() (and Transaction), without running them or
-     * changing the objects: SET CONSTRAINTS ALL DEFERRED, the update or insert of each object that has an ID, which
-     * returns its row, and then one insert of the objects without IDs, which returns theirs (see
-     * generateBatchInsertObjectsQuery()). Every object is checked first, so if one is rejected, nothing has been sent
-     * to the database. Pass every statement's result, in order, to takeOnBatchSavedObjects().
+     * Generate the statements that save the objects for batchSave() and OrmTransaction, without running them or
+     * changing the objects. Neighbouring objects with the same columns share one statement, with their values sent as
+     * parameters, up to PostgreSQL's limit. Objects with IDs go first, in order, then those whose IDs the database
+     * generates. Every object is checked first, so if one is rejected, nothing has been sent.
      *
      * @param list<AbstractRecord> $objects - the objects to save, of this table. Must not be empty.
      *
-     * @return array<string> - the statements, in order, each a single SQL statement without a trailing semicolon.
+     * @return list<array{query: Query, objects: list<AbstractRecord>}> - each statement, with the objects it saves.
      *
      * @throws ExceptionWrongTable - if an object isn't one of this table's records.
-     *
      * @throws ExceptionObjectDeleted - if an object has been deleted.
+     * @throws ExceptionUnknownColumn - if an object has a column this table doesn't.
+     * @throws ExceptionUnexpectedValueType - if a value can't be sent.
      *
      * @throws ExceptionUnsupportedDatabaseVersion - if an object has no ID, and the database is older than PostgreSQL
      * 17.
      */
-    private function generateBatchSaveStatements(array $objects) : array
+    private function generateSaveBatches(array $objects) : array
     {
         $objectsWithIds = [];
         $objectsWithoutIds = [];
@@ -1834,84 +1852,292 @@ abstract class AbstractTable implements TableInterface
             }
         }
 
-        $statements = [
-            // dont check for uniqueness until the end of the transaction to resolve issues with reorgnizing sort
-            // indexes https://www.postgresql.org/docs/9.1/sql-set-constraints.html
-            "SET CONSTRAINTS ALL DEFERRED"
-        ];
-
-        // return each object's row, so it takes on any values the database filled in, such as column defaults and
-        // generated columns, as save() does.
-        foreach ($objectsWithIds as $object)
-        {
-            $statements[] = $object->getSaveQuery() . " RETURNING *";
-        }
-
-        // the column info is needed to read the rows back, so fetch it now (only the first time), rather than after the
-        // statements have run.
-        $this->getFieldInfoMap();
-
-        // the insert of the objects without IDs goes last, as only the last statement's result is returned.
         if (count($objectsWithoutIds) > 0)
         {
             $this->assertDatabaseSupportsMergeReturning();
-            $statements[] = $this->generateBatchInsertObjectsQuery($objectsWithoutIds);
         }
 
-        return $statements;
+        return [...$this->splitIntoBatches($objectsWithIds), ...$this->splitIntoBatches($objectsWithoutIds)];
     }
 
 
     /**
-     * Mark the objects from generateBatchSaveStatements() as saved, once its statements have run (and, in a
-     * Transaction, been committed): each object takes on its row from the database, including any values the database
-     * filled in, such as its generated ID, column defaults and generated columns, and is cached if the cache is
-     * enabled.
+     * Split objects into batches that can each be one statement: neighbouring objects that are saved the same way,
+     * with the same columns, with no ID twice (as one statement can't change a row twice), within the parameter limit.
      *
-     * @param array<AbstractRecord> $objects - the objects that were saved, as passed to
-     * generateBatchSaveStatements().
+     * @param list<AbstractRecord> $objects - the objects, in order.
      *
-     * @param array<\PgSql\Result> $results - the result of each of its statements, in the same order.
-     *
-     * @return void
+     * @return list<array{query: Query, objects: list<AbstractRecord>}>
      */
-    private function takeOnBatchSavedObjects(array $objects, array $results) : void
+    private function splitIntoBatches(array $objects) : array
     {
-        $fieldInfoMap = $this->getFieldInfoMap();
-        $objectsWithoutIds = [];
-
-        // the first statement is SET CONSTRAINTS, then there's one for each object that has an ID, in order.
-        $statementIndex = 1;
+        // getDatabaseArrayForm() is protected, so call it from within each object's scope.
+        $getDatabaseArrayForm = function () : array { return $this->getDatabaseArrayForm(); };
+        $batches = [];
+        $batchObjects = [];
+        $batchRows = [];
+        $batchIds = [];
+        $batchKey = '';
+        $paramCount = 0;
 
         foreach ($objects as $object)
         {
-            if ($object->getId() === null)
+            /** @var array<string, mixed> $row - PHPStan can't follow Closure::call() into the object's scope. */
+            $row = $getDatabaseArrayForm->call($object);
+            $this->assertKnownColumns($row);
+            ksort($row);
+            $key = ($object->isPersisted() ? 'update:' : 'insert:') . implode(',', array_keys($row));
+            $id = (string)$object->getId();
+
+            $startsNewBatch = (
+                   count($batchObjects) > 0
+                && ($key !== $batchKey || isset($batchIds[$id]) || $paramCount + count($row) > self::MAX_QUERY_PARAMS)
+            );
+
+            if ($startsNewBatch)
             {
-                $objectsWithoutIds[] = $object;
+                $batches[] = $this->createSaveBatch($batchObjects, $batchRows);
+                $batchObjects = [];
+                $batchRows = [];
+                $batchIds = [];
+                $paramCount = 0;
             }
-            else
+
+            $batchKey = $key;
+            $batchObjects[] = $object;
+            $batchRows[] = $row;
+            $paramCount += count($row);
+
+            if ($object->getId() !== null)
             {
-                $row = pg_fetch_assoc($results[$statementIndex]);
-                $statementIndex++;
-
-                if ($row !== false)
-                {
-                    $this->refreshObject($object, $row, $fieldInfoMap);
-                }
-                else
-                {
-                    // an update of a row that no longer exists, e.g. deleted elsewhere, changes nothing.
-                    $object->markSaved();
-                }
-
-                $this->cacheObject($object);
+                $batchIds[$id] = true;
             }
         }
 
-        // the insert of the objects without IDs is the last statement.
-        if (count($objectsWithoutIds) > 0)
+        if (count($batchObjects) > 0)
         {
-            $this->takeOnInsertedRows($objectsWithoutIds, $results[$statementIndex]);
+            $batches[] = $this->createSaveBatch($batchObjects, $batchRows);
+        }
+
+        return $batches;
+    }
+
+
+    /**
+     * Create the statement that saves one batch.
+     *
+     * @param non-empty-list<AbstractRecord> $objects - the objects, which are all saved the same way.
+     *
+     * @param non-empty-list<array<string, mixed>> $rows - each object's row, which all have the same columns.
+     *
+     * @return array{query: Query, objects: list<AbstractRecord>}
+     */
+    private function createSaveBatch(array $objects, array $rows) : array
+    {
+        $columnNames = array_keys($rows[0]);
+        $first = $objects[0];
+
+        if ($first->isPersisted())
+        {
+            $query = $this->generateBatchUpdateQuery($rows, $columnNames);
+        }
+        elseif ($first->getId() !== null)
+        {
+            $query = $this->generateBatchInsertWithIdsQuery($rows, $columnNames);
+        }
+        else
+        {
+            $query = $this->generateBatchInsertWithoutIdsQuery($rows, $columnNames);
+        }
+
+        return ['query' => $query, 'objects' => $objects];
+    }
+
+
+    /**
+     * Generate the VALUES of a batch, numbering the placeholders across every row, each cast to its column's type, as
+     * a VALUES list doesn't get its types from a table. The cast leaves out any length, e.g. varchar(10), as an
+     * explicit cast would silently cut a value short, rather than the column rejecting it.
+     *
+     * @param list<array<string, mixed>> $rows - the rows, which all have $columnNames.
+     *
+     * @param list<string> $columnNames - the columns, in order.
+     *
+     * @param bool $includePosition - whether each row starts with its position in the batch, from 1.
+     *
+     * @return array{sql: string, params: list<string|int|float|bool|null|\BackedEnum>}
+     */
+    private function generateBatchValues(array $rows, array $columnNames, bool $includePosition) : array
+    {
+        $fieldInfoMap = $this->getFieldInfoMap();
+        $params = [];
+        $valueSets = [];
+
+        foreach ($rows as $index => $row)
+        {
+            $values = $includePosition ? [(string)($index + 1)] : [];
+
+            foreach ($columnNames as $columnName)
+            {
+                $params[] = self::convertValueToParam($columnName, $row[$columnName]);
+                $values[] = '$' . count($params) . '::' . $fieldInfoMap[$columnName]['sql type'];
+            }
+
+            $valueSets[] = '(' . implode(', ', $values) . ')';
+        }
+
+        return ['sql' => 'VALUES ' . implode(', ', $valueSets), 'params' => $params];
+    }
+
+
+    /**
+     * Generate the statement that updates a batch of rows. It fails if it didn't update every one, so that a row that
+     * has gone can't be silently lost, and the whole transaction rolls back. The check counts the rows, and only
+     * converts the marker to an int when they don't match, which is an error naming the marker. PostgreSQL has no
+     * function for raising an error from plain SQL.
+     *
+     * @param list<array<string, mixed>> $rows - the rows, including their IDs.
+     *
+     * @param list<string> $columnNames - the columns, in order.
+     *
+     * @return Query
+     */
+    private function generateBatchUpdateQuery(array $rows, array $columnNames) : Query
+    {
+        $db = $this->getDb();
+        $values = $this->generateBatchValues($rows, $columnNames, true);
+        $position = $db->escapeIdentifier(self::BATCH_POSITION_COLUMN);
+        $escapedColumnNames = array_values($db->escapeIdentifiers($columnNames));
+        $assignments = [];
+
+        foreach ($escapedColumnNames as $escapedColumnName)
+        {
+            $assignments[] = "{$escapedColumnName} = \"source\".{$escapedColumnName}";
+        }
+
+        $idColumn = $this->getEscapedIdColumnName();
+        $sourceColumns = implode(', ', [$position, ...$escapedColumnNames]);
+        $numRows = count($rows);
+        $marker = self::MISSING_ROW_MARKER;
+
+        $query =
+            "WITH \"source\" ({$sourceColumns}) AS ({$values['sql']})," .
+            " \"updated\" AS (" .
+                "UPDATE {$this->getEscapedQualifiedTableName()} AS \"target\" SET " . implode(', ', $assignments) .
+                " FROM \"source\" WHERE \"target\".{$idColumn} = \"source\".{$idColumn}" .
+                " RETURNING \"source\".{$position} AS {$position}, \"target\".*" .
+            ")" .
+            " SELECT \"updated\".* FROM (" .
+                "SELECT (CASE WHEN count(*) = {$numRows} THEN '1' ELSE '{$marker}:' || count(*) END)::int AS \"ok\"" .
+                " FROM \"updated\"" .
+            ") AS \"check\" LEFT JOIN \"updated\" ON \"check\".\"ok\" = 1";
+
+        return new Query($query, $values['params']);
+    }
+
+
+    /**
+     * Generate the statement that inserts a batch of new rows whose IDs are already known.
+     *
+     * @param list<array<string, mixed>> $rows - the rows, including their IDs.
+     *
+     * @param list<string> $columnNames - the columns, in order.
+     *
+     * @return Query
+     */
+    private function generateBatchInsertWithIdsQuery(array $rows, array $columnNames) : Query
+    {
+        $values = $this->generateBatchValues($rows, $columnNames, false);
+        $escapedColumnNames = implode(', ', $this->getDb()->escapeIdentifiers($columnNames));
+        $table = $this->getEscapedQualifiedTableName();
+        $query = "INSERT INTO {$table} ({$escapedColumnNames}) {$values['sql']} RETURNING *";
+        return new Query($query, $values['params']);
+    }
+
+
+    /**
+     * Generate the statement that inserts a batch of new rows whose IDs the database generates. It's a MERGE, as that
+     * can return each inserted row along with the position of the object it came from, which a plain INSERT ...
+     * RETURNING can't, as it doesn't promise to return the rows in any particular order.
+     *
+     * @param list<array<string, mixed>> $rows - the rows.
+     *
+     * @param list<string> $columnNames - the columns, in order. There may be none, if every column has a default.
+     *
+     * @return Query
+     */
+    private function generateBatchInsertWithoutIdsQuery(array $rows, array $columnNames) : Query
+    {
+        $db = $this->getDb();
+        $values = $this->generateBatchValues($rows, $columnNames, true);
+        $position = $db->escapeIdentifier(self::BATCH_POSITION_COLUMN);
+        $sourceColumns = implode(', ', [$position, ...array_values($db->escapeIdentifiers($columnNames))]);
+
+        $query =
+            "MERGE INTO {$this->getEscapedQualifiedTableName()} AS \"target\"" .
+            " USING ({$values['sql']}) AS \"source\" ({$sourceColumns})" .
+            " ON FALSE WHEN NOT MATCHED THEN " . $this->generateMergeInsert($columnNames) .
+            " RETURNING \"source\".{$position} AS {$position}, \"target\".*";
+
+        return new Query($query, $values['params']);
+    }
+
+
+    /**
+     * Mark a batch of objects as saved, once its statement has run (and, in a transaction, been committed): each takes
+     * on its row from the database, including any values the database filled in, such as its generated ID, column
+     * defaults and generated columns, and is cached if the cache is enabled.
+     *
+     * @param list<AbstractRecord> $objects - the objects in the batch.
+     *
+     * @param \PgSql\Result $result - the result of its statement.
+     *
+     * @return void
+     */
+    private function takeOnSavedBatch(array $objects, \PgSql\Result $result) : void
+    {
+        $fieldInfoMap = $this->getFieldInfoMap();
+        $idColumn = $this->getIdColumnName();
+        $positionsById = [];
+        $savedPositions = [];
+
+        // an insert with known IDs can't return positions, so its rows are matched by ID.
+        foreach ($objects as $position => $object)
+        {
+            if ($object->getId() !== null)
+            {
+                $positionsById[(string)$object->getId()] = $position;
+            }
+        }
+
+        while (($row = pg_fetch_assoc($result)) !== false)
+        {
+            if (isset($row[self::BATCH_POSITION_COLUMN]))
+            {
+                $position = (int)$row[self::BATCH_POSITION_COLUMN] - 1;
+                unset($row[self::BATCH_POSITION_COLUMN]);
+            }
+            else
+            {
+                $position = $positionsById[(string)$this->normalizeId((string)$row[$idColumn])] ?? -1;
+            }
+
+            if ($position >= 0)
+            {
+                $this->refreshObject($objects[$position], $row, $fieldInfoMap);
+                $this->cacheObject($objects[$position]);
+                $savedPositions[$position] = true;
+            }
+        }
+
+        // e.g. a BEFORE INSERT trigger skipped the row, so there's nothing to take on.
+        foreach ($objects as $position => $object)
+        {
+            if (!isset($savedPositions[$position]))
+            {
+                $object->markSaved();
+                $this->cacheObject($object);
+            }
         }
     }
 
@@ -1936,7 +2162,7 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Mark the objects a Transaction deleted as deleted, once it has been committed, and forget their rows' cached
+     * Mark the objects an OrmTransaction deleted as deleted, once it has been committed, and forget their rows' cached
      * objects, just as their delete() would.
      *
      * @param array<AbstractRecord> $objects - the deleted objects, of this table.
@@ -1954,83 +2180,6 @@ abstract class AbstractTable implements TableInterface
 
             $this->markObjectDeleted($object);
         }
-    }
-
-
-    /**
-     * Generate the query that inserts new objects that have no ID yet, for batchSave(). It's a MERGE, as that can
-     * return each inserted row along with the position of the object it came from in $objects (from WITH ORDINALITY),
-     * which a plain INSERT ... RETURNING can't, as it doesn't promise to return the rows in any particular order. The
-     * objects' values are sent as JSON, which jsonb_populate_record() turns into rows of this table's type, so that
-     * every value has its column's type.
-     *
-     * Objects don't all have to have the same columns, e.g. a record leaves out a column with a default that it has no
-     * value for, so that the column gets its database default. So the objects are grouped by their columns, and each
-     * group gets its own INSERT, which only inserts those columns, just as insert() would for each object on its own.
-     *
-     * @param array<AbstractRecord> $objects - the objects to insert, as a list.
-     *
-     * @return string - the query.
-     *
-     * @throws ExceptionUnknownColumn - if an object has a column this table doesn't.
-     * @throws \JsonException - if a value can't be encoded as JSON, e.g. INF, NAN or a string that isn't UTF-8.
-     */
-    private function generateBatchInsertObjectsQuery(array $objects) : string
-    {
-        $db = $this->getDb();
-
-        // getDatabaseArrayForm() is protected, so call it from within each object's scope.
-        $getDatabaseArrayForm = function () : array { return $this->getDatabaseArrayForm(); };
-        $elements = [];
-        $groupNumbersByColumns = [];
-        $columnsByGroupNumber = [];
-
-        foreach ($objects as $object)
-        {
-            $row = $getDatabaseArrayForm->call($object);
-            $this->assertKnownColumns($row);
-            $columnNames = array_keys($row);
-            sort($columnNames);
-            $groupKey = implode(",", $columnNames);
-
-            if (!isset($groupNumbersByColumns[$groupKey]))
-            {
-                $groupNumbersByColumns[$groupKey] = count($columnsByGroupNumber);
-                $columnsByGroupNumber[] = $columnNames;
-            }
-
-            $elements[] = ['group' => $groupNumbersByColumns[$groupKey], 'row' => $row];
-        }
-
-        $group = $db->escapeIdentifier(self::BATCH_GROUP_COLUMN);
-        $whenClauses = [];
-
-        foreach ($columnsByGroupNumber as $groupNumber => $columnNames)
-        {
-            $whenClauses[] = " WHEN NOT MATCHED AND \"source\".{$group} = {$groupNumber} THEN " .
-                $this->generateMergeInsert($columnNames);
-        }
-
-        $tableName = $this->getEscapedQualifiedTableName();
-        $position = $db->escapeIdentifier(self::BATCH_POSITION_COLUMN);
-        $elementsLiteral = $db->escapeValue($this->encodeJson($elements));
-
-        $query =
-            "MERGE INTO {$tableName} AS \"target\"" .
-            " USING (" .
-                "SELECT \"element\".{$position}," .
-                " (\"element\".\"value\" ->> 'group')::int AS {$group}," .
-                " \"row\".*" .
-                " FROM jsonb_array_elements({$elementsLiteral}::jsonb)" .
-                " WITH ORDINALITY AS \"element\"(\"value\", {$position})" .
-                " CROSS JOIN LATERAL" .
-                " jsonb_populate_record(NULL::{$tableName}, \"element\".\"value\" -> 'row') AS \"row\"" .
-            ") AS \"source\"" .
-            " ON FALSE" .
-            implode("", $whenClauses) .
-            " RETURNING \"source\".{$position}, \"target\".*";
-
-        return $query;
     }
 
 
@@ -2066,89 +2215,6 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
-     * Give each new object from batchSave() its inserted row, so that it takes on its generated ID, column defaults and
-     * generated columns, and is marked as saved, and cached if the cache is enabled.
-     *
-     * @param array<AbstractRecord> $objects - the objects that were inserted, in the order they were sent in.
-     *
-     * @param \PgSql\Result $result - the result of the query from generateBatchInsertObjectsQuery().
-     *
-     * @return void
-     */
-    private function takeOnInsertedRows(array $objects, \PgSql\Result $result) : void
-    {
-        $fieldInfoMap = $this->getFieldInfoMap();
-
-        while (($row = pg_fetch_assoc($result)) !== false)
-        {
-            // WITH ORDINALITY counts from 1.
-            $object = $objects[(int)$row[self::BATCH_POSITION_COLUMN] - 1];
-            unset($row[self::BATCH_POSITION_COLUMN]);
-            $this->refreshObject($object, $row, $fieldInfoMap);
-            $this->cacheObject($object);
-        }
-    }
-
-
-    /**
-     * Run several SQL statements as one query: a single round trip to the database. PostgreSQL runs the statements of a
-     * single query as one transaction, which it rolls back if any of them fail, unless a transaction is already open,
-     * in which case they run within it.
-     *
-     * The query is sent with pg_send_query(), rather than pg_query(), as that only returns the last statement's result,
-     * while pg_get_result() returns every statement's, so each statement's returned rows can be read. Transaction uses
-     * this too.
-     *
-     * @param array<string> $statements - the statements, in order, each a single SQL statement without a trailing
-     * semicolon.
-     *
-     * @return array<\PgSql\Result> - the result of each statement, in the same order.
-     *
-     * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError - if a statement failed, after which none of the
-     * statements' changes have been kept (or, within an open transaction, that transaction has failed).
-     */
-    private function runStatements(array $statements) : array
-    {
-        $connection = $this->getDb()->getResource();
-        $query = implode(";\n", $statements) . ";";
-
-        if (pg_send_query($connection, $query) === false)
-        {
-            throw new ExceptionQueryError(pg_last_error($connection), $query);
-        }
-
-        $results = [];
-        $hasFailed = false;
-        $errorMessage = "";
-
-        // every result has to be read before the connection can be used again. After a statement fails, the rest
-        // aren't run, so there are no more results.
-        while (($result = pg_get_result($connection)) !== false)
-        {
-            $status = pg_result_status($result);
-
-            if ($status === PGSQL_FATAL_ERROR || $status === PGSQL_BAD_RESPONSE)
-            {
-                $hasFailed = true;
-                $errorMessage = pg_result_error($result);
-                $errorMessage = ($errorMessage !== false) ? $errorMessage : "PostgreSQL gave no error message.";
-            }
-            else
-            {
-                $results[] = $result;
-            }
-        }
-
-        if ($hasFailed)
-        {
-            throw new ExceptionQueryError($errorMessage, $query);
-        }
-
-        return $results;
-    }
-
-
-    /**
      * Check that the database supports MERGE ... RETURNING, which batchSave() needs to insert objects without IDs. The
      * version comes from the connection, so this doesn't need a query.
      *
@@ -2171,37 +2237,6 @@ abstract class AbstractTable implements TableInterface
                 " Save those objects with save(), or insert their rows with batchInsert(), instead."
             );
         }
-    }
-
-
-    /**
-     * Encode the rows as JSON, keeping every float exact, regardless of the serialize_precision setting.
-     *
-     * @param array<mixed> $rows - the rows to encode.
-     *
-     * @return string - the JSON.
-     *
-     * @throws \JsonException - if a value can't be encoded.
-     */
-    private function encodeJson(array $rows) : string
-    {
-        // with serialize_precision set to -1, floats are encoded as the shortest string that converts back to exactly
-        // the same float. -1 is the default, but set it for this call in case the application has changed it.
-        $previousPrecision = ini_set('serialize_precision', '-1');
-
-        try
-        {
-            $json = json_encode($rows, JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION);
-        }
-        finally
-        {
-            if ($previousPrecision !== false)
-            {
-                ini_set('serialize_precision', $previousPrecision);
-            }
-        }
-
-        return $json;
     }
 
 

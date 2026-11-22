@@ -1,16 +1,21 @@
 # Transactions
 
-A `Transaction` saves and deletes objects of any of your tables together, in 
-one database transaction: either every change is made, or none are.
+An `OrmTransaction` runs plain queries and saves and deletes objects of any of 
+your tables together, in one database transaction: either every change is made, 
+or none are. It extends pgsql-lib's `Transaction`, adding `save()` and `delete()` 
+for records.
 
 ```php
+use Programster\PgsqlObjects\OrmTransaction;
+
 $author = AuthorRecord::createFromArray(['name' => 'Ursula']);
 $book = BookRecord::createFromArray(['author_id' => $author->getId(), 'title' => 'Earthsea']);
 
-$transaction = new Transaction();
-$transaction->save($author);
-$transaction->save($book);
+$transaction = new OrmTransaction($db, ['UPDATE "stats" SET "authors" = "authors" + 1']);
+$transaction->save($author, $book);
 $transaction->delete($oldEdition);
+$transaction->append(new Query('INSERT INTO "audit" ("note") VALUES ($1)', [$note]));
+$transaction->appendCallbacks($sendEmail);
 $transaction->commit();
 ```
 
@@ -19,6 +24,8 @@ a deferrable foreign key, the order wouldn't matter (see
 [Deferrable constraints](#deferrable-constraints)).
 
 - [How it works](#how-it-works)
+- [Plain queries](#plain-queries)
+- [After-commit callbacks and retries](#after-commit-callbacks-and-retries)
 - [Deferrable constraints](#deferrable-constraints): why we recommend them, and 
   how to make yours deferrable
   - [Why it helps](#why-it-helps)
@@ -35,26 +42,73 @@ a deferrable foreign key, the order wouldn't matter (see
 
 ## How it works
 
-- `save()` and `delete()` only record the change. **Nothing is sent to the 
-  database until `commit()`.**
-- `commit()` sends every change as **a single query: one round trip**, however 
-  many objects and tables there are. Changes next to each other, of the same 
-  kind and table, are combined, as `batchSave()` and `deleteByIds()` would.
+- `append()`, `save()` and `delete()` only record the change. **Nothing is sent 
+  to the database until it's executed**, with `commit()`, or its aliases 
+  `execute()`, `run()` and `$transaction()`.
+- Changes run in the order you add them. Neighbouring saves or deletes of the 
+  same table, with the same columns, are combined into one statement, with 
+  their values sent as parameters. So a large transaction takes a handful of 
+  round trips rather than one per object, and a large value isn't copied into 
+  the SQL.
 - Every object is checked before anything is sent, e.g. that an object being 
   saved hasn't been deleted since it was added.
-- PostgreSQL runs the query as one transaction. If any change fails, it's all 
-  rolled back, and the exception (usually pgsql-lib's `ExceptionQueryError`) is 
-  thrown on.
+- If any change fails, it's all rolled back, and the exception (usually 
+  pgsql-lib's `ExceptionQueryError`) is thrown on. If a row being updated no 
+  longer exists, it's an `ExceptionNoSuchIdException`, and everything is rolled 
+  back, rather than that object's save being silently lost.
 - Objects are only marked as saved or deleted, and the [cache](cache.md) only 
   updated, **once the transaction has been committed**. So if it fails, every 
   object is left exactly as it was: a new object isn't marked as saved, and 
   doesn't keep an ID the database generated for a row that was rolled back.
 - After the commit, each saved object takes on its row from the database, as 
   with `save()`, including any values the database filled in, such as its 
-  generated ID, column defaults and generated columns. Every insert and update 
-  returns its row in the same query, so this needs no extra round trips.
-- Each object is saved with the values it has when you call `commit()`, not 
-  when you added it.
+  generated ID, column defaults and generated columns, with no extra queries.
+- Each object is saved with the values it has when the transaction runs, not 
+  when you added it. Plain queries are fixed when you add them.
+
+
+## Plain queries
+
+A transaction doesn't need any records. Queries can be strings, or pgsql-lib 
+`Query` objects, which send their values separately from the SQL:
+
+```php
+$transaction = new OrmTransaction($db, ['UPDATE "stats" SET "visits" = "visits" + 1']);
+$transaction->append(new Query('SELECT "name" FROM "user" WHERE "id" = $1', [$id]));
+$results = $transaction->commit();
+```
+
+`commit()` returns the plain queries' results, in order.
+
+The ORM can't see what a plain query changes. If one updates or deletes a row 
+you're holding as an object, or that's cached, that object goes stale, so use 
+`save()` and `delete()` for records you hold.
+
+While you're building a transaction, nothing is open in the database. So a 
+direct `$user->save()` or `$table->batchSave()` at that point **runs and commits 
+straight away**, separately from the transaction. Once you've started one, 
+send every write through it. Your reads aren't protected either, so if a 
+decision depends on what you read, 
+[open a transaction yourself](custom-queries.md#your-own-transactions).
+
+
+## After-commit callbacks and retries
+
+Pass closures to the constructor, or add them with `appendCallbacks()`. They run 
+in order once the transaction has committed and its objects have been updated, 
+so a new object already has its generated ID. They don't run if it fails. If one 
+throws, the others still run, and you then get pgsql-lib's 
+`ExceptionAfterCommitFailed`. **The transaction was committed**, so don't run it 
+again.
+
+A transaction is attempted up to 3 times by default if PostgreSQL rejects it 
+with a serialization failure or a deadlock, which it has already rolled back. 
+Nothing else is retried. Set `maxAttempts` to change that, or to `1` for no 
+retries:
+
+```php
+$transaction = new OrmTransaction($db, maxAttempts: 5);
+```
 
 
 ## Deferrable constraints
@@ -79,7 +133,7 @@ moment later in the same transaction:
 $author = AuthorRecord::createFromArray(['name' => 'Ursula']);
 $book = BookRecord::createFromArray(['author_id' => $author->getId(), 'title' => 'Earthsea']);
 
-$transaction = new Transaction();
+$transaction = new OrmTransaction($db);
 $transaction->save($book);   // fails here, with a normal foreign key: the author doesn't exist yet.
 $transaction->save($author);
 $transaction->commit();
@@ -103,7 +157,7 @@ Sometimes there's no order that works at all:
   rows the same value.
 
 **A deferrable constraint can be checked once, at the end of the transaction, 
-instead.** Every `Transaction`, and every `batchSave()`, starts by running 
+instead.** Every `OrmTransaction`, and every `batchSave()`, starts by running 
 `SET CONSTRAINTS ALL DEFERRED`, so with deferrable constraints, **the order 
 doesn't matter**: the example above just works, and so do the cases with no 
 working order, as long as everything is right by the end. If something is 
@@ -111,7 +165,7 @@ still wrong then, e.g. a book whose author is never saved, the commit fails,
 and the whole transaction is rolled back, as with any other failure.
 
 This matters most when the order is hard to control, such as code that saves 
-whatever a form or an import changed, or a `Transaction` built up by several 
+whatever a form or an import changed, or an `OrmTransaction` built up by several 
 parts of your application.
 
 
@@ -137,7 +191,7 @@ otherwise:
 | SQL | `DeferConfig` | Checked |
 |---|---|---|
 | `NOT DEFERRABLE` | `NOT_DEFERRABLE` | As each change is made, always. PostgreSQL's default. |
-| `DEFERRABLE INITIALLY IMMEDIATE` | `INITIALLY_IMMEDIATE` | As each change is made, unless the transaction defers it, as `Transaction` and `batchSave()` do. |
+| `DEFERRABLE INITIALLY IMMEDIATE` | `INITIALLY_IMMEDIATE` | As each change is made, unless the transaction defers it, as `OrmTransaction` and `batchSave()` do. |
 | `DEFERRABLE INITIALLY DEFERRED` | `INITIALLY_DEFERRED` | At the end of the transaction, always. |
 
 **`DEFERRABLE INITIALLY IMMEDIATE` is usually what you want.** The package's 
@@ -282,14 +336,21 @@ and take on their IDs, but this needs PostgreSQL 17 or newer (see
 
 ## Inside a transaction that's already open
 
-If a transaction is already open on the connection when you commit, the 
-changes are made inside a savepoint within it:
+If a transaction is already open on the connection, the changes are made inside 
+a savepoint within it:
 
 - If a change fails, only these changes are undone, and the open transaction 
   can carry on.
 - Nothing is final until the open transaction is committed. If it's rolled 
-  back instead, the rows are gone, but the objects are still marked as saved or 
-  deleted.
+  back instead, the rows are gone, and the objects can't be rolled back with 
+  them: they keep their values, and stay marked as saved or deleted, so reload 
+  anything you still need. Nothing written in an open transaction is kept in 
+  the [cache](cache.md), so loads still get the right data.
+- Saving such an object again afterwards throws `ExceptionNoSuchIdException` if 
+  its row was rolled back, rather than silently saving nothing.
+- It isn't retried, as PostgreSQL needs the whole transaction to be run again.
+- After-commit callbacks are refused with an `ExceptionInvalidTransaction`, as 
+  there's no way to know when the open transaction commits.
 - Deferrable constraints aren't checked until the open transaction is 
   committed, so a broken one only shows then. After a successful commit, the 
   rest of the open transaction defers them too, until it ends.
@@ -297,8 +358,8 @@ changes are made inside a savepoint within it:
 
 ## Rules
 
-- Every object's table must extend `AbstractTable`, and every table must use 
-  the same database connection, as a transaction can only cover one. Adding an 
+- Every object's table must extend `AbstractTable`, and use the transaction's 
+  database connection, as a transaction can only cover one. Adding an 
   object whose table uses a different connection throws 
   `ExceptionInvalidTransaction`.
 - Adding the same object again does nothing, so it stays where it was first 
@@ -307,9 +368,8 @@ changes are made inside a savepoint within it:
 - Saving an object that has been deleted throws `ExceptionObjectDeleted`. 
   Deleting one that has already been deleted does nothing. Deleting one that 
   was never saved has no row to delete, but it's still marked as deleted.
-- A transaction can only be committed once, whether or not it succeeds, and 
-  nothing can be added after. Committing one with no changes does nothing.
-- It only saves and deletes objects, and doesn't run any other queries.
+- A transaction can only be run once, whether or not it succeeds, and nothing 
+  can be added after. Running one with no changes does nothing.
 - The only other query it might make is a one-time fetch of a table's column 
   info, the first time a process saves new objects whose IDs the database 
   generates to that table.

@@ -14,8 +14,9 @@ before the final 5.0.0, starting with 5.0.0-alpha1. It can still change between 
 Each of these needs a change to code that uses 4.x.
 
 **Dependencies**
-- Requires `programster/pgsql-lib` 3.1 or later (for parameterised queries, which
-  `insert()` uses). This package's `getDb()` returns pgsql-lib's
+- Requires `programster/pgsql-lib` 3.3.0-alpha2 or later (for its `Transaction` and `Query`, and
+  parameterised queries). While 3.3 is in alpha, your project's own `composer.json` must
+  also require `"programster/pgsql-lib": "^3.3.0-alpha2@alpha"`. This package's `getDb()` returns pgsql-lib's
   `PgSqlConnection`, so code that uses the connection directly is affected by pgsql-lib's
   own changes. In particular, `PgSqlConnection::create()` now requires the `$forceNew`
   argument, before `$port`.
@@ -146,11 +147,11 @@ The record's own `delete()` and `update($data)` are unchanged.
 - An ID that isn't an int or a string, e.g. a float or an array, in a row, where pairs,
   `createFromArray()`, `createFromDatabaseRow()` or a record's `update()`, throws
   `ExceptionInvalidId` before any query runs, instead of a `TypeError`.
-- A table's `cacheObject()` and `batchSave()`, and a `Transaction`, throw the new
+- A table's `cacheObject()` and `batchSave()`, and a `OrmTransaction`, throw the new
   `ExceptionWrongTable` for a record that isn't one of the table's own (an instance of
   its `getObjectClassName()`), e.g. when a record's `getTableHandler()` returns the wrong
   table. `cacheObject()` throws whether or not the cache is enabled, and `batchSave()`
-  and `Transaction` before anything is saved, where `batchSave()` used to save another
+  and `OrmTransaction` before anything is saved, where `batchSave()` used to save another
   table's records.
 
 ### Added
@@ -191,7 +192,7 @@ The record's own `delete()` and `update($data)` are unchanged.
 - The record's `isPersisted()` (with an alias, `existsInDatabase()`) and `isDeleted()`.
 - `ExceptionUnsupportedDatabaseVersion`, for something that needs a newer version of
   PostgreSQL than the server's.
-- `Transaction`, which saves and deletes objects of any of your tables together, in the
+- `OrmTransaction`, which saves and deletes objects of any of your tables together, in the
   order they were added, in one database transaction: either every change is made, or
   none are. Nothing is sent until `commit()`, which sends every change as a single query,
   so it's one round trip however many objects and tables there are. Objects are only
@@ -207,6 +208,22 @@ The record's own `delete()` and `update($data)` are unchanged.
   still refuse empty where pairs, rather than deleting every row.
 
 ### Changed
+- **Since 5.0.0-alpha6:** `Transaction` is renamed `OrmTransaction`, its constructor now
+  takes the connection, and the `TransactionChangeType` enum is removed. It extends
+  pgsql-lib's `Transaction`, and its misuse now throws pgsql-lib's
+  `ExceptionInvalidTransaction`, as this package's own is removed. It can also hold plain queries with `append()`,
+  takes any number of objects in `save()` and `delete()`, runs after-commit callbacks, and
+  retries serialization failures and deadlocks, up to 3 attempts by default.
+- **Since 5.0.0-alpha6:** `batchSave()` and `OrmTransaction` send values as parameters, with
+  objects that have the same columns combined into one statement. A large value is no longer
+  copied into the query, and a batch takes a handful of round trips, rather than one.
+- **Since 5.0.0-alpha6:** `batchSave()` and `OrmTransaction` throw
+  `ExceptionNoSuchIdException`, and roll everything back, if a row being updated no longer
+  exists. They used to report success without saving it.
+- **Since 5.0.0-alpha6:** while a transaction is open, written rows are left out of the
+  cache, so a rollback can't leave rolled back values, or rows that don't exist, in it.
+- **Since 5.0.0-alpha6:** `batchSave()` inside an open transaction uses a savepoint, so a
+  failure only undoes the batch, rather than leaving the open transaction failed.
 - `insert()`, `updateById()` (and so a record's `save()` and `update()`) and
   `batchInsert()` send the values as query parameters (`pg_query_params`), rather than
   escaping them into the query. A large value, such as an email's content, is no longer
@@ -285,12 +302,12 @@ The record's own `delete()` and `update($data)` are unchanged.
 - Saving a new object sent `NULL` for a `NOT NULL` column with a default that it had no
   value for, instead of letting the database fill in the default, so the insert failed.
   Record classes no longer need to leave such columns out of `getAccessorFunctions()`
-  while they're null. This covers `save()`, `update()`, `batchSave()` and `Transaction`,
+  while they're null. This covers `save()`, `update()`, `batchSave()` and `OrmTransaction`,
   and each object decides for itself, so objects saved together can each give a value
   or leave it to the default.
 - `batchSave()` didn't give objects that already had an ID (e.g. a UUID) the values the
   database filled in, such as column defaults and generated columns, so they kept the
   nulls they were saved with. A later `update()` then sent those nulls, failing for a
   `NOT NULL` column, or overwriting the stored value with `NULL`. Every insert and update
-  in `batchSave()` and `Transaction` now returns its row, which its object takes on, as
+  in `batchSave()` and `OrmTransaction` now returns its row, which its object takes on, as
   with `save()`, all still in one query and one round trip.

@@ -7,8 +7,8 @@ There are several ways to save, depending on how much you're saving at once:
   `batchSave()`.
 - [Many new rows of one table](#many-new-rows-of-one-table), from arrays, with 
   the table's `batchInsert()`.
-- Objects of several tables, and deletes, together, with a 
-  [Transaction](transactions.md).
+- Objects of several tables, and deletes, together, with an 
+  [OrmTransaction](transactions.md).
 
 For deleting, see [Deleting](deleting.md).
 
@@ -44,9 +44,11 @@ it to save it as a new row.
 ## Many objects of one table
 
 Change each object with its setters, which only change the object in memory, 
-then pass them all to the table's `batchSave()`, which saves them in a single 
-query. The query runs as one transaction, so either every object is saved, or 
-none are. Pass the objects as separate arguments, e.g. 
+then pass them all to the table's `batchSave()`, which saves them in one 
+transaction, so either every object is saved, or none are. Objects with the 
+same columns are combined into one statement, with their values sent as 
+parameters, so a large batch takes a handful of round trips, and a large value 
+isn't copied into the SQL. Pass the objects as separate arguments, e.g. 
 `batchSave($book, $pen)`, or spread an array of them with `...`, as below. PHP 
 then rejects anything that isn't a record where it's passed, and the table 
 rejects another table's records (with `ExceptionWrongTable`), before anything 
@@ -94,11 +96,15 @@ Things to be aware of with `batchSave()`:
   [Identifiers](identifiers.md)).
 - Every object takes on its row from the database afterwards, as with 
   `save()`, including any values the database filled in, such as column 
-  defaults and generated columns. It's still one query, and one round trip.
+  defaults and generated columns, with no extra queries.
 - Deleted objects are rejected before anything is saved.
 - Constraints created `DEFERRABLE` are only checked once every object has been 
   saved (see [Deferrable constraints](transactions.md#deferrable-constraints)).
-- If a transaction is already open, it all runs within it.
+- If a row being updated no longer exists, it throws 
+  `ExceptionNoSuchIdException`, and none of the objects are saved.
+- It's retried automatically on a serialization failure or a deadlock.
+- If a transaction is already open, it runs in a savepoint within it, so a 
+  failure only undoes this batch.
 
 
 ## Many new rows of one table
