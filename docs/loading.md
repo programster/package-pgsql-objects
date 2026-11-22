@@ -22,7 +22,7 @@ $others = $userTable->loadIdsNotIn([$id1], CacheMode::USE_CACHE);
 
 A value in a filter can be an array, to match any of those values, e.g. 
 `'id' => [1, 2, 3]`. Filters only compare for equality: for anything else, 
-such as ranges, joins or ordering, write a method of your own (see 
+such as ranges or joins, write a method of your own (see 
 [Writing your own queries](custom-queries.md)).
 
 Some safety checks:
@@ -34,12 +34,36 @@ Some safety checks:
   `ExceptionUnknownColumn` before any query runs, as it's usually a typo.
 
 
+## Sorting
+
+`loadAll()`, `loadWhereAnd()`, `loadWhereOr()` and `loadRange()` can be given
+a `SortBy`, which is a column and a direction, so that PostgreSQL does the
+sorting:
+
+```php
+use Programster\PgsqlObjects\SortBy;
+use Programster\PgsqlObjects\SortOrder;
+
+$newestFirst = $userTable->loadAll(CacheMode::USE_CACHE, new SortBy('created_at', SortOrder::DESC));
+$byName = $userTable->loadWhereAnd(['role' => 'admin'], CacheMode::USE_CACHE, new SortBy('name', SortOrder::ASC));
+```
+
+- As is usual in PostgreSQL, `NULL`s come last when ascending, and first when
+  descending.
+- The ID column is the tiebreaker, in the same direction, so rows with the
+  same value always come back in the same order.
+- Without a `SortBy`, `loadAll()`, `loadWhereAnd()` and `loadWhereOr()` return
+  rows in no particular order, and `loadRange()` orders by the ID column.
+- A column that isn't one of the table's throws `ExceptionUnknownColumn` before
+  any query runs.
+
+
 ## Pagination
 
 There are two ways to page through a table:
 
-- `loadRange($offset, $numElements, $cacheMode, $orderByColumn)` loads a page 
-  by offset, ordered by the ID column by default, or by the column you pass, 
+- `loadRange($offset, $numElements, $cacheMode, $sortBy)` loads a page 
+  by offset, ordered by the ID column by default, or by the `SortBy` you pass, 
   with the ID column as a tiebreaker. Rows inserted or deleted before the 
   current page will shift later pages.
 - `loadAfterId($afterId, $numElements, $cacheMode)` loads the rows whose IDs 

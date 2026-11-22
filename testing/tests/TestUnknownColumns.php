@@ -7,6 +7,8 @@
  */
 
 use Programster\PgsqlObjects\CacheMode;
+use Programster\PgsqlObjects\SortBy;
+use Programster\PgsqlObjects\SortOrder;
 use Programster\PgsqlObjects\Exceptions\ExceptionUnknownColumn;
 
 class TestUnknownColumns
@@ -55,7 +57,7 @@ class TestUnknownColumns
                 $table->deleteWhereOr(['name' => 'original', 'emial' => 'x']);
             },
             'loadRange()'             => function () use ($table) : void {
-                $table->loadRange(0, 10, CacheMode::USE_CACHE, 'emial');
+                $table->loadRange(0, 10, CacheMode::USE_CACHE, new SortBy('emial', SortOrder::ASC));
             },
         ];
 

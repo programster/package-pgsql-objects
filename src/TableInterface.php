@@ -215,11 +215,16 @@ interface TableInterface
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default, so
      * that you choose each time.
      *
+     * @param SortBy|null $sortBy - optionally what to sort by, with the ID column as a tiebreaker. Defaults to no
+     * particular order.
+     *
      * @return array<AbstractRecord>
+     *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionUnknownColumn - if $sortBy's column isn't in the table.
      *
      * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
-    public function loadAll(CacheMode $cacheMode) : array;
+    public function loadAll(CacheMode $cacheMode, ?SortBy $sortBy = null) : array;
 
 
     /**
@@ -246,18 +251,16 @@ interface TableInterface
      *
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
      *
-     * @param string|null $orderByColumn - optionally the name of the column to order by. Defaults to the ID column.
+     * @param SortBy|null $sortBy - optionally what to sort by, with the ID column as a tiebreaker. Defaults to the ID
+     * column, ascending.
      *
      * @return array<AbstractRecord>
      *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionUnknownColumn - if $sortBy's column isn't in the table.
+     *
      * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
-    public function loadRange(
-        int $offset,
-        int $numElements,
-        CacheMode $cacheMode,
-        ?string $orderByColumn = null
-    ) : array;
+    public function loadRange(int $offset, int $numElements, CacheMode $cacheMode, ?SortBy $sortBy = null) : array;
 
 
     /**
@@ -316,13 +319,17 @@ interface TableInterface
      *
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
      *
+     * @param SortBy|null $sortBy - optionally what to sort by, with the ID column as a tiebreaker. Defaults to no
+     * particular order.
+     *
      * @return array<AbstractRecord>
      *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionUnknownColumn - if $sortBy's column isn't in the table.
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if $wherePairs is empty.
      *
      * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
-    public function loadWhereAnd(array $wherePairs, CacheMode $cacheMode) : array;
+    public function loadWhereAnd(array $wherePairs, CacheMode $cacheMode, ?SortBy $sortBy = null) : array;
 
 
     /**
@@ -335,13 +342,17 @@ interface TableInterface
      *
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled (see CacheMode). There's no default.
      *
+     * @param SortBy|null $sortBy - optionally what to sort by, with the ID column as a tiebreaker. Defaults to no
+     * particular order.
+     *
      * @return array<AbstractRecord>
      *
+     * @throws \Programster\PgsqlObjects\Exceptions\ExceptionUnknownColumn - if $sortBy's column isn't in the table.
      * @throws \Programster\PgsqlObjects\Exceptions\ExceptionMissingRequiredData - if $wherePairs is empty.
      *
      * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
-    public function loadWhereOr(array $wherePairs, CacheMode $cacheMode) : array;
+    public function loadWhereOr(array $wherePairs, CacheMode $cacheMode, ?SortBy $sortBy = null) : array;
 
 
     /**

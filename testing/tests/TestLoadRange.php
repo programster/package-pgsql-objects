@@ -6,6 +6,8 @@
  */
 
 use Programster\PgsqlObjects\CacheMode;
+use Programster\PgsqlObjects\SortBy;
+use Programster\PgsqlObjects\SortOrder;
 
 class TestLoadRange
 {
@@ -54,8 +56,9 @@ class TestLoadRange
     private function testOrderByColumn() : void
     {
         $table = TicketTable::getInstance();
-        $firstPage = $table->loadRange(0, 3, CacheMode::USE_CACHE, 'title');
-        $secondPage = $table->loadRange(3, 3, CacheMode::USE_CACHE, 'title');
+        $byTitle = new SortBy('title', SortOrder::ASC);
+        $firstPage = $table->loadRange(0, 3, CacheMode::USE_CACHE, $byTitle);
+        $secondPage = $table->loadRange(3, 3, CacheMode::USE_CACHE, $byTitle);
         $tickets = array_merge($firstPage, $secondPage);
 
         $getTitle = function (TicketRecord $ticket) : ?string { return $ticket->getTitle(); };

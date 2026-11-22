@@ -21,11 +21,11 @@ Every public method, in one place, with a link to where it's explained.
 |---|---|
 | `load($id, $cacheMode = USE_CACHE)` | Loads one object by ID, or throws `ExceptionNoSuchIdException`. |
 | `loadIds($ids, $cacheMode = USE_CACHE)` | Loads the objects with these IDs, indexed by ID. |
-| `loadAll($cacheMode)` | Loads every row. |
-| `loadWhereAnd($wherePairs, $cacheMode)` | Loads the rows that have all of these column values. |
-| `loadWhereOr($wherePairs, $cacheMode)` | Loads the rows that have any of these column values. |
+| `loadAll($cacheMode, $sortBy = null)` | Loads every row. |
+| `loadWhereAnd($wherePairs, $cacheMode, $sortBy = null)` | Loads the rows that have all of these column values. |
+| `loadWhereOr($wherePairs, $cacheMode, $sortBy = null)` | Loads the rows that have any of these column values. |
 | `loadIdsNotIn($ids, $cacheMode)` | Loads every row except these IDs. |
-| `loadRange($offset, $numElements, $cacheMode, $orderByColumn = null)` | Loads a page by offset. |
+| `loadRange($offset, $numElements, $cacheMode, $sortBy = null)` | Loads a page by offset. |
 | `loadAfterId($afterId, $numElements, $cacheMode)` | Loads the next page after an ID (keyset pagination). |
 
 ### Saving ([Saving](saving.md))

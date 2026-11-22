@@ -326,15 +326,19 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
+     * @param SortBy|null $sortBy - optionally what to sort by, with the ID column as a tiebreaker. Defaults to no
+     * particular order.
+     *
      * @return array<T>
      *
+     * @throws ExceptionUnknownColumn - if $sortBy's column isn't in the table.
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      *
      * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
-    public function loadWhereAnd(array $wherePairs, CacheMode $cacheMode) : array
+    public function loadWhereAnd(array $wherePairs, CacheMode $cacheMode, ?SortBy $sortBy = null) : array
     {
         if (count($wherePairs) === 0)
         {
@@ -353,6 +357,7 @@ abstract class AbstractTable implements TableInterface
             Conjunction::AND
         );
 
+        $query .= $this->generateOrderByClause($sortBy);
         $result = $this->getDb()->query($query);
         return $this->convertPgResultToObjects($result, $cacheMode);
     }
@@ -372,15 +377,19 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
+     * @param SortBy|null $sortBy - optionally what to sort by, with the ID column as a tiebreaker. Defaults to no
+     * particular order.
+     *
      * @return array<T>
      *
+     * @throws ExceptionUnknownColumn - if $sortBy's column isn't in the table.
      * @throws ExceptionMissingRequiredData - if $wherePairs is empty.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      * @throws ExceptionInvalidId - if an ID can't be one of this table's IDs, e.g. it isn't a UUID.
      *
      * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
-    public function loadWhereOr(array $wherePairs, CacheMode $cacheMode) : array
+    public function loadWhereOr(array $wherePairs, CacheMode $cacheMode, ?SortBy $sortBy = null) : array
     {
         if (count($wherePairs) === 0)
         {
@@ -399,6 +408,7 @@ abstract class AbstractTable implements TableInterface
             Conjunction::OR
         );
 
+        $query .= $this->generateOrderByClause($sortBy);
         $result = $this->getDb()->query($query); // throws on failure
         return $this->convertPgResultToObjects($result, $cacheMode);
     }
@@ -834,15 +844,20 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
+     * @param SortBy|null $sortBy - optionally what to sort by, with the ID column as a tiebreaker. Defaults to no
+     * particular order.
+     *
      * @return array<T>
      *
+     * @throws ExceptionUnknownColumn - if $sortBy's column isn't in the table.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      *
      * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
-    public function loadAll(CacheMode $cacheMode) : array
+    public function loadAll(CacheMode $cacheMode, ?SortBy $sortBy = null) : array
     {
-        $query = "SELECT * FROM {$this->getEscapedQualifiedTableName()}";
+        $orderBy = $this->generateOrderByClause($sortBy);
+        $query = "SELECT * FROM {$this->getEscapedQualifiedTableName()}{$orderBy}";
         $result = $this->getDb()->query($query);
         return $this->convertPgResultToObjects($result, $cacheMode);
     }
@@ -850,7 +865,7 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Loads a range of rows from the table, in a stable order so that successive calls can page through the table.
-     * Rows are ordered by the ID column by default, or by $orderByColumn if provided, with the ID column used as a
+     * Rows are ordered by the ID column by default, or by $sortBy if provided, with the ID column used as a
      * tiebreaker so that rows with equal values keep a consistent order.
      * Note that rows inserted or deleted before the current page will shift later pages. If you need to page reliably
      * through a table that is being written to, or deep into a large table, use loadAfterId() instead.
@@ -866,32 +881,22 @@ abstract class AbstractTable implements TableInterface
      * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
      * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
      *
-     * @param string|null $orderByColumn - optionally the name of the column to order by. Defaults to the ID column.
+     * @param SortBy|null $sortBy - optionally what to sort by, with the ID column as a tiebreaker. Defaults to the ID
+     * column, ascending.
      *
      * @return array<T>
      *
+     * @throws ExceptionUnknownColumn - if $sortBy's column isn't in the table.
      * @throws \Programster\PgsqlLib\Exceptions\ExceptionQueryError
      *
      * @phpstan-impure - it queries the database, so calling it again can give a different result.
      */
-    public function loadRange(
-        int $offset,
-        int $numElements,
-        CacheMode $cacheMode,
-        ?string $orderByColumn = null
-    ) : array
+    public function loadRange(int $offset, int $numElements, CacheMode $cacheMode, ?SortBy $sortBy = null) : array
     {
-        $orderByColumns = [$this->getEscapedIdColumnName()];
-
-        if ($orderByColumn !== null && $orderByColumn !== $this->getIdColumnName())
-        {
-            $this->assertKnownColumns([$orderByColumn => null]);
-            array_unshift($orderByColumns, $this->getDb()->escapeIdentifier($orderByColumn));
-        }
+        $orderBy = $this->generateOrderByClause($sortBy ?? new SortBy($this->getIdColumnName(), SortOrder::ASC));
 
         $query =
-            "SELECT * FROM {$this->getEscapedQualifiedTableName()}" .
-            " ORDER BY " . implode(", ", $orderByColumns) .
+            "SELECT * FROM {$this->getEscapedQualifiedTableName()}{$orderBy}" .
             " OFFSET {$offset} LIMIT {$numElements}";
 
         $result = $this->getDb()->query($query); // throws on failure
@@ -1520,6 +1525,35 @@ abstract class AbstractTable implements TableInterface
         }
 
         return $fieldInfoMap;
+    }
+
+
+    /**
+     * Generate the ORDER BY for a query, with the ID column as a tiebreaker, so that the order is always the same.
+     * @param SortBy|null $sortBy - what to sort by, or null for no ordering.
+     * @return string - the clause, with a space before it, or an empty string if there's no ordering.
+     * @throws ExceptionUnknownColumn - if its column isn't one of the table's columns.
+     */
+    private function generateOrderByClause(?SortBy $sortBy) : string
+    {
+        $clause = '';
+
+        if ($sortBy !== null)
+        {
+            $column = $sortBy->getColumn();
+            $direction = $sortBy->getDirection()->value;
+            $this->assertKnownColumns([$column => null]);
+            $terms = ["{$this->getDb()->escapeIdentifier($column)} {$direction}"];
+
+            if ($column !== $this->getIdColumnName())
+            {
+                $terms[] = "{$this->getEscapedIdColumnName()} {$direction}";
+            }
+
+            $clause = ' ORDER BY ' . implode(', ', $terms);
+        }
+
+        return $clause;
     }
 
 
