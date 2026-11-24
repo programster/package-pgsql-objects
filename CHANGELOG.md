@@ -20,6 +20,11 @@ Each of these needs a change to code that uses 4.x.
   `PgSqlConnection`, so code that uses the connection directly is affected by pgsql-lib's
   own changes. In particular, `PgSqlConnection::create()` now requires the `$forceNew`
   argument, before `$port`.
+- No longer requires `ramsey/uuid`. UUIDs are now generated with pgsql-lib's
+  `PgsqlLib::generateUuid()`. If your own code uses `ramsey/uuid`, e.g. to make IDs in
+  migrations or tests, as the 4.x docs suggested, require it in your project's own
+  `composer.json`, or switch to `PgsqlLib::generateUuid()` (see
+  [Generating UUIDs yourself](docs/identifiers.md#generating-uuids-yourself)).
 
 **Renamed classes and methods**
 
@@ -183,8 +188,9 @@ The record's own `delete()` and `update($data)` are unchanged.
   pgsql-lib's own `AbstractException`.
 - `ExceptionObjectDeleted`, `ExceptionTableNotFound` and `ExceptionUnknownColumn`.
 - `AbstractUuidTable::getUuidVersion()` and the `UuidVersion` enum, to choose the version of
-  UUID a table generates for new rows: `V7`, the default, or `V4`, for a table where even
-  the time each row was created must stay private.
+  UUID a table generates for new rows: `V7`, the default, `V4`, for a table where even
+  the time each row was created must stay private, or `V1`, for a table whose IDs must be
+  version 1.
 - `ExceptionInvalidId`, and the table's `normalizeId()`, which checks an ID and returns it
   in its standard form, e.g. to check an ID from a URL. `AbstractUuidTable` only accepts
   UUIDs, and other tables accept every ID unless they override it.

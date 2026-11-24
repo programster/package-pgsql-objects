@@ -16,7 +16,6 @@
     "require": {
         "php": "^8.2",
         "programster/pgsql-lib": "^3.3.0-alpha2@alpha",
-        "ramsey/uuid": "^4.7",
         "ext-pgsql": "*"
     },
     "require-dev" : {

@@ -126,12 +126,16 @@ For almost every table, the benefits far outweigh these.
 ## Generating UUIDs yourself
 
 The package generates a new record's UUID for you, so you rarely need to. When 
-you do, e.g. in a migration, a seeder or a test, it already requires 
-[ramsey/uuid](https://github.com/ramsey/uuid), so generate one the same way 
-the package does:
+you do, e.g. in a migration, a seeder or a test, generate one the same way the 
+package does, with 
+[programster/pgsql-lib](https://github.com/programster/package-pgsql-lib), 
+which it already requires:
 
 ```php
-$id = \Ramsey\Uuid\Uuid::uuid7()->toString(); // e.g. "019a5f3e-8c1b-7d2e-9f4a-3b6c8d0e1f2a"
+use Programster\PgsqlLib\PgsqlLib;
+use Programster\PgsqlLib\UuidVersion;
+
+$id = PgsqlLib::generateUuid(UuidVersion::V7); // e.g. "019a5f3e-8c1b-7d2e-9f4a-3b6c8d0e1f2a"
 
 // or through a table, which generates whatever kind of ID that table uses.
 $id = UserTable::getInstance()->generateId();
@@ -145,12 +149,13 @@ e.g. for rows inserted by SQL of your own. `gen_random_uuid()` makes version
 ## Choosing the version
 
 `AbstractUuidTable` generates version 7 UUIDs, unless a table's 
-`getUuidVersion()` says otherwise. It returns a `UuidVersion`, with two cases:
+`getUuidVersion()` says otherwise. It returns a `UuidVersion`, with three cases:
 
 | `UuidVersion` | Use it for |
 |---|---|
 | `V7` | Almost every table. The default. Time-ordered, so quick to insert into the index. |
 | `V4` | A table where even the time each row was created must stay private. Fully random, so new rows go all over the index, which makes inserts into a large table slower. |
+| `V1` | A table whose IDs must be version 1, e.g. for a system that expects them. See [Version 1](#version-1) for why it's rarely the right choice. |
 
 ```php
 use Programster\PgsqlObjects\UuidVersion;
@@ -166,50 +171,34 @@ class PatientTable extends AbstractUuidTable
 }
 ```
 
+This `UuidVersion` is the package's own, `Programster\PgsqlObjects\UuidVersion`, 
+not pgsql-lib's `Programster\PgsqlLib\UuidVersion`, which `PgsqlLib::generateUuid()` 
+takes.
+
 Whichever version a table generates, it loads, updates and deletes rows with 
 IDs of **any** version, so a table that already holds v1 or v4 IDs works as it 
 is, and new rows get the version you choose.
 
-### If you absolutely need version 1
+### Version 1
 
 PostgreSQL's `uuid` type accepts every version, so a column only needs a 
 particular one if it has been deliberately restricted, e.g. with 
-`CHECK (uuid_extract_version("id") = 1)`. That's rare, and if you have one, 
-consider dropping the restriction, so the column can take v7 UUIDs too. If you 
-can't, override the table's `generateId()`:
-
-```php
-use Ramsey\Uuid\Provider\Node\RandomNodeProvider;
-use Ramsey\Uuid\Uuid;
-
-class LegacyDeviceTable extends AbstractUuidTable
-{
-    // version 1, for a column restricted to it, with a random node rather than this machine's MAC address.
-    public function generateId() : string
-    {
-        return Uuid::uuid1((new RandomNodeProvider())->getNode())->toString();
-    }
-
-    // ...
-}
-```
-
-Why version 1 isn't as good as version 7:
+`CHECK (uuid_extract_version("id") = 1)`, or something else expects it. If 
+you can, use v7 instead, as version 1 isn't as good:
 
 - **It doesn't sort by time.** A v1 UUID starts with the *lowest* bits of its 
   timestamp, which wrap round about every 7 minutes, so new rows go all over 
   the index, as with v4, and inserts into a large table are slower. v7 starts 
   with the time, so new rows go at the end.
-- **It can give away the machine that made it.** By default, a v1 UUID ends 
-  with the network (MAC) address of the server that generated it. The example 
-  above avoids that with a random node, which you should always do.
+- **It can give away the machine that made it.** Usually, a v1 UUID ends with 
+  the network (MAC) address of the server that generated it. pgsql-lib always 
+  uses a random node instead, so the ones this package generates don't.
 - **It's an older design.** RFC 9562, the current UUID standard, recommends v7 
   for new systems, and v6 (a reordered v1) only where v1 compatibility matters.
 
-The other versions don't make sense for new rows' IDs: v3 and v5 are hashes of 
-a name, so the same name always gives the same UUID, v2 can only make a few 
-IDs a minute, and v8 has no standard layout to generate. That's why 
-`UuidVersion` only has `V7` and `V4`.
+`UuidVersion` has no other versions, as pgsql-lib can't generate them. For one 
+it can't, override the table's `generateId()` to return a UUID made some other 
+way.
 
 
 ## IDs that aren't valid

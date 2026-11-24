@@ -23,6 +23,7 @@ class TestInvalidIds
     public function run() : void
     {
         $this->testInvalidIdsAreRejected();
+        $this->testSurroundingWhitespaceIsRejected();
         $this->testUpperCaseUuidsMatch();
     }
 
@@ -116,6 +117,35 @@ class TestInvalidIds
         if (count($rows) !== 1 || $rows[0]->getName() !== 'kept' || $user->getId() !== $rows[0]->getId())
         {
             throw new \Exception("A call with an ID that isn't a UUID still changed something.");
+        }
+    }
+
+
+    /**
+     * A valid UUID with anything around it, even just a trailing newline, isn't accepted as an ID.
+     */
+    private function testSurroundingWhitespaceIsRejected() : void
+    {
+        $table = UserTable::getInstance();
+        $uuid = $table->generateId();
+
+        foreach (["{$uuid}\n", " {$uuid}", "{$uuid} "] as $id)
+        {
+            $threw = false;
+
+            try
+            {
+                $table->normalizeId($id);
+            }
+            catch (ExceptionInvalidId)
+            {
+                $threw = true;
+            }
+
+            if ($threw === false)
+            {
+                throw new \Exception("normalizeId() accepted " . var_export($id, true) . " as a UUID.");
+            }
         }
     }
 

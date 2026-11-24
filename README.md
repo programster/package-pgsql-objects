@@ -94,12 +94,16 @@ that count up (`SERIAL`): give each table a `uuid` ID column, and extend
 - and they never clash when you copy or merge data between databases.
 
 The package generates version 7 UUIDs, which are time-ordered, so they're as 
-quick to insert into an index as integers. It already requires 
-[ramsey/uuid](https://github.com/ramsey/uuid), so you can make one yourself 
-the same way, e.g. for a migration or a test:
+quick to insert into an index as integers. It makes them with 
+[programster/pgsql-lib](https://github.com/programster/package-pgsql-lib), 
+which it already requires, so you can make one yourself the same way, e.g. for 
+a migration or a test:
 
 ```php
-$id = \Ramsey\Uuid\Uuid::uuid7()->toString(); // e.g. "019a5f3e-8c1b-7d2e-9f4a-3b6c8d0e1f2a"
+use Programster\PgsqlLib\PgsqlLib;
+use Programster\PgsqlLib\UuidVersion;
+
+$id = PgsqlLib::generateUuid(UuidVersion::V7); // e.g. "019a5f3e-8c1b-7d2e-9f4a-3b6c8d0e1f2a"
 ```
 
 See [Identifiers](docs/identifiers.md) for the full case for UUIDs, their 

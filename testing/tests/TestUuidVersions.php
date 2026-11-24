@@ -1,13 +1,13 @@
 <?php
 
 /*
- * Test that a UUID table generates v7 UUIDs by default, v4 ones when its getUuidVersion() says so, and that its
+ * Test that a UUID table generates v7 UUIDs by default, v4 or v1 ones when its getUuidVersion() says so, and that its
  * normalizeId() accepts IDs of every version, so tables that already hold other versions still work.
  */
 
+use Programster\PgsqlLib\PgsqlLib;
+use Programster\PgsqlLib\UuidVersion as PgsqlLibUuidVersion;
 use Programster\PgsqlObjects\UuidVersion;
-use Ramsey\Uuid\Rfc4122\FieldsInterface as Rfc4122Fields;
-use Ramsey\Uuid\Uuid;
 
 class TestUuidVersions
 {
@@ -15,7 +15,7 @@ class TestUuidVersions
     {
         $defaultTable = UserTable::getInstance();
 
-        // a table that overrides the version. The constructor is protected, so the anonymous class makes it public.
+        // tables that override the version. The constructor is protected, so each anonymous class makes it public.
         $v4Table = new class() extends UserTable {
             public function __construct()
             {
@@ -29,13 +29,27 @@ class TestUuidVersions
             }
         };
 
+        $v1Table = new class() extends UserTable {
+            public function __construct()
+            {
+                parent::__construct();
+            }
+
+
+            public function getUuidVersion() : UuidVersion
+            {
+                return UuidVersion::V1;
+            }
+        };
+
         $this->assertGeneratesVersion('The default', $defaultTable, 7);
         $this->assertGeneratesVersion('A table returning UuidVersion::V4', $v4Table, 4);
+        $this->assertGeneratesVersion('A table returning UuidVersion::V1', $v1Table, 1);
 
         $otherVersions = [
             'v1' => '9b2f1c4e-0b6a-11ef-9262-0242ac120002',
-            'v4' => Uuid::uuid4()->toString(),
-            'v7' => Uuid::uuid7()->toString(),
+            'v4' => PgsqlLib::generateUuid(PgsqlLibUuidVersion::V4),
+            'v7' => PgsqlLib::generateUuid(PgsqlLibUuidVersion::V7),
         ];
 
         foreach ($otherVersions as $version => $id)
@@ -64,11 +78,8 @@ class TestUuidVersions
         for ($i = 0; $i < 20; $i++)
         {
             $id = $table->generateId();
-            // only an RFC 4122 UUID has a version, so anything else fails the check below.
-            $fields = Uuid::fromString($id)->getFields();
-            $version = ($fields instanceof Rfc4122Fields) ? $fields->getVersion() : null;
 
-            if ($version !== $expectedVersion || $id !== strtolower($id))
+            if (UuidVersions::get($id) !== $expectedVersion || $id !== strtolower($id))
             {
                 throw new \Exception("{$context} generated {$id}, which isn't a lower case v{$expectedVersion} UUID.");
             }

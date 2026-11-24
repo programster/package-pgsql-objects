@@ -157,4 +157,4 @@ It extends pgsql-lib's `Transaction`, so it can be passed anywhere one is expect
 |---|---|
 | `CacheMode` | `USE_CACHE`, `UPDATE_CACHE`, `IGNORE_CACHE` ([The cache](cache.md)). |
 | `DeferConfig` | `NOT_DEFERRABLE`, `INITIALLY_IMMEDIATE`, `INITIALLY_DEFERRED` ([Which setting to use](transactions.md#which-setting-to-use)). |
-| `UuidVersion` | `V7`, `V4` ([Choosing the version](identifiers.md#choosing-the-version)). |
+| `UuidVersion` | `V7`, `V4`, `V1` ([Choosing the version](identifiers.md#choosing-the-version)). |

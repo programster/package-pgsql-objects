@@ -9,8 +9,9 @@ declare(strict_types = 1);
 namespace Programster\PgsqlObjects;
 
 
+use Programster\PgsqlLib\PgsqlLib;
+use Programster\PgsqlLib\UuidVersion as PgsqlLibUuidVersion;
 use Programster\PgsqlObjects\Exceptions\ExceptionInvalidId;
-use Ramsey\Uuid\Uuid;
 
 /**
  * @template T of \Programster\PgsqlObjects\AbstractRecord
@@ -21,7 +22,8 @@ abstract class AbstractUuidTable extends AbstractTable
     /**
      * Get the version of UUID that generateId() makes for this table's new rows. Version 7, the default, starts with
      * the time the row was created, which keeps inserts quick, but means anyone with an ID can tell when its row was
-     * created. Override this to return UuidVersion::V4 for a table where that must stay private.
+     * created. Override this to return UuidVersion::V4 for a table where that must stay private, or UuidVersion::V1 for
+     * one whose IDs must be version 1.
      *
      * @return UuidVersion
      */
@@ -37,12 +39,13 @@ abstract class AbstractUuidTable extends AbstractTable
      */
     public function generateId() : string
     {
-        $uuid = match ($this->getUuidVersion()) {
-            UuidVersion::V7 => Uuid::uuid7(),
-            UuidVersion::V4 => Uuid::uuid4(),
+        $version = match ($this->getUuidVersion()) {
+            UuidVersion::V7 => PgsqlLibUuidVersion::V7,
+            UuidVersion::V4 => PgsqlLibUuidVersion::V4,
+            UuidVersion::V1 => PgsqlLibUuidVersion::V1,
         };
 
-        return $uuid->toString();
+        return PgsqlLib::generateUuid($version);
     }
 
 
@@ -50,8 +53,9 @@ abstract class AbstractUuidTable extends AbstractTable
      * Check that a value is a UUID, and return it in lower case, as PostgreSQL returns UUIDs, so that it matches the
      * cache and the IDs of loaded records. Every method that takes an ID calls this before any query runs, so a
      * malformed ID, e.g. from a mistyped URL, throws this rather than failing as a query error. Only the standard form
-     * is accepted: 32 hex digits in groups of 8, 4, 4, 4 and 12, separated by hyphens, in either case. Every version is
-     * accepted, whatever getUuidVersion() returns, so a table that already holds IDs of other versions still works.
+     * is accepted: 32 hex digits in groups of 8, 4, 4, 4 and 12, separated by hyphens, in either case, with nothing
+     * before or after them, not even a trailing newline. Every version is accepted, whatever getUuidVersion() returns,
+     * so a table that already holds IDs of other versions still works.
      *
      * @param int|string $id - the ID to check.
      *
@@ -61,9 +65,7 @@ abstract class AbstractUuidTable extends AbstractTable
      */
     public function normalizeId(int|string $id) : string
     {
-        $uuidPattern = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
-
-        if (!is_string($id) || preg_match($uuidPattern, $id) !== 1)
+        if (!is_string($id) || !PgsqlLib::isValidUuid($id))
         {
             $value = var_export($id, true);
             $tableName = $this->getTableName();
