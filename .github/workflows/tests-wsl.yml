@@ -71,6 +71,6 @@ jobs:
                   # tests' exit code, rather than tee's.
                   set -o pipefail
                   status=0
-                  php testing/main.php 2>&1 | tee test-output.txt || status=$?
+                  php -d zend.assertions=1 testing/main.php 2>&1 | tee test-output.txt || status=$?
                   bash testing/github-annotations.sh "WSL" test-output.txt "$status"
                   exit $status

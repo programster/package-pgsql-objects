@@ -1,12 +1,32 @@
 <?php
 
-// settings.php is optional when every connection detail comes from a TEST_ environment variable (see
-// ConnectionHandler), as it does when run-all-versions.sh runs the tests.
-if (file_exists(__DIR__ . '/settings.php'))
+// The tests check what they expect with assert(), as well as by throwing, so refuse to run if PHP would skip the
+// asserts (zend.assertions is -1 in production), rather than quietly passing them. Run with -d zend.assertions=1.
+if (ini_get('zend.assertions') !== '1')
 {
-    require_once(__DIR__ . '/settings.php');
+    fwrite(STDERR, "The tests need zend.assertions=1. Run them with: bash testing/run-all-php-versions.sh" . PHP_EOL);
+    exit(1);
 }
 
+// any warning, notice or deprecation fails the test that raised it, rather than passing by unnoticed, unless it was
+// silenced with @ (which error_reporting() then leaves out).
+$throwOnError = function (int $severity, string $message, string $file, int $line) : bool {
+    if ((error_reporting() & $severity) !== 0)
+    {
+        throw new \ErrorException($message, 0, $severity, $file, $line);
+    }
+
+    // a silenced error is left to PHP's own handling, which ignores it.
+    return false;
+};
+
+set_error_handler($throwOnError);
+
+// Runs every test in tests/. Run the tests with run-all-php-versions.sh, which runs this in a container for each
+// version of PHP and PostgreSQL. The macOS, Windows and WSL workflows run this directly, as their runners can't run
+// Docker.
+// The connection details come from TEST_ environment variables (see ConnectionHandler), which the script and the
+// workflows set.
 require_once(__DIR__ . '/../vendor/autoload.php');
 
 $autoloader = new \Programster\Autoloader\Autoloader([

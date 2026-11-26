@@ -1,8 +1,8 @@
-# Runs the tests on Linux against every supported major version of PostgreSQL, using the same script as running them
-# locally (testing/run-all-versions.sh), which tests each version in its own throwaway Docker container. This runs on
-# every supported version of PHP. The README's "Linux tests" badge shows the result of the latest run on the branch it
+# Lints every file and runs the tests on every supported version of PHP against every supported version of PostgreSQL,
+# then runs PHPStan, using the same script as running them locally (testing/run-all-php-versions.sh), which runs each
+# in its own throwaway Docker container. The README's "Tests" badge shows the result of the latest run on the branch it
 # names.
-name: Linux tests
+name: Tests
 
 on:
     # Pushes to the main branch (not work-in-progress branches), and every tag, e.g. a new release.
@@ -29,37 +29,26 @@ permissions:
 
 jobs:
     tests:
-        name: Tests on Linux, PHP ${{ matrix.php }}, PostgreSQL 14 to 18
+        name: Lint and tests on PHP 8.2, 8.3, 8.4, 8.5 and 8.6, PostgreSQL 14 to 18
         runs-on: ubuntu-latest
-        timeout-minutes: 30
-
-        strategy:
-            # Run every version, even if one fails, to see all the failures at once.
-            fail-fast: false
-            matrix:
-                php: ["8.2", "8.3", "8.4", "8.5"]
+        timeout-minutes: 60
 
         steps:
             - name: Check out the code
               uses: actions/checkout@v5
 
-            - name: Install PHP
-              uses: shivammathur/setup-php@v2
-              with:
-                  php-version: ${{ matrix.php }}
-                  extensions: pgsql
-                  coverage: none
-
+            # The tests use vendor/autoload.php. The runner's own PHP is only used to run Composer. composer.json sets
+            # the platform to PHP 8.2, so the dependencies it installs work on every supported version.
             - name: Install Composer dependencies
               run: composer install --no-interaction --no-progress --prefer-dist
 
-            - name: Run the tests against every supported version of PostgreSQL
+            - name: Run lint and the tests on every supported version of PHP and PostgreSQL, then PHPStan
               shell: bash
               run: |
                   # GitHub runs bash with -e, which would stop here if the tests failed, so catch the exit code instead.
                   # pipefail (which GitHub also sets) makes it the tests' exit code, rather than tee's.
                   set -o pipefail
-                  status=0
-                  bash testing/run-all-versions.sh 2>&1 | tee test-output.txt || status=$?
-                  bash testing/github-annotations.sh "Linux, PHP ${{ matrix.php }}" test-output.txt "$status"
-                  exit $status
+                  STATUS=0
+                  bash testing/run-all-php-versions.sh 2>&1 | tee test-output.txt || STATUS=$?
+                  bash testing/github-annotations.sh "Linux" test-output.txt "$STATUS"
+                  exit $STATUS

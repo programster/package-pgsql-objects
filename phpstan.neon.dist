@@ -3,7 +3,7 @@ parameters:
     level: 10
     phpVersion:
         min: 80200
-        max: 80599
+        max: 80699
     paths:
         - src
         - testing

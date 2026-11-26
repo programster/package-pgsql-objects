@@ -15,8 +15,7 @@ class ConnectionHandler
      * Get the connection to the database and create it if it doesn't already exist.
      *
      * Each connection detail comes from an environment variable of the same name with a TEST_ prefix (e.g.
-     * TEST_DB_PORT), if it's set, otherwise from the constant in settings.php. This lets run-all-versions.sh point the
-     * tests at each of its PostgreSQL containers in turn.
+     * TEST_DB_PORT). This lets run-all-php-versions.sh point the tests at each of its PostgreSQL containers in turn.
      *
      * @return PgSqlConnection
      */
@@ -68,11 +67,12 @@ class ConnectionHandler
 
 
     /**
-     * Get a connection detail, from its TEST_ environment variable if that's set, or its settings.php constant.
+     * Get a connection detail, from its TEST_ environment variable, which run-all-php-versions.sh sets, as do the
+     * workflows that run main.php themselves.
      *
-     * @param string $name - the name of the setting's constant, e.g. "DB_PORT".
+     * @param string $name - the name of the setting, without its TEST_ prefix, e.g. "DB_PORT".
      *
-     * @param string|null $default - the value to use if it's set in neither place, or null if it must be set.
+     * @param string|null $default - the value to use if it isn't set, or null if it must be set.
      *
      * @return string
      *
@@ -86,17 +86,6 @@ class ConnectionHandler
         {
             $value = $environmentValue;
         }
-        elseif (defined($name))
-        {
-            $constant = constant($name);
-
-            if (!is_scalar($constant))
-            {
-                throw new \RuntimeException("The {$name} test setting must be a string or a number.");
-            }
-
-            $value = (string)$constant;
-        }
         elseif ($default !== null)
         {
             $value = $default;
@@ -104,7 +93,7 @@ class ConnectionHandler
         else
         {
             throw new \RuntimeException(
-                "The {$name} test setting isn't set. Define it in testing/settings.php or set TEST_{$name}."
+                "TEST_{$name} isn't set. Run the tests with: bash testing/run-all-php-versions.sh"
             );
         }
 

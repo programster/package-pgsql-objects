@@ -2,7 +2,7 @@ PgSQL Objects: the PHP ORM built for PostgreSQL
 ===============================================
 
 <!-- These badges show the main branch's tests. 5.x is merged into main, so they cover it too. -->
-[![Linux tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml?query=branch%3Amain)
+[![Tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests.yml?query=branch%3Amain)
 [![Windows tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-windows.yml?query=branch%3Amain)
 [![macOS tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-macos.yml?query=branch%3Amain)
 [![WSL tests](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml/badge.svg?branch=main)](https://github.com/programster/package-pgsql-objects/actions/workflows/tests-wsl.yml?query=branch%3Amain)
@@ -10,7 +10,9 @@ PgSQL Objects: the PHP ORM built for PostgreSQL
 ## Contents
 
 **On this page:** [About](#about) · [Requirements](#requirements) · 
-[Quick start](#quick-start) · [Features](#features)
+[Installation](#installation) · [Quick start](#quick-start) · 
+[Features](#features) · [Design principles](#design-principles) · 
+[Licence](#licence)
 
 **Guides**
 - [Getting started](docs/getting-started.md): connect, create a table, write 
@@ -38,9 +40,10 @@ PgSQL Objects: the PHP ORM built for PostgreSQL
 - [Exceptions](docs/exceptions.md): what each one means, and when it's thrown.
 
 **Project**
-- [Changelog](CHANGELOG.md): what has changed in each version, and how to 
-  upgrade.
-- [Testing](docs/testing.md): running this package's tests.
+- [Upgrading](docs/upgrading.md): what has changed in each version, and how 
+  to upgrade.
+- [Testing](docs/testing.md): run this package's tests with 
+  `bash testing/run-all-php-versions.sh`.
 - [Roadmap](docs/roadmap.md): what we'd like to explore next, such as better 
   native integration with PostGIS.
 
@@ -75,9 +78,12 @@ with like any other.
 
 ## Requirements
 
-- PHP 8.2 or newer, with the `pgsql` extension.
-- PostgreSQL 14 or newer. Saving many new objects whose IDs the database 
+- PHP 8.2, 8.3, 8.4, 8.5 or 8.6, with the `pgsql` extension.
+- PostgreSQL 14 to 18. Saving many new objects whose IDs the database 
   generates (e.g. `SERIAL`) in one go needs PostgreSQL 17 or newer.
+
+
+## Installation
 
 ```bash
 composer require programster/pgsql-objects
@@ -119,6 +125,8 @@ are UUIDs or `AbstractTable` otherwise, and a record class extending
 [Getting started](docs/getting-started.md) for a walkthrough). Then:
 
 ```php
+use Programster\PgsqlObjects\CacheMode;
+
 $userTable = UserTable::getInstance();
 
 // create and save a new row.
@@ -152,7 +160,28 @@ $userTable->deleteByIds([$user->getId()]);
 - **Generated columns**, schemas other than `public`, cloning, and safe 
   defaults: unknown column names, empty filters and saving deleted objects all 
   throw, rather than doing something you didn't mean.
-- **Tested** on Linux, macOS, Windows and WSL, against PostgreSQL 14 to 18 
-  (see [Testing](docs/testing.md)).
+- **Tested** on PHP 8.2 to 8.6, against PostgreSQL 14 to 18, on Linux, and 
+  on macOS, Windows and WSL. Run them all with 
+  `bash testing/run-all-php-versions.sh` (see [Testing](docs/testing.md)).
 
 See the [contents](#contents) for the documentation of each.
+
+
+## Design principles
+
+- **PostgreSQL only, on purpose**, so it can use what PostgreSQL does well, 
+  rather than only what every database has in common (see [About](#about)).
+- **Safe by default**: anything that's probably a mistake throws, rather 
+  than quietly doing something you didn't mean, e.g. an unknown column name, 
+  an empty filter (which would otherwise match or delete every row), or 
+  saving an object that has been deleted. The cache is off unless you turn it 
+  on.
+- **Few round trips**: every write returns its row, and a batch of any size 
+  takes a handful of queries, with its values sent as parameters.
+- **UUIDs generated in code are recommended** for IDs, so a record's ID is 
+  known before it's saved (see [Identifiers](docs/identifiers.md)).
+
+
+## Licence
+
+MIT, see [LICENSE](LICENSE).

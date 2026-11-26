@@ -15,8 +15,30 @@ permissions:
     contents: read
 
 jobs:
+    # Read PostgreSQL's supported versions from testing/postgres-versions.sh, so the list is only kept there.
+    versions:
+        name: Read the supported versions of PostgreSQL
+        runs-on: ubuntu-latest
+
+        outputs:
+            postgres: ${{ steps.read.outputs.postgres }}
+
+        steps:
+            - name: Check out the code
+              uses: actions/checkout@v5
+
+            - name: Read testing/postgres-versions.sh
+              id: read
+              shell: bash
+              run: |
+                  source testing/postgres-versions.sh
+                  # e.g. ["14","15","16","17","18"], for the matrix below.
+                  JSON_LIST="$(printf '"%s",' "${POSTGRES_VERSIONS[@]}" | sed 's/^/[/; s/,$/]/')"
+                  echo "postgres=${JSON_LIST}" >> "$GITHUB_OUTPUT"
+
     tests:
         name: PostgreSQL ${{ matrix.postgres }}
+        needs: versions
         runs-on: ${{ inputs.runs-on }}
         timeout-minutes: 30
 
@@ -24,8 +46,8 @@ jobs:
             # Run every version, even if one fails, to see all the failures at once.
             fail-fast: false
             matrix:
-                # PostgreSQL's supported major versions, as in testing/run-all-versions.sh.
-                postgres: ["14", "15", "16", "17", "18"]
+                # PostgreSQL's supported major versions, from testing/postgres-versions.sh (see the versions job).
+                postgres: ${{ fromJSON(needs.versions.outputs.postgres) }}
 
         steps:
             - name: Check out the code
@@ -65,7 +87,7 @@ jobs:
                   # pipefail (which GitHub also sets) makes it the tests' exit code, rather than tee's.
                   set -o pipefail
                   status=0
-                  php testing/main.php 2>&1 | tee test-output.txt || status=$?
+                  php -d zend.assertions=1 testing/main.php 2>&1 | tee test-output.txt || status=$?
                   title="${{ runner.os }}, PostgreSQL ${{ matrix.postgres }}"
                   bash testing/github-annotations.sh "$title" test-output.txt "$status"
                   exit $status

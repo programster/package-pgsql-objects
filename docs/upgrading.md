@@ -1,11 +1,16 @@
-# Changelog
+# Upgrading
 
-All notable changes to this package are documented here. The format is based on
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this package follows
-[Semantic Versioning](https://semver.org/).
+What changed in each release, and what, if anything, to change when upgrading to it, newest first. This package
+follows [Semantic Versioning](https://semver.org/).
+
+- [To 5.0.0, from 4.x](#to-500-from-4x)
+  - [Breaking changes](#breaking-changes)
+  - [Added](#added)
+  - [Changed](#changed)
+  - [Fixed](#fixed)
 
 
-## [5.0.0] - Unreleased
+## To 5.0.0, from 4.x
 
 5.0 is in development on the `5.x` branch, which is merged into `main`, with alpha releases
 before the final 5.0.0, starting with 5.0.0-alpha1. It can still change between alphas.
@@ -24,7 +29,7 @@ Each of these needs a change to code that uses 4.x.
   `PgsqlLib::generateUuid()`. If your own code uses `ramsey/uuid`, e.g. to make IDs in
   migrations or tests, as the 4.x docs suggested, require it in your project's own
   `composer.json`, or switch to `PgsqlLib::generateUuid()` (see
-  [Generating UUIDs yourself](docs/identifiers.md#generating-uuids-yourself)).
+  [Generating UUIDs yourself](identifiers.md#generating-uuids-yourself)).
 
 **Renamed classes and methods**
 
@@ -166,7 +171,7 @@ The record's own `delete()` and `update($data)` are unchanged.
   treats it as `USE_CACHE`, and a `loadAll()` given a `SortBy` always queries. The new
   `isCacheComplete()` says whether the cache holds every row. A class that implements
   `TableInterface` itself needs the new method. See
-  [Loading the whole table once](docs/cache.md#loading-the-whole-table-once).
+  [Loading the whole table once](cache.md#loading-the-whole-table-once).
 - `loadAll()`, `loadWhereAnd()`, `loadWhereOr()` and `loadRange()` take an optional `SortBy`,
   e.g. `new SortBy('created_at', SortOrder::DESC)`, so PostgreSQL does the sorting, with the ID
   column as a tiebreaker. A class that implements `TableInterface` itself needs the new
@@ -260,11 +265,12 @@ The record's own `delete()` and `update($data)` are unchanged.
   usable. Every row is still checked before anything is sent. A value that can't be sent (anything but a string,
   int, float, bool, null or backed enum) is still refused before anything is sent, with an
   `ExceptionUnexpectedValueType` that now names the column.
-- Composer installs only include `src/`, `composer.json`, the README, this changelog and
-  the licence. The tests, the documentation and the GitHub workflows are still in the
-  repository, but no longer downloaded into your `vendor/` folder.
+- Composer installs only include `src/`, `composer.json`, the README and the licence. The
+  tests, the documentation (including this page, which replaces `CHANGELOG.md`) and the
+  GitHub workflows are still in the repository, but no longer downloaded into your `vendor/`
+  folder.
 - The README is a short overview, with a table of contents, and the detail is in the new
-  [docs/](docs/README.md) folder: a getting started guide, pages on tables and records,
+  [docs/](README.md) folder: a getting started guide, pages on tables and records,
   identifiers, loading, saving, deleting, transactions, the cache and writing your own
   queries, and a reference of every public method and exception. It makes the case for
   UUID IDs over integers that count up, and recommends deferrable foreign keys, so the
@@ -290,17 +296,17 @@ The record's own `delete()` and `update($data)` are unchanged.
 - The test suite's development dependencies match pgsql-lib 3.0's: `programster/autoloader`
   replaces `irap/autoloader`, and `programster/pgsql-migrations` is `^1.1` instead of
   `>=0.3 <2.0`. Applications using this package aren't affected.
-- The tests run on PostgreSQL 14 to 18, not just 18. `testing/run-all-versions.sh` runs
-  them against each version in a throwaway docker container, and the test connection
+- The tests run on PostgreSQL 14 to 18, not just 18. `testing/run-all-php-versions.sh`
+  runs them on PHP 8.2 to 8.6, against each version, each in a throwaway Docker container, and the test connection
   details can be set with `TEST_`-prefixed environment variables, e.g. `TEST_DB_PORT`. On
   versions older than 17, the tests check that `batchSave()` rejects new objects without
   IDs with `ExceptionUnsupportedDatabaseVersion`, saving nothing.
-- The tests run on GitHub Actions, on Linux (PHP 8.2 to 8.5), macOS, Windows and WSL,
+- The tests run on GitHub Actions, on Linux (PHP 8.2 to 8.6), macOS, Windows and WSL,
   against PostgreSQL 14 to 18 (16 in WSL), with a badge for each platform at the top of
   the README.
 - PHPStan (a development dependency) checks `src/` and `testing/` at level 10, the
-  highest, set in `phpstan.neon.dist`, and `testing/run-all-versions.sh` runs it after
-  the tests. Applications using this package aren't affected.
+  highest, set in `phpstan.neon.dist`, and `testing/run-all-php-versions.sh` runs it
+  after the tests. Applications using this package aren't affected.
 - The docblocks give the types of every array the package takes and returns, e.g. rows
   and where pairs as `array<string, mixed>`, and the column info as a `FieldInfoMap`
   shape. The loads, `insert()`, `batchInsert()` and `updateById()` are marked

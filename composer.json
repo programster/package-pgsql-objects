@@ -29,9 +29,22 @@
             "Programster\\PgsqlObjects\\Exceptions\\": "src/exceptions"
         }
     },
+    "autoload-dev": {
+        "classmap": [
+            "testing/"
+        ],
+        "exclude-from-classmap": [
+            "testing/migrations/"
+        ]
+    },
     "extra": {
         "branch-alias": {
             "dev-5.x": "5.0.x-dev"
+        }
+    },
+    "config": {
+        "platform": {
+            "php": "8.2.0"
         }
     }
 }

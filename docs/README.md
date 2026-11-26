@@ -28,8 +28,9 @@ New to the package? Start with [Getting started](getting-started.md). The
 - [Exceptions](exceptions.md): what each one means, and when it's thrown.
 
 **Project**
-- [Changelog](../CHANGELOG.md): what has changed in each version, and how to 
+- [Upgrading](upgrading.md): what has changed in each version, and how to 
   upgrade.
-- [Testing](testing.md): running this package's tests.
+- [Testing](testing.md): run this package's tests with 
+  `bash testing/run-all-php-versions.sh`.
 - [Roadmap](roadmap.md): what we'd like to explore next, such as better native 
   integration with PostGIS.
