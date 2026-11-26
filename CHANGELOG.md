@@ -160,6 +160,13 @@ The record's own `delete()` and `update($data)` are unchanged.
   table's records.
 
 ### Added
+- **Since 5.0.0-alpha10:** `CacheMode::USE_CACHE_IF_COMPLETE`, with which `loadAll()` returns
+  the cached objects without querying the database once the cache holds every row, so a
+  table loaded in full by several parts of a request is only queried once. Every other load
+  treats it as `USE_CACHE`, and a `loadAll()` given a `SortBy` always queries. The new
+  `isCacheComplete()` says whether the cache holds every row. A class that implements
+  `TableInterface` itself needs the new method. See
+  [Loading the whole table once](docs/cache.md#loading-the-whole-table-once).
 - `loadAll()`, `loadWhereAnd()`, `loadWhereOr()` and `loadRange()` take an optional `SortBy`,
   e.g. `new SortBy('created_at', SortOrder::DESC)`, so PostgreSQL does the sorting, with the ID
   column as a tiebreaker. A class that implements `TableInterface` itself needs the new
@@ -218,6 +225,10 @@ The record's own `delete()` and `update($data)` are unchanged.
   still refuse empty where pairs, rather than deleting every row.
 
 ### Changed
+- **Since 5.0.0-alpha10:** a `loadAll()` that fills the cache, with any mode but
+  `IGNORE_CACHE` and outside a transaction, now also removes from the cache the objects of
+  rows it didn't find, e.g. as another process deleted them, so `load()` no longer returns
+  them from the cache.
 - **Since 5.0.0-alpha6:** `Transaction` is renamed `OrmTransaction`, its constructor now
   takes the connection, and the `TransactionChangeType` enum is removed. It extends
   pgsql-lib's `Transaction`, and its misuse now throws pgsql-lib's

@@ -62,6 +62,12 @@ abstract class AbstractTable implements TableInterface
     protected bool $m_isCacheEnabled = false;
 
 
+    # Whether the cache holds every row of the table, so that loadAll() with CacheMode::USE_CACHE_IF_COMPLETE can
+    # return it without a query. A loadAll() that fills the cache sets it, and anything that could leave a row out of
+    # the cache clears it.
+    protected bool $m_isCacheComplete = false;
+
+
     # Cache of this table's column info, fetched the first time it's needed (see getFieldInfoMap()). Null until then.
     /** @var FieldInfoMap|null */
     protected ?array $m_fieldInfoMap = null;
@@ -457,6 +463,7 @@ abstract class AbstractTable implements TableInterface
     public function emptyCache() : void
     {
         $this->m_objectCache = [];
+        $this->m_isCacheComplete = false;
     }
 
 
@@ -492,6 +499,7 @@ abstract class AbstractTable implements TableInterface
             if ($this->getDb()->isInTransaction())
             {
                 unset($this->m_objectCache[$object->getId()]);
+                $this->m_isCacheComplete = false;
             }
             else
             {
@@ -803,7 +811,7 @@ abstract class AbstractTable implements TableInterface
 
         foreach ($ids as $id)
         {
-            if ($cacheMode === CacheMode::USE_CACHE && isset($this->m_objectCache[$id]))
+            if (self::usesCachedObjects($cacheMode) && isset($this->m_objectCache[$id]))
             {
                 $loadedObjects[$id] = $this->m_objectCache[$id];
             }
@@ -835,17 +843,19 @@ abstract class AbstractTable implements TableInterface
 
     /**
      * Loads all of these objects from the database. When the cache is enabled, this also caches every row, so that
-     * load() can then return any of them without a query.
+     * load() can then return any of them without a query, and loadAll() with USE_CACHE_IF_COMPLETE can return them all.
      *
      * @param CacheMode $cacheMode - how to use the cache, when it's enabled: USE_CACHE returns rows that are already
      * cached as the cached objects, as they are, and caches the rest. UPDATE_CACHE updates the cached objects with the
      * rows' current values, in place, and caches the rest. IGNORE_CACHE returns new objects, and leaves the cache
-     * alone. There's no default, so that you choose each time. The query always runs, as the cache is never searched:
-     * only the database knows which rows match. So with USE_CACHE, a matching row that's cached is returned as its
-     * cached object, whose values (e.g. unsaved changes) may no longer match the filter.
+     * alone. USE_CACHE_IF_COMPLETE returns the cached objects without a query, once a loadAll() has filled the cache
+     * with every row (see CacheMode), and otherwise acts as USE_CACHE. There's no default, so that you choose each
+     * time. A loadAll() that fills the cache, with any mode but IGNORE_CACHE, also forgets the cached objects of rows
+     * that no longer exist, e.g. as another process deleted them.
      *
      * @param SortBy|null $sortBy - optionally what to sort by, with the ID column as a tiebreaker. Defaults to no
-     * particular order.
+     * particular order. With a SortBy, the database is always queried, even with USE_CACHE_IF_COMPLETE, as only the
+     * database sorts exactly as PostgreSQL does.
      *
      * @return array<T>
      *
@@ -856,10 +866,27 @@ abstract class AbstractTable implements TableInterface
      */
     public function loadAll(CacheMode $cacheMode, ?SortBy $sortBy = null) : array
     {
-        $orderBy = $this->generateOrderByClause($sortBy);
-        $query = "SELECT * FROM {$this->getEscapedQualifiedTableName()}{$orderBy}";
-        $result = $this->getDb()->query($query);
-        return $this->convertPgResultToObjects($result, $cacheMode);
+        $isAnsweredByCache = (
+               $cacheMode === CacheMode::USE_CACHE_IF_COMPLETE
+            && $sortBy === null
+            && $this->m_isCacheEnabled
+            && $this->m_isCacheComplete
+        );
+
+        if ($isAnsweredByCache)
+        {
+            $objects = array_values($this->m_objectCache);
+        }
+        else
+        {
+            $orderBy = $this->generateOrderByClause($sortBy);
+            $query = "SELECT * FROM {$this->getEscapedQualifiedTableName()}{$orderBy}";
+            $result = $this->getDb()->query($query);
+            $objects = $this->convertPgResultToObjects($result, $cacheMode);
+            $this->takeOnLoadedTable($objects, $cacheMode);
+        }
+
+        return $objects;
     }
 
 
@@ -1610,14 +1637,16 @@ abstract class AbstractTable implements TableInterface
         {
             $object = $newObject;
         }
-        elseif (isset($this->m_objectCache[$id]) && $cacheMode === CacheMode::USE_CACHE)
+        elseif (isset($this->m_objectCache[$id]) && self::usesCachedObjects($cacheMode))
         {
             $object = $this->m_objectCache[$id];
         }
         elseif ($this->getDb()->isInTransaction())
         {
-            // this row could still be rolled back, so the cache mustn't hold on to it (see cacheObject()).
+            // this row could still be rolled back, so the cache mustn't hold on to it (see cacheObject()), which means
+            // it no longer holds every row.
             unset($this->m_objectCache[$id]);
+            $this->m_isCacheComplete = false;
             $object = $newObject;
         }
         elseif (isset($this->m_objectCache[$id]))
@@ -1779,6 +1808,60 @@ abstract class AbstractTable implements TableInterface
 
 
     /**
+     * After a loadAll() has fetched every row, note that the cache holds every row, and forget the cached objects of
+     * rows it didn't return, as they no longer exist (e.g. another process deleted them). Nothing is done when the
+     * rows weren't cached, i.e. with the cache disabled, with IGNORE_CACHE, or in an open transaction, whose rows the
+     * cache doesn't keep (see hydrateRow()).
+     *
+     * @param array<T> $loadedObjects - every row's object, as loadAll() returns them.
+     *
+     * @param CacheMode $cacheMode - the mode they were loaded with.
+     *
+     * @return void
+     */
+    private function takeOnLoadedTable(array $loadedObjects, CacheMode $cacheMode) : void
+    {
+        $isCached = (
+               $this->m_isCacheEnabled
+            && $cacheMode !== CacheMode::IGNORE_CACHE
+            && $this->getDb()->isInTransaction() === false
+        );
+
+        if ($isCached)
+        {
+            // the IDs are compared as strings, as integer IDs may be cached under an int key or a string one.
+            $loadedIds = [];
+
+            foreach ($loadedObjects as $loadedObject)
+            {
+                $loadedIds[(string)$loadedObject->getId()] = true;
+            }
+
+            foreach (array_keys($this->m_objectCache) as $cachedId)
+            {
+                if (!isset($loadedIds[(string)$cachedId]))
+                {
+                    unset($this->m_objectCache[$cachedId]);
+                }
+            }
+
+            $this->m_isCacheComplete = true;
+        }
+    }
+
+
+    /**
+     * Get whether a load in a cache mode returns the cached object of a row that's cached, as it is.
+     * @param CacheMode $cacheMode - the mode.
+     * @return bool - true for USE_CACHE and USE_CACHE_IF_COMPLETE.
+     */
+    private static function usesCachedObjects(CacheMode $cacheMode) : bool
+    {
+        return ($cacheMode === CacheMode::USE_CACHE || $cacheMode === CacheMode::USE_CACHE_IF_COMPLETE);
+    }
+
+
+    /**
      * Forget the cached object of a row that has been deleted: mark it as deleted, so that its save() and update()
      * throw ExceptionObjectDeleted rather than inserting the row again, and remove it from the cache. Does nothing if
      * the row's record isn't cached.
@@ -1789,6 +1872,12 @@ abstract class AbstractTable implements TableInterface
      */
     private function forgetDeletedRow(int|string $id) : void
     {
+        // a delete in an open transaction could still be rolled back, bringing the row back without its object.
+        if ($this->getDb()->isInTransaction())
+        {
+            $this->m_isCacheComplete = false;
+        }
+
         if (isset($this->m_objectCache[$id]))
         {
             $this->markObjectDeleted($this->m_objectCache[$id]);
@@ -2165,13 +2254,15 @@ abstract class AbstractTable implements TableInterface
             }
         }
 
-        // e.g. a BEFORE INSERT trigger skipped the row, so there's nothing to take on.
+        // e.g. a BEFORE INSERT trigger skipped the row, so there's nothing to take on. The object is cached although
+        // its row may not exist, so the cache can't be trusted to hold exactly the table's rows.
         foreach ($objects as $position => $object)
         {
             if (!isset($savedPositions[$position]))
             {
                 $object->markSaved();
                 $this->cacheObject($object);
+                $this->m_isCacheComplete = false;
             }
         }
     }
@@ -2277,4 +2368,5 @@ abstract class AbstractTable implements TableInterface
 
     # Accessors
     public function isCacheEnabled() : bool { return $this->m_isCacheEnabled; }
+    public function isCacheComplete() : bool { return $this->m_isCacheComplete; }
 }

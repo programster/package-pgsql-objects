@@ -55,6 +55,7 @@ Every public method, in one place, with a link to where it's explained.
 | `enableCache()` | Turns the cache on. |
 | `disableCache()` | Turns the cache off, and empties it. |
 | `isCacheEnabled()` | Whether the cache is on. |
+| `isCacheComplete()` | Whether the cache holds every row, so `loadAll()` with `USE_CACHE_IF_COMPLETE` doesn't query. |
 | `emptyCache()` | Empties the cache, leaving it on if it was. |
 | `cacheObject($object)` | Makes a saved object the cached one for its row. Records call this themselves after saving. |
 
@@ -155,6 +156,6 @@ It extends pgsql-lib's `Transaction`, so it can be passed anywhere one is expect
 
 | Enum | Cases |
 |---|---|
-| `CacheMode` | `USE_CACHE`, `UPDATE_CACHE`, `IGNORE_CACHE` ([The cache](cache.md)). |
+| `CacheMode` | `USE_CACHE`, `USE_CACHE_IF_COMPLETE`, `UPDATE_CACHE`, `IGNORE_CACHE` ([The cache](cache.md)). |
 | `DeferConfig` | `NOT_DEFERRABLE`, `INITIALLY_IMMEDIATE`, `INITIALLY_DEFERRED` ([Which setting to use](transactions.md#which-setting-to-use)). |
 | `UuidVersion` | `V7`, `V4`, `V1` ([Choosing the version](identifiers.md#choosing-the-version)). |

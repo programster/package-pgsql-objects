@@ -84,6 +84,14 @@ interface TableInterface
 
 
     /**
+     * Check whether the cache holds every row of the table, so that loadAll() with CacheMode::USE_CACHE_IF_COMPLETE
+     * returns the cached objects without a query.
+     * @return bool
+     */
+    public function isCacheComplete() : bool;
+
+
+    /**
      * Empty the cache, leaving it enabled if it was.
      * @return void
      */
